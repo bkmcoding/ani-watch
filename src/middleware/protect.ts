@@ -1,0 +1,16 @@
+import { Context, Next } from 'hono';
+import { NotFoundError } from '../utils/errors';
+
+const protect = async (c: Context, next: Next) => {
+  try {
+    const ip = c.req.header('X-Forwarded-For') ?? null;
+
+    if (!ip) throw new NotFoundError('404 Page Not Found');
+
+    await next();
+  } catch {
+    throw new NotFoundError('404 Page Not Found');
+  }
+};
+
+export default protect;

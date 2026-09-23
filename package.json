@@ -1,0 +1,54 @@
+{
+  "name": "hianime-v2",
+  "version": "2.2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryanwtf7/hianime-api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ryanwtf7/hianime-api/issues"
+  },
+  "homepage": "https://github.com/ryanwtf7/hianime-api#readme",
+  "scripts": {
+    "dev": "bun run --hot index.ts",
+    "start": "bun index.ts",
+    "build": "bun build index.ts --outdir ./dist --target bun",
+    "lint": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:jest": "NODE_OPTIONS='--experimental-vm-modules' jest",
+    "test:all": "bun run test && bun run test:jest",
+    "clean": "rm -rf dist node_modules/.cache",
+    "vercel-build": "ncc build api/index.ts -o api"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.8.2",
+    "axios": "^1.13.6",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.14.4",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vercel/ncc": "^0.38.4",
+    "@vitest/ui": "^4.1.1",
+    "bun-types": "^1.3.11",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "globals": "^17.4.0",
+    "jest": "^30.3.0",
+    "prettier": "^3.2.5",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.1"
+  }
+}
