@@ -5,7 +5,7 @@ import { extractSuggestions, Suggestion } from '../extractor/extractSuggestions'
 import { axiosInstance } from '../services/axiosInstance';
 
 const suggestionController = async (c: Context): Promise<Suggestion[]> => {
-  const keyword = c.req.query('keyword') || null;
+  const keyword = c.req.query('keyword') || c.req.query('q') || c.req.query('query') || null;
 
   if (!keyword) throw new validationError('query is required');
 

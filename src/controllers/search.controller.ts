@@ -4,7 +4,7 @@ import { axiosInstance } from '../services/axiosInstance';
 import { NotFoundError, validationError } from '../utils/errors';
 
 const searchController = async (c: Context): Promise<ListPageResponse> => {
-  const keyword = c.req.query('keyword') || null;
+  const keyword = c.req.query('keyword') || c.req.query('q') || c.req.query('query') || null;
   const page = c.req.query('page') || '1';
 
   if (!keyword) throw new validationError('query is required');

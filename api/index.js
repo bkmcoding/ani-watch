@@ -690,7 +690,7 @@ var listpage_controller_default = listpageController;
 
 // src/controllers/search.controller.ts
 var searchController = async (c) => {
-  const keyword = c.req.query("keyword") || null;
+  const keyword = c.req.query("keyword") || c.req.query("q") || c.req.query("query") || null;
   const page = c.req.query("page") || "1";
   if (!keyword) throw new validationError("query is required");
   const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, "+");
@@ -742,7 +742,7 @@ var extractSuggestions = (html) => {
 
 // src/controllers/suggestion.controller.ts
 var suggestionController = async (c) => {
-  const keyword = c.req.query("keyword") || null;
+  const keyword = c.req.query("keyword") || c.req.query("q") || c.req.query("query") || null;
   if (!keyword) throw new validationError("query is required");
   const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, "+");
   const endpoint = `/ajax/search/suggest?keyword=${noSpaceKeyword}`;
