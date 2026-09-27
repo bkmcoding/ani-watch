@@ -134,3 +134,8 @@ demo.js
 /filter.js
 
 tmp_rovodev_*.md
+tmp-*
+tmp_*.mjs
+tmp_*.ts
+tmp_*.js
+tmp_*.html

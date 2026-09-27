@@ -1,37 +1,19 @@
 import { Context } from 'hono';
-import config from '../config/config';
 import { validationError } from '../utils/errors';
 import { extractEpisodes } from '../extractor/extractEpisodes';
-import { axiosInstance } from '../services/axiosInstance';
-
-function htmlFromAjax(payload: string): string {
-  try {
-    const parsed = JSON.parse(payload);
-    if (typeof parsed?.html === 'string') return parsed.html;
-  } catch {
-    // raw HTML
-  }
-  return payload;
-}
+import { animeNumericId, fetchTheme, htmlFromAjax } from '../utils/themeAjax';
 
 const episodesController = async (c: Context) => {
   const id = c.req.param('id');
 
   if (!id) throw new validationError('id is required');
 
-  const idNum = id.split('-').at(-1);
-  const ajaxUrl = `/ajax/v2/episode/list/${idNum}`;
-
-  const result = await axiosInstance(ajaxUrl, {
-    headers: {
-      Referer: `${config.baseurl}/watch/${id}`,
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-  });
+  const idNum = animeNumericId(id);
+  const result = await fetchTheme(`episode/list/${idNum}`, `/watch/${id}`);
 
   if (!result.success || !result.data) {
     throw new validationError(result.message || 'make sure the id is correct', {
-      validIdEX: 'one-piece-100',
+      validIdEX: 'one-piece-1',
     });
   }
 

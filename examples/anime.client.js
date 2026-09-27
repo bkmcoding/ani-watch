@@ -5,8 +5,7 @@ import { UserError } from './resolve.js';
  * BOT_SECRET_KEY is sent as x-api-key.
  * Host defaults to ani.bkmcoding.com; HIANIME_API_URL overrides it.
  *
- * Supported today: search + episode lists (when the scrape source exposes them).
- * Stream URLs (episode/sources) are not implemented on this API.
+ * Search → episode list → episode/sources (MegaPlay HLS), ani-cli style.
  */
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -145,7 +144,6 @@ function qualityRank(source) {
 
 /**
  * Highest .m3u8 in a watch payload, plus the Referer the CDN usually demands.
- * Kept for if/when episode/sources lands on the API.
  */
 export function pickStream(payload) {
   const listed = (payload?.sources ?? []).filter(
@@ -177,12 +175,18 @@ export function pickStream(payload) {
   };
 }
 
-/**
- * Stream extraction is not available on ani.bkmcoding.com's hianime-api.
- * (No /episode/sources or /episode/servers routes.)
- */
-export async function watchAnime(_episodeId, _audio = 'sub') {
-  throw new UserError(
-    'Playback isn’t available on this anime API yet — search and episode lists only. Ask the API host to add episode/sources.',
-  );
+/** Resolve a playable HLS stream for an episode (ani-cli style). */
+export async function watchAnime(episodeId, audio = 'sub') {
+  const category = audio === 'dub' ? 'dub' : 'sub';
+  const params = new URLSearchParams({
+    animeEpisodeId: episodeId,
+    server: 'hd-1',
+    category,
+  });
+  const data = await getJson(`/api/v2/hianime/episode/sources?${params}`, 'Episode stream', 45_000);
+  const stream = pickStream(data);
+  if (!stream) {
+    throw new UserError('No playable stream found for that episode.');
+  }
+  return stream;
 }

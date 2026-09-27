@@ -981,27 +981,38 @@ var characterDetail_controller_default = characterDetailConroller;
 
 // src/extractor/extractEpisodes.ts
 import { load as load7 } from "cheerio";
+function watchPathFromHref(href) {
+  if (!href) return null;
+  try {
+    if (/^https?:\/\//i.test(href)) {
+      const u = new URL(href);
+      return `${u.pathname.replace(/^\/watch\/?/, "")}${u.search}`.replace(/^\//, "");
+    }
+  } catch {
+  }
+  return href.replace(/^\/?watch\/?/, "").replace(/^\//, "");
+}
 var extractEpisodes = (html) => {
   const $ = load7(html);
   const response = [];
-  $(".ssl-item.ep-item").each((i, el) => {
-    const obj = {
-      title: null,
-      alternativeTitle: null,
-      id: null,
-      isFiller: false,
-      episodeNumber: i + 1
-    };
-    obj.title = $(el).attr("title") || null;
-    obj.id = $(el).attr("href")?.replace("/watch/", "").replace("?", "::") || null;
-    obj.isFiller = $(el).hasClass("ssl-item-filler");
-    obj.alternativeTitle = $(el).find(".ep-name.e-dynamic-name").attr("data-jname") || null;
-    response.push(obj);
+  $(".ssl-item.ep-item, .ep-item").each((_, el) => {
+    const $el = $(el);
+    const hrefPath = watchPathFromHref($el.attr("href"));
+    const numberAttr = $el.attr("data-number");
+    const episodeNumber = numberAttr ? Number(numberAttr) : response.length + 1;
+    response.push({
+      title: $el.attr("title") || $el.find(".ep-name").text().trim() || null,
+      alternativeTitle: $el.find(".ep-name.e-dynamic-name").attr("data-jname") || null,
+      // aniwatch-style: one-piece-1?ep=1 (use ? in API, :: legacy optional)
+      id: hrefPath ? hrefPath.replace("?", "::") : null,
+      isFiller: $el.hasClass("ssl-item-filler") || $el.hasClass("filler"),
+      episodeNumber: Number.isFinite(episodeNumber) ? episodeNumber : response.length + 1
+    });
   });
   return response;
 };
 
-// src/controllers/episodes.controller.ts
+// src/utils/themeAjax.ts
 function htmlFromAjax(payload) {
   try {
     const parsed = JSON.parse(payload);
@@ -1010,20 +1021,45 @@ function htmlFromAjax(payload) {
   }
   return payload;
 }
+function animeNumericId(animeId) {
+  const num = animeId.split("-").at(-1);
+  if (!num || !/^\d+$/.test(num)) {
+    throw new Error(`Invalid anime id: ${animeId}`);
+  }
+  return num;
+}
+function episodeNumericId(episodeId) {
+  const normalized = episodeId.replace("::", "?");
+  const fromQuery = normalized.match(/[?&]ep=(\d+)/i)?.[1];
+  if (fromQuery) return fromQuery;
+  if (/^\d+$/.test(normalized)) return normalized;
+  throw new Error(`Invalid episode id: ${episodeId}`);
+}
+function animeSlugFromEpisodeId(episodeId) {
+  const normalized = episodeId.replace("::", "?");
+  const slug = normalized.split("?")[0]?.trim();
+  return slug || null;
+}
+async function fetchTheme(path, refererPath) {
+  const referer = refererPath ? `${config_default.baseurl}${refererPath.startsWith("/") ? refererPath : `/${refererPath}`}` : `${config_default.baseurl}/`;
+  return axiosInstance(`/api/theme/${path.replace(/^\//, "")}`, {
+    headers: {
+      Referer: referer,
+      "X-Requested-With": "XMLHttpRequest",
+      Accept: "application/json, text/javascript, */*; q=0.01"
+    }
+  });
+}
+
+// src/controllers/episodes.controller.ts
 var episodesController = async (c) => {
   const id = c.req.param("id");
   if (!id) throw new validationError("id is required");
-  const idNum = id.split("-").at(-1);
-  const ajaxUrl = `/ajax/v2/episode/list/${idNum}`;
-  const result = await axiosInstance(ajaxUrl, {
-    headers: {
-      Referer: `${config_default.baseurl}/watch/${id}`,
-      "X-Requested-With": "XMLHttpRequest"
-    }
-  });
+  const idNum = animeNumericId(id);
+  const result = await fetchTheme(`episode/list/${idNum}`, `/watch/${id}`);
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure the id is correct", {
-      validIdEX: "one-piece-100"
+      validIdEX: "one-piece-1"
     });
   }
   const extracted = extractEpisodes(htmlFromAjax(result.data));
@@ -1043,6 +1079,236 @@ var episodesController = async (c) => {
   };
 };
 var episodes_controller_default = episodesController;
+
+// src/services/megaplay.ts
+import { createDecipheriv } from "node:crypto";
+import { load as load8 } from "cheerio";
+var MEGAPLAY_KEY = Buffer.alloc(32);
+Buffer.from("i?LMTAx0Q6,:}50U", "utf8").copy(MEGAPLAY_KEY);
+var MEGAPLAY_IV = Buffer.alloc(16);
+Buffer.from("W0;27ToaUpl_P%'c", "utf8").copy(MEGAPLAY_IV);
+var DEFAULT_UA = config_default.headers?.["User-Agent"] || "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+function b64urlToBuf(s) {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - s.length % 4);
+  return Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/") + pad, "base64");
+}
+function decryptMegaPlayEnc(enc) {
+  const decipher = createDecipheriv("aes-256-cbc", MEGAPLAY_KEY, MEGAPLAY_IV);
+  return Buffer.concat([decipher.update(b64urlToBuf(enc)), decipher.final()]).toString("utf8");
+}
+function parseThemeServers(html) {
+  const $ = load8(html);
+  const servers = [];
+  let idx = 0;
+  $(".server-item[data-hash]").each((_, el) => {
+    const $el = $(el);
+    const hash = $el.attr("data-hash");
+    if (!hash) return;
+    let embedUrl = "";
+    try {
+      embedUrl = Buffer.from(hash, "base64").toString("utf8");
+    } catch {
+      return;
+    }
+    idx += 1;
+    servers.push({
+      type: ($el.attr("data-type") || "sub").toLowerCase(),
+      serverName: ($el.attr("data-server-name") || $el.text().trim() || `server-${idx}`).trim(),
+      serverId: idx,
+      embedUrl
+    });
+  });
+  return servers;
+}
+function pickServer(servers, serverName, category) {
+  const cat = category.toLowerCase();
+  const want = serverName.toLowerCase().replace(/\s+/g, "-");
+  const pool = servers.filter((s) => s.type === cat);
+  const exact = pool.find((s) => s.serverName.toLowerCase().replace(/\s+/g, "-") === want) || pool.find((s) => s.serverName.toLowerCase().includes(want.replace(/-/g, " "))) || pool.find((s) => s.serverName.toLowerCase().includes(want));
+  if (exact) return exact;
+  return pool.find((s) => /megaplay/i.test(s.embedUrl) && /hd-?1/i.test(s.serverName)) || pool.find((s) => /megaplay/i.test(s.embedUrl)) || pool[0] || null;
+}
+async function fetchText(url, headers) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15e3);
+  try {
+    const res = await fetch(url, { headers, signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return await res.text();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+function extractMegaPlayIds(embedHtml) {
+  const $ = load8(embedHtml);
+  const player = $("#megaplay-player, [data-id][data-realid]").first();
+  const id = player.attr("data-id");
+  if (id) {
+    return { id, realId: player.attr("data-realid") || void 0 };
+  }
+  const m = embedHtml.match(/data-id=["'](\d+)["']/);
+  return m ? { id: m[1] } : null;
+}
+function resolveM3u8FromDecrypted(decrypted) {
+  const trimmed = decrypted.trim();
+  if (/^https?:\/\//i.test(trimmed) && /\.m3u8/i.test(trimmed)) return trimmed;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed?.file === "string") return parsed.file;
+    if (typeof parsed?.url === "string") return parsed.url;
+    if (Array.isArray(parsed) && typeof parsed[0]?.file === "string") return parsed[0].file;
+  } catch {
+  }
+  const urlMatch = trimmed.match(/https?:\/\/[^\s"'\\]+\.m3u8[^\s"'\\]*/i);
+  return urlMatch?.[0] || null;
+}
+async function resolveMegaPlaySources(embedUrl) {
+  const embedHtml = await fetchText(embedUrl, {
+    "User-Agent": DEFAULT_UA,
+    Referer: `${config_default.baseurl}/`,
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+  });
+  const ids = extractMegaPlayIds(embedHtml);
+  if (!ids?.id) {
+    throw new Error("Could not find MegaPlay source id in embed");
+  }
+  const embed = new URL(embedUrl);
+  const sParam = embed.searchParams.get("s");
+  const getSourcesUrl = new URL(`${embed.origin}/stream/getSources`);
+  getSourcesUrl.searchParams.set("id", ids.id);
+  if (sParam) getSourcesUrl.searchParams.set("s", sParam);
+  const raw = await fetchText(getSourcesUrl.toString(), {
+    "User-Agent": DEFAULT_UA,
+    Referer: embedUrl,
+    "X-Requested-With": "XMLHttpRequest",
+    Accept: "*/*"
+  });
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    throw new Error("MegaPlay getSources returned non-JSON");
+  }
+  const enc = typeof payload.enc === "string" && payload.enc || typeof payload.sources === "string" && payload.sources || typeof payload.sources === "object" && payload.sources?.file || "";
+  if (!enc) throw new Error("MegaPlay getSources missing encrypted stream");
+  const decrypted = decryptMegaPlayEnc(enc);
+  const m3u8 = resolveM3u8FromDecrypted(decrypted);
+  if (!m3u8) throw new Error("Failed to decrypt MegaPlay stream URL");
+  const subtitles = (payload.tracks || []).filter((t) => t.file && (t.kind === "captions" || t.kind === "subtitles" || !t.kind)).map((t) => ({
+    lang: t.label || "Unknown",
+    url: t.file,
+    default: Boolean(t.default)
+  }));
+  const intro = payload.intro?.start != null && payload.intro?.end != null ? { start: payload.intro.start, end: payload.intro.end } : null;
+  const outro = payload.outro?.start != null && payload.outro?.end != null ? { start: payload.outro.start, end: payload.outro.end } : null;
+  return {
+    headers: {
+      Referer: embed.origin + "/",
+      "User-Agent": DEFAULT_UA
+    },
+    sources: [
+      {
+        url: m3u8,
+        isM3U8: true,
+        quality: "auto"
+      }
+    ],
+    subtitles,
+    intro,
+    outro,
+    anilistID: null,
+    malID: null
+  };
+}
+
+// src/controllers/servers.controller.ts
+function mapServers(servers, type) {
+  return servers.filter((s) => s.type === type).map((s) => ({
+    serverId: s.serverId,
+    serverName: s.serverName.toLowerCase().replace(/\s+/g, "-")
+  }));
+}
+var serversController = async (c) => {
+  const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
+  if (!animeEpisodeId) {
+    throw new validationError("animeEpisodeId is required", {
+      example: "one-piece-1?ep=1"
+    });
+  }
+  const epNum = episodeNumericId(animeEpisodeId);
+  const slug = animeSlugFromEpisodeId(animeEpisodeId);
+  const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
+  const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
+  if (!result.success || !result.data) {
+    throw new validationError(result.message || "could not load episode servers", {
+      animeEpisodeId
+    });
+  }
+  const servers = parseThemeServers(htmlFromAjax(result.data));
+  const episodeNo = Number(epNum);
+  return {
+    episodeId: animeEpisodeId.replace("::", "?"),
+    episodeNo: Number.isFinite(episodeNo) ? episodeNo : null,
+    sub: mapServers(servers, "sub"),
+    dub: mapServers(servers, "dub"),
+    raw: mapServers(servers, "raw")
+  };
+};
+var servers_controller_default = serversController;
+
+// src/controllers/sources.controller.ts
+var sourcesController = async (c) => {
+  const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
+  const server = (c.req.query("server") || "hd-1").toLowerCase();
+  const category = (c.req.query("category") || c.req.query("type") || "sub").toLowerCase();
+  if (!animeEpisodeId) {
+    throw new validationError("animeEpisodeId is required", {
+      example: "one-piece-1?ep=1"
+    });
+  }
+  const epNum = episodeNumericId(animeEpisodeId);
+  const slug = animeSlugFromEpisodeId(animeEpisodeId);
+  const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
+  const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
+  if (!result.success || !result.data) {
+    throw new validationError(result.message || "could not load episode servers", {
+      animeEpisodeId
+    });
+  }
+  const servers = parseThemeServers(htmlFromAjax(result.data));
+  const picked = pickServer(servers, server, category);
+  if (!picked) {
+    throw new validationError(`No ${category} server matching "${server}"`, {
+      available: servers.map((s) => ({ type: s.type, serverName: s.serverName }))
+    });
+  }
+  if (!/megaplay/i.test(picked.embedUrl)) {
+    const megaplayFallback = pickServer(
+      servers.filter((s) => /megaplay/i.test(s.embedUrl)),
+      "hd-1",
+      category
+    );
+    if (!megaplayFallback) {
+      throw new validationError(
+        `Server "${picked.serverName}" is not a MegaPlay embed; no stream extractor available`,
+        { embedUrl: picked.embedUrl }
+      );
+    }
+    const stream2 = await resolveMegaPlaySources(megaplayFallback.embedUrl);
+    return {
+      ...stream2,
+      server: megaplayFallback.serverName.toLowerCase().replace(/\s+/g, "-"),
+      category
+    };
+  }
+  const stream = await resolveMegaPlaySources(picked.embedUrl);
+  return {
+    ...stream,
+    server: picked.serverName.toLowerCase().replace(/\s+/g, "-"),
+    category
+  };
+};
+var sources_controller_default = sourcesController;
 
 // src/controllers/allGenres.controller.ts
 var allGenres = [
@@ -1094,9 +1360,9 @@ var allGenresController = () => {
 var allGenres_controller_default = allGenresController;
 
 // src/extractor/extractNextEpisodeSchedule.ts
-import { load as load8 } from "cheerio";
+import { load as load9 } from "cheerio";
 var extractNextEpisodeSchedule = (html) => {
-  const $ = load8(html);
+  const $ = load9(html);
   const scheduleElement = $("#schedule-date");
   const scheduleDate = scheduleElement.attr("data-value");
   if (scheduleDate) {
@@ -1349,9 +1615,9 @@ var randomController = async (_c) => {
 var random_controller_default = randomController;
 
 // src/extractor/extractSchedule.ts
-import { load as load11 } from "cheerio";
+import { load as load12 } from "cheerio";
 var extractSchedule = (html) => {
-  const $ = load11(html);
+  const $ = load12(html);
   const response = [];
   $("a").each((i, element) => {
     const obj = {
@@ -1486,6 +1752,10 @@ router.get("/character/:id", handler_default(characterDetail_controller_default)
 router.get("/episodes/:id", handler_default(episodes_controller_default));
 router.get("/hianime/anime/:id/episodes", handler_default(episodes_controller_default));
 router.get("/anime/:id/episodes", handler_default(episodes_controller_default));
+router.get("/hianime/episode/servers", handler_default(servers_controller_default));
+router.get("/episode/servers", handler_default(servers_controller_default));
+router.get("/hianime/episode/sources", handler_default(sources_controller_default));
+router.get("/episode/sources", handler_default(sources_controller_default));
 router.get("/genres", handler_default(allGenres_controller_default));
 router.get("/news", handler_default(news_controller_default));
 router.get("/random", handler_default(random_controller_default));
