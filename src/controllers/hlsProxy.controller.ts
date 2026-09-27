@@ -1,23 +1,10 @@
 import { Context } from 'hono';
 import { validationError } from '../utils/errors';
-import { requestOrigin } from '../utils/streamUrls';
+import { isAllowedStreamHost, requestOrigin } from '../utils/streamUrls';
 
 const REFERRER = 'https://megaplay.buzz/';
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
-
-const ALLOWED_HOST_SUFFIXES = [
-  'megaplay.buzz',
-  'shiora.top',
-  'tiktokcdn.com',
-  'tiktokcdn-us.com',
-  'hiddenvertex.top',
-];
-
-function hostAllowed(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s));
-}
 
 function stripPngWrapper(buf: Buffer): Buffer {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
@@ -66,7 +53,7 @@ const hlsProxyController = async (c: Context) => {
     throw new validationError('url must be absolute');
   }
 
-  if (!/^https?:$/i.test(parsed.protocol) || !hostAllowed(parsed.hostname)) {
+  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedStreamHost(parsed.hostname)) {
     throw new validationError('url host not allowed');
   }
 

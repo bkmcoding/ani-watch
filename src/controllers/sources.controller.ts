@@ -4,7 +4,7 @@ import {
   parseThemeServers,
   pickServer,
   resolveMegaPlaySources,
-  StreamResult,
+  ThemeServer,
 } from '../services/megaplay';
 import {
   animeSlugFromEpisodeId,
@@ -14,41 +14,43 @@ import {
 } from '../utils/themeAjax';
 import { proxiedHlsUrl, requestOrigin, watchPageUrl } from '../utils/streamUrls';
 
-function withPlayableProxy(c: Context, stream: StreamResult, server: string, category: string) {
-  const origin = requestOrigin(c);
-  const sources = stream.sources.map((s) => {
-    const link = watchPageUrl(origin, s.url);
-    return {
-      ...s,
-      // Browser-openable page (plays in-tab; does not download .m3u8)
-      url: link,
-      isM3U8: false,
-      type: 'link' as const,
-      // Raw proxied playlist for VLC/mpv/bots that speak HLS
-      streamUrl: proxiedHlsUrl(origin, s.url),
-      originalUrl: s.url,
-    };
-  });
+function pickMegaPlay(servers: ThemeServer[], category: string, server: string) {
+  const picked = pickServer(servers, server, category);
+  if (picked && /megaplay/i.test(picked.embedUrl)) return picked;
+  return pickServer(
+    servers.filter((s) => /megaplay/i.test(s.embedUrl)),
+    'hd-1',
+    category
+  );
+}
 
-  return {
-    ...stream,
-    // Top-level share link — open this in a browser
-    link: sources[0]?.url || null,
-    sources,
-    headers: {
-      Referer: `${origin}/`,
-      'User-Agent': stream.headers['User-Agent'] || stream.headers['user-agent'] || '',
-    },
-    server,
-    category,
-  };
+async function resolveCategory(
+  servers: ThemeServer[],
+  category: 'sub' | 'dub',
+  server: string
+) {
+  const picked = pickMegaPlay(servers, category, server);
+  if (!picked) return null;
+  try {
+    const stream = await resolveMegaPlaySources(picked.embedUrl);
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      server: picked.serverName.toLowerCase().replace(/\s+/g, '-'),
+      m3u8,
+      stream,
+    };
+  } catch {
+    return null;
+  }
 }
 
 const sourcesController = async (c: Context) => {
   const animeEpisodeId =
     c.req.query('animeEpisodeId') || c.req.query('episodeId') || c.req.param('episodeId');
   const server = (c.req.query('server') || 'hd-1').toLowerCase();
-  const category = (c.req.query('category') || c.req.query('type') || 'sub').toLowerCase();
+  const preferred = (c.req.query('category') || c.req.query('type') || 'sub').toLowerCase();
 
   if (!animeEpisodeId) {
     throw new validationError('animeEpisodeId is required', {
@@ -69,36 +71,78 @@ const sourcesController = async (c: Context) => {
   }
 
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  let picked = pickServer(servers, server, category);
+  const hasSub = servers.some((s) => s.type === 'sub');
+  const hasDub = servers.some((s) => s.type === 'dub');
 
-  if (!picked) {
-    throw new validationError(`No ${category} server matching "${server}"`, {
+  // Resolve available audio tracks in parallel (MegaPlay only).
+  const [subTrack, dubTrack] = await Promise.all([
+    hasSub ? resolveCategory(servers, 'sub', server) : Promise.resolve(null),
+    hasDub ? resolveCategory(servers, 'dub', server) : Promise.resolve(null),
+  ]);
+
+  if (!subTrack && !dubTrack) {
+    throw new validationError('No MegaPlay sub/dub stream found for this episode', {
       available: servers.map((s) => ({ type: s.type, serverName: s.serverName })),
     });
   }
 
-  if (!/megaplay/i.test(picked.embedUrl)) {
-    const megaplayFallback = pickServer(
-      servers.filter((s) => /megaplay/i.test(s.embedUrl)),
-      'hd-1',
-      category
-    );
-    if (!megaplayFallback) {
-      throw new validationError(
-        `Server "${picked.serverName}" is not a MegaPlay embed; no stream extractor available`,
-        { embedUrl: picked.embedUrl }
-      );
-    }
-    picked = megaplayFallback;
+  const origin = requestOrigin(c);
+  const active =
+    (preferred === 'dub' && dubTrack) ||
+    (preferred === 'sub' && subTrack) ||
+    subTrack ||
+    dubTrack;
+
+  if (!active) {
+    throw new validationError(`No ${preferred} stream available`);
   }
 
-  const stream = await resolveMegaPlaySources(picked.embedUrl);
-  return withPlayableProxy(
-    c,
-    stream,
-    picked.serverName.toLowerCase().replace(/\s+/g, '-'),
-    category
-  );
+  const link = watchPageUrl(origin, {
+    sub: subTrack?.m3u8 || null,
+    dub: dubTrack?.m3u8 || null,
+    category: active.category,
+  });
+
+  const tracks: Record<string, unknown> = {};
+  for (const track of [subTrack, dubTrack]) {
+    if (!track) continue;
+    tracks[track.category] = {
+      link: watchPageUrl(origin, {
+        sub: subTrack?.m3u8 || null,
+        dub: dubTrack?.m3u8 || null,
+        category: track.category,
+      }),
+      streamUrl: proxiedHlsUrl(origin, track.m3u8),
+      originalUrl: track.m3u8,
+      server: track.server,
+    };
+  }
+
+  return {
+    ...active.stream,
+    link,
+    tracks,
+    availableCategories: [
+      ...(subTrack ? (['sub'] as const) : []),
+      ...(dubTrack ? (['dub'] as const) : []),
+    ],
+    sources: [
+      {
+        url: link,
+        isM3U8: false,
+        quality: 'auto',
+        type: 'link' as const,
+        streamUrl: proxiedHlsUrl(origin, active.m3u8),
+        originalUrl: active.m3u8,
+      },
+    ],
+    headers: {
+      Referer: `${origin}/`,
+      'User-Agent': active.stream.headers['User-Agent'] || '',
+    },
+    server: active.server,
+    category: active.category,
+  };
 };
 
 export default sourcesController;

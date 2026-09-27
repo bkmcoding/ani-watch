@@ -145,13 +145,31 @@ function qualityRank(source) {
 /**
  * Prefer the browser watch page link; fall back to an HLS URL for CLI players.
  */
-export function pickStream(payload) {
+export function pickStream(payload, audio = 'sub') {
+  const want = audio === 'dub' ? 'dub' : 'sub';
+  const trackLink = payload?.tracks?.[want]?.link || payload?.tracks?.[want]?.streamUrl;
   const page =
+    trackLink ||
     payload?.link ||
     payload?.sources?.find((s) => s?.type === 'link' && s?.url)?.url ||
     payload?.sources?.find((s) => s?.url && /\/hianime\/watch\?/i.test(s.url))?.url;
-  if (page) {
-    return { url: page, quality: 'auto', referer: null, kind: 'page' };
+  if (page && (/\/hianime\/watch\?/i.test(page) || payload?.tracks?.[want]?.link === page)) {
+    return {
+      url: page,
+      quality: 'auto',
+      referer: null,
+      kind: 'page',
+      availableCategories: payload?.availableCategories ?? Object.keys(payload?.tracks || {}),
+    };
+  }
+  if (trackLink) {
+    return {
+      url: trackLink,
+      quality: 'auto',
+      referer: payload?.headers?.Referer || null,
+      kind: /\/hianime\/watch\?/i.test(trackLink) ? 'page' : 'hls',
+      availableCategories: payload?.availableCategories ?? Object.keys(payload?.tracks || {}),
+    };
   }
 
   const listed = (payload?.sources ?? []).flatMap((source) => {
@@ -171,6 +189,7 @@ export function pickStream(payload) {
     quality: rank ? `${rank}p` : best.quality || 'auto',
     referer: headers.Referer || headers.referer || null,
     kind: 'hls',
+    availableCategories: payload?.availableCategories ?? [],
   };
 }
 
@@ -183,7 +202,7 @@ export async function watchAnime(episodeId, audio = 'sub') {
     category,
   });
   const data = await getJson(`/api/v2/hianime/episode/sources?${params}`, 'Episode stream', 45_000);
-  const stream = pickStream(data);
+  const stream = pickStream(data, category);
   if (!stream) {
     throw new UserError('No playable stream found for that episode.');
   }
