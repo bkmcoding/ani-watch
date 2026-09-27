@@ -258,6 +258,90 @@ const browseController = async (c: Context) => {
       color: var(--muted);
     }
     .tick .sub { color: var(--accent); background: var(--accent-dim); }
+    .detail {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.03);
+      margin-bottom: 14px;
+    }
+    .detail .poster {
+      aspect-ratio: 3 / 4.2;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .detail-body { display: grid; gap: 10px; align-content: start; min-width: 0; }
+    .detail-body h2 {
+      margin: 0;
+      font-family: Syne, sans-serif;
+      font-size: clamp(1.2rem, 2.4vw, 1.55rem);
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+    }
+    .detail-alt { margin: 0; color: var(--muted); font-size: 0.88rem; }
+    .detail-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .stat {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid var(--line);
+    }
+    .stat .k {
+      display: block;
+      color: var(--muted);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .stat .v { font-size: 0.86rem; font-weight: 600; }
+    .synopsis {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 5;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .synopsis.expanded {
+      display: block;
+      -webkit-line-clamp: unset;
+    }
+    .syn-toggle {
+      appearance: none;
+      border: 0;
+      background: none;
+      color: var(--accent);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 650;
+      padding: 0;
+      cursor: pointer;
+      width: fit-content;
+    }
+    .section-label {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    @media (max-width: 640px) {
+      .detail { grid-template-columns: 96px 1fr; gap: 12px; padding: 12px; }
+      .detail-stats { grid-template-columns: repeat(2, 1fr); }
+    }
     .ep-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -534,20 +618,88 @@ const browseController = async (c: Context) => {
         });
       }
 
-      function renderEpisodes(anime, payload) {
+      function renderEpisodes(anime, payload, detail) {
         state.view = 'episodes';
         state.anime = anime;
         var episodes = payload.episodes || [];
-        var poster = payload.poster || anime.poster || null;
+        var d = detail || {};
+        var poster = d.poster || payload.poster || anime.poster || null;
+        var title = d.title || anime.name || anime.id;
         setCrumbs([
           { label: 'Results', action: 'search' },
-          { label: anime.name || anime.id },
+          { label: title },
         ]);
         if (!episodes.length) {
           main.innerHTML = '<div class="empty"><h2>No episodes</h2><p>This title has no playable episode list right now.</p></div>';
           return;
         }
-        main.innerHTML = '<div class="ep-grid" id="epGrid"></div>';
+
+        var eps = d.episodes || anime.episodes || {};
+        var ticks = '';
+        if (d.type || anime.type) ticks += '<span>' + esc(d.type || anime.type) + '</span>';
+        if (d.rating) ticks += '<span>' + esc(d.rating) + '</span>';
+        if (d.is18Plus) ticks += '<span>18+</span>';
+        if (eps.sub != null) ticks += '<span class="sub">SUB ' + esc(eps.sub) + '</span>';
+        if (eps.dub != null) ticks += '<span>DUB ' + esc(eps.dub) + '</span>';
+        (d.genres || []).slice(0, 6).forEach(function (g) {
+          ticks += '<span>' + esc(g) + '</span>';
+        });
+
+        function stat(k, v) {
+          if (v == null || v === '') return '';
+          return '<div class="stat"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
+        }
+
+        var aired = '';
+        if (d.aired && (d.aired.from || d.aired.to)) {
+          aired = [d.aired.from, d.aired.to].filter(Boolean).join(' – ');
+        }
+
+        var synopsis = (d.synopsis || '').trim();
+        var synHtml = '';
+        if (synopsis) {
+          synHtml =
+            '<p class="synopsis" id="synopsis">' + esc(synopsis) + '</p>' +
+            (synopsis.length > 220
+              ? '<button type="button" class="syn-toggle" id="synToggle">Show more</button>'
+              : '');
+        }
+
+        var detailHtml =
+          '<section class="detail">' +
+            posterImg(poster, title) +
+            '<div class="detail-body">' +
+              '<h2>' + esc(title) + '</h2>' +
+              (d.alternativeTitle || anime.jname
+                ? '<p class="detail-alt">' + esc(d.alternativeTitle || anime.jname) + '</p>'
+                : '') +
+              '<div class="tick">' + ticks + '</div>' +
+              '<div class="detail-stats">' +
+                stat('Status', d.status) +
+                stat('Score', d.MAL_score) +
+                stat('Premiered', d.premiered) +
+                stat('Aired', aired) +
+                stat('Duration', d.duration || anime.duration) +
+                stat('Episodes', payload.totalEpisodes || episodes.length) +
+                stat('Studios', (d.studios || []).slice(0, 2).join(', ')) +
+              '</div>' +
+              synHtml +
+            '</div>' +
+          '</section>' +
+          '<p class="section-label">Episodes</p>' +
+          '<div class="ep-grid" id="epGrid"></div>';
+
+        main.innerHTML = detailHtml;
+
+        var synToggle = document.getElementById('synToggle');
+        var synEl = document.getElementById('synopsis');
+        if (synToggle && synEl) {
+          synToggle.addEventListener('click', function () {
+            var open = synEl.classList.toggle('expanded');
+            synToggle.textContent = open ? 'Show less' : 'Show more';
+          });
+        }
+
         var grid = document.getElementById('epGrid');
         episodes.forEach(function (ep) {
           var btn = document.createElement('button');
@@ -605,12 +757,18 @@ const browseController = async (c: Context) => {
 
       async function loadEpisodes(anime) {
         if (!anime || !anime.id) return;
-        setStatus('Loading episodes…');
+        setStatus('Loading details…');
         showSkeleton(8);
         try {
-          var data = await getJson('/api/v2/hianime/anime/' + encodeURIComponent(anime.id) + '/episodes');
+          var id = encodeURIComponent(anime.id);
+          var results = await Promise.all([
+            getJson('/api/v2/hianime/anime/' + id + '/episodes'),
+            getJson('/api/v2/anime/' + id).catch(function () { return null; }),
+          ]);
+          var data = results[0];
+          var detail = results[1];
           setStatus((data.totalEpisodes || (data.episodes || []).length) + ' episodes');
-          renderEpisodes(anime, data);
+          renderEpisodes(anime, data, detail);
         } catch (err) {
           setStatus(err.message || 'Could not load episodes', true);
           main.innerHTML = '<div class="empty"><h2>Could not load episodes</h2><p>' + esc(err.message || '') + '</p></div>';
