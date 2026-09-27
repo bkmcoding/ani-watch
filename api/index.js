@@ -1437,8 +1437,18 @@ function refererForStreamUrl(url) {
   }
   return "https://megaplay.buzz/";
 }
+function mediaProxyOrigin() {
+  const raw = (process.env.MEDIA_PROXY_ORIGIN || "").trim().replace(/\/+$/, "");
+  if (!raw || !/^https?:\/\//i.test(raw)) return null;
+  return raw;
+}
+function hlsProxyBase(siteOrigin) {
+  const media = mediaProxyOrigin();
+  if (media) return `${media}/hls`;
+  return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/hls`;
+}
 function proxiedHlsUrl(origin, m3u8) {
-  return `${origin.replace(/\/+$/, "")}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
+  return `${hlsProxyBase(origin)}?url=${encodeURIComponent(m3u8)}`;
 }
 function pickEnglishSubtitle(subs) {
   if (!subs?.length) return null;
@@ -1918,7 +1928,7 @@ var hlsProxyController = async (c) => {
   }
   const ct = (upstream.headers.get("content-type") || "").toLowerCase();
   const isPlaylist = ct.includes("mpegurl") || ct.includes("m3u8") || /\.m3u8(\?|$)/i.test(parsed.pathname);
-  const proxyBase = `${requestOrigin(c)}/api/v2/hianime/hls`;
+  const proxyBase = hlsProxyBase(requestOrigin(c));
   if (isPlaylist) {
     const text = await upstream.text();
     const rewritten = rewritePlaylist(text, parsed.href, proxyBase);

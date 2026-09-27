@@ -1,0 +1,295 @@
+/**
+ * Cloudflare Worker: HLS + poster media proxy.
+ * Keeps video/poster bytes off Vercel Fast Origin Transfer.
+ *
+ * Routes:
+ *   GET /hls?url=https://...
+ *   GET /poster?url=https://...
+ */
+const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
+
+const STREAM_HOST_SUFFIXES = [
+  'megaplay.buzz',
+  'shiora.top',
+  'akirax.buzz',
+  'tiktokcdn.com',
+  'tiktokcdn-us.com',
+  'hiddenvertex.top',
+  'aniwatchtv.uk',
+  'zokoanime.video',
+];
+
+const POSTER_HOST_SUFFIXES = [
+  'anipixcdn.co',
+  'noitatnemucod.net',
+  'bunnycdn.ru',
+  'b-cdn.net',
+  'wsrv.nl',
+  'weserv.nl',
+];
+
+function isAllowedStreamHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host.startsWith('megap.')) return true;
+  if (host.startsWith('hls') && host.includes('aniwatchtv')) return true;
+  return STREAM_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s));
+}
+
+function isAllowedPosterHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s))) return true;
+  if (host.includes('anipix') || host.includes('noitatnemucod')) return true;
+  return false;
+}
+
+function refererForStreamUrl(url: string): string {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes('aniwatchtv') || host.includes('zoko')) {
+      return 'https://zokoanime.video/';
+    }
+  } catch {
+    // fall through
+  }
+  return 'https://megaplay.buzz/';
+}
+
+function corsHeaders(extra: Record<string, string> = {}): HeadersInit {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers': '*',
+    ...extra,
+  };
+}
+
+function stripPngWrapper(buf: Uint8Array): Uint8Array {
+  if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    const marker = new TextEncoder().encode('IEND');
+    let iend = -1;
+    for (let i = 0; i < buf.length - 4; i++) {
+      if (
+        buf[i] === marker[0] &&
+        buf[i + 1] === marker[1] &&
+        buf[i + 2] === marker[2] &&
+        buf[i + 3] === marker[3]
+      ) {
+        iend = i;
+        break;
+      }
+    }
+    if (iend > 0 && iend + 8 < buf.length) {
+      const tail = buf.subarray(iend + 8);
+      if (tail[0] === 0x47) return tail;
+    }
+  }
+  return buf;
+}
+
+function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): string {
+  return body
+    .split(/\r?\n/)
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
+          try {
+            const abs = new URL(uri, playlistUrl).href;
+            return `URI="${proxyBase}?url=${encodeURIComponent(abs)}"`;
+          } catch {
+            return `URI="${uri}"`;
+          }
+        });
+      }
+      try {
+        const abs = new URL(trimmed, playlistUrl).href;
+        return `${proxyBase}?url=${encodeURIComponent(abs)}`;
+      } catch {
+        return line;
+      }
+    })
+    .join('\n');
+}
+
+async function handleHls(request: Request, workerOrigin: string): Promise<Response> {
+  const target = new URL(request.url).searchParams.get('url');
+  if (!target) {
+    return new Response('url is required', { status: 400, headers: corsHeaders() });
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(target);
+  } catch {
+    return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
+  }
+
+  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedStreamHost(parsed.hostname)) {
+    return new Response('url host not allowed', { status: 400, headers: corsHeaders() });
+  }
+
+  const referer = refererForStreamUrl(parsed.href);
+  let originHeader = 'https://megaplay.buzz';
+  try {
+    originHeader = new URL(referer).origin;
+  } catch {
+    // keep default
+  }
+
+  const upstream = await fetch(parsed.href, {
+    headers: {
+      'User-Agent': UA,
+      Referer: referer,
+      Origin: originHeader,
+      Accept: '*/*',
+    },
+    redirect: 'follow',
+  });
+
+  if (!upstream.ok) {
+    return new Response(`Upstream ${upstream.status}`, { status: 502, headers: corsHeaders() });
+  }
+
+  const ct = (upstream.headers.get('content-type') || '').toLowerCase();
+  const isPlaylist =
+    ct.includes('mpegurl') ||
+    ct.includes('m3u8') ||
+    /\.m3u8(\?|$)/i.test(parsed.pathname);
+
+  const proxyBase = `${workerOrigin}/hls`;
+
+  if (isPlaylist) {
+    const text = await upstream.text();
+    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
+    return new Response(rewritten, {
+      status: 200,
+      headers: corsHeaders({
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-store',
+      }),
+    });
+  }
+
+  const isVtt =
+    ct.includes('text/vtt') || ct.includes('vtt') || /\.vtt(\?|$)/i.test(parsed.pathname);
+  const isAss = /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes('ass');
+
+  if (isVtt || isAss) {
+    const text = await upstream.text();
+    return new Response(text, {
+      status: 200,
+      headers: corsHeaders({
+        'Content-Type': isAss ? 'text/plain; charset=utf-8' : 'text/vtt; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+      }),
+    });
+  }
+
+  // Buffer only for PNG unwrap; stream when clearly not PNG (saves free-tier CPU).
+  const ab = await upstream.arrayBuffer();
+  const raw = new Uint8Array(ab);
+  const isPng = raw.length > 4 && raw[0] === 0x89 && raw[1] === 0x50 && raw[2] === 0x4e && raw[3] === 0x47;
+  const media = isPng ? stripPngWrapper(raw) : raw;
+
+  return new Response(media, {
+    status: 200,
+    headers: corsHeaders({
+      'Content-Type': 'video/mp2t',
+      'Cache-Control': 'public, max-age=300',
+    }),
+  });
+}
+
+async function handlePoster(request: Request): Promise<Response> {
+  const target = new URL(request.url).searchParams.get('url');
+  if (!target) {
+    return new Response('url is required', { status: 400, headers: corsHeaders() });
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(target);
+  } catch {
+    return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
+  }
+
+  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedPosterHost(parsed.hostname)) {
+    return new Response('url host not allowed', { status: 400, headers: corsHeaders() });
+  }
+
+  const site = 'https://hianime.lu';
+  const tries: Array<[string, string]> = [
+    ['', ''],
+    [`${site}/`, site],
+    ['https://hianime.lu/', 'https://hianime.lu'],
+  ];
+
+  for (const [referer, origin] of tries) {
+    try {
+      const headers: Record<string, string> = {
+        'User-Agent': UA,
+        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+      };
+      if (referer) headers.Referer = referer;
+      if (origin) headers.Origin = origin;
+
+      const upstream = await fetch(parsed.href, {
+        headers,
+        redirect: 'follow',
+      });
+      if (!upstream.ok) continue;
+      const contentType = upstream.headers.get('content-type') || '';
+      if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) continue;
+
+      // Stream body through — posters are small; avoid extra buffering when possible.
+      const type = /^image\//i.test(contentType) ? contentType : 'image/jpeg';
+      return new Response(upstream.body, {
+        status: 200,
+        headers: corsHeaders({
+          'Content-Type': type,
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+        }),
+      });
+    } catch {
+      // try next referer
+    }
+  }
+
+  return new Response('Upstream image unavailable', { status: 502, headers: corsHeaders() });
+}
+
+export default {
+  async fetch(request: Request): Promise<Response> {
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders() });
+    }
+
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response('Method not allowed', { status: 405, headers: corsHeaders() });
+    }
+
+    const url = new URL(request.url);
+    const workerOrigin = url.origin;
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+
+    if (path === '/' || path === '') {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          service: 'hianime-media-proxy',
+          routes: ['/hls?url=', '/poster?url='],
+        }),
+        {
+          status: 200,
+          headers: corsHeaders({ 'Content-Type': 'application/json' }),
+        }
+      );
+    }
+
+    if (path === '/hls') return handleHls(request, workerOrigin);
+    if (path === '/poster') return handlePoster(request);
+
+    return new Response('Not found', { status: 404, headers: corsHeaders() });
+  },
+};

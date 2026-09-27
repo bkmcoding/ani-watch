@@ -46,8 +46,33 @@ export function refererForStreamUrl(url: string): string {
   return 'https://megaplay.buzz/';
 }
 
+/**
+ * Optional Cloudflare Worker (or other) origin for media bytes.
+ * When set, HLS/poster URLs leave Vercel so Fast Origin Transfer stays low.
+ * Example: https://hianime-media-proxy.myaccount.workers.dev
+ */
+export function mediaProxyOrigin(): string | null {
+  const raw = (process.env.MEDIA_PROXY_ORIGIN || '').trim().replace(/\/+$/, '');
+  if (!raw || !/^https?:\/\//i.test(raw)) return null;
+  return raw;
+}
+
+/** Base URL for HLS proxy (Worker `/hls` or same-origin API path). */
+export function hlsProxyBase(siteOrigin: string): string {
+  const media = mediaProxyOrigin();
+  if (media) return `${media}/hls`;
+  return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/hls`;
+}
+
+/** Base URL for poster proxy (Worker `/poster` or same-origin API path). */
+export function posterProxyBase(siteOrigin: string): string {
+  const media = mediaProxyOrigin();
+  if (media) return `${media}/poster`;
+  return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/poster`;
+}
+
 export function proxiedHlsUrl(origin: string, m3u8: string): string {
-  return `${origin.replace(/\/+$/, '')}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
+  return `${hlsProxyBase(origin)}?url=${encodeURIComponent(m3u8)}`;
 }
 
 /** Prefer English softsub VTT from provider track lists (HTML5 <track> needs VTT). */

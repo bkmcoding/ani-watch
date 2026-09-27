@@ -1,6 +1,6 @@
 import { Context } from 'hono';
 import { validationError } from '../utils/errors';
-import { isAllowedStreamHost, refererForStreamUrl, requestOrigin } from '../utils/streamUrls';
+import { isAllowedStreamHost, refererForStreamUrl, hlsProxyBase, requestOrigin } from '../utils/streamUrls';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
@@ -84,7 +84,7 @@ const hlsProxyController = async (c: Context) => {
     ct.includes('m3u8') ||
     /\.m3u8(\?|$)/i.test(parsed.pathname);
 
-  const proxyBase = `${requestOrigin(c)}/api/v2/hianime/hls`;
+  const proxyBase = hlsProxyBase(requestOrigin(c));
 
   if (isPlaylist) {
     const text = await upstream.text();

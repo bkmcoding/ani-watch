@@ -1,3 +1,5 @@
+import { posterProxyBase } from './streamUrls';
+
 /** HiAnime / Zoro thumbnail hosts (BunnyCDN hotlink-protected). */
 const POSTER_HOST_SUFFIXES = [
   'anipixcdn.co',
@@ -16,7 +18,7 @@ export function isAllowedPosterHost(hostname: string): boolean {
   return false;
 }
 
-/** Same-origin proxy so browse can show posters despite CDN hotlink rules. */
+/** Same-origin (or MEDIA_PROXY_ORIGIN) proxy so browse can show posters despite CDN hotlink rules. */
 export function proxiedPosterUrl(origin: string, poster: string | null | undefined): string | null {
   if (!poster || !/^https?:\/\//i.test(poster)) return null;
   try {
@@ -25,6 +27,5 @@ export function proxiedPosterUrl(origin: string, poster: string | null | undefin
   } catch {
     return null;
   }
-  const base = origin.replace(/\/+$/, '');
-  return `${base}/api/v2/hianime/poster?url=${encodeURIComponent(poster)}`;
+  return `${posterProxyBase(origin)}?url=${encodeURIComponent(poster)}`;
 }

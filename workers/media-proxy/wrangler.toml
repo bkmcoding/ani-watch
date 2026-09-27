@@ -1,0 +1,5 @@
+name = "hianime-media-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# Free tier: keep CPU light; no bundler extras needed for a single module.
