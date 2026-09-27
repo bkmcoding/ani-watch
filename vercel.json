@@ -21,6 +21,15 @@
           "value": "no-store"
         }
       ]
+    },
+    {
+      "source": "/browse",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
     }
   ]
 }

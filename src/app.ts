@@ -5,12 +5,13 @@ import { AppError } from './utils/errors';
 import { fail, success } from './utils/response';
 import { logger } from 'hono/logger';
 import config from './config/config';
-
 import { faviconResponse, SITE_NAME, SITE_TAGLINE } from './utils/brand';
+import landingController from './controllers/landing.controller';
+import browseController from './controllers/browse.controller';
 
 const app = new Hono();
 const origins = config.origin.includes(',')
-  ? config.origin.split(',').map(o => o.trim())
+  ? config.origin.split(',').map((o) => o.trim())
   : config.origin === '*'
     ? '*'
     : [config.origin];
@@ -31,12 +32,30 @@ if (!config.isProduction || config.enableLogging) {
   app.use('/api/v2/*', logger());
 }
 
-/** JSON entrypoint — navigate the API via these routes (no HTML frontend). */
-app.get('/', (c: Context) => {
+async function htmlRoute(c: Context, fn: (c: Context) => Promise<Response>) {
+  try {
+    return await fn(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+}
+
+app.get('/', (c) => htmlRoute(c, landingController));
+app.get('/browse', (c) => htmlRoute(c, browseController));
+
+/** JSON catalog for bots / curl — HTML lives at / and /browse. */
+app.get('/api', (c: Context) => {
   return success(c, {
     name: SITE_NAME,
     by: 'wab',
     tagline: SITE_TAGLINE,
+    pages: {
+      home: '/',
+      browse: '/browse',
+    },
     auth: 'Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, and /hls are public.',
     flow: [
       'GET /api/v2/hianime/search?keyword=',
