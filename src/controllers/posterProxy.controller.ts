@@ -2,6 +2,7 @@ import { Context } from 'hono';
 import config from '../config/config';
 import { validationError } from '../utils/errors';
 import { isAllowedPosterHost } from '../utils/posterUrls';
+import { mediaProxyAuthOk } from '../utils/streamUrls';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
@@ -97,6 +98,10 @@ async function loadPoster(href: string): Promise<CacheEntry | null> {
 
 /** Proxies HiAnime poster CDNs (allowlisted) with short-lived in-memory cache. */
 const posterProxyController = async (c: Context) => {
+  if (!mediaProxyAuthOk(c.req.query('k') || undefined)) {
+    throw new validationError('invalid or missing media proxy key');
+  }
+
   const target = c.req.query('url');
   if (!target) throw new validationError('url is required');
 

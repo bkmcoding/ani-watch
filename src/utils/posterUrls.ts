@@ -1,4 +1,4 @@
-import { posterProxyBase } from './streamUrls';
+import { buildMediaProxyUrl, posterProxyBase } from './streamUrls';
 
 /** HiAnime / Zoro thumbnail hosts (BunnyCDN hotlink-protected). */
 const POSTER_HOST_SUFFIXES = [
@@ -27,5 +27,5 @@ export function proxiedPosterUrl(origin: string, poster: string | null | undefin
   } catch {
     return null;
   }
-  return `${posterProxyBase(origin)}?url=${encodeURIComponent(poster)}`;
+  return buildMediaProxyUrl(posterProxyBase(origin), poster);
 }

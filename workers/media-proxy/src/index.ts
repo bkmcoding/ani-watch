@@ -3,9 +3,16 @@
  * Keeps video/poster bytes off Vercel Fast Origin Transfer.
  *
  * Routes:
- *   GET /hls?url=https://...
- *   GET /poster?url=https://...
+ *   GET /hls?url=https://...&k=SECRET
+ *   GET /poster?url=https://...&k=SECRET
+ *
+ * Set secret: npx wrangler secret put MEDIA_PROXY_SECRET
+ * (same value as Vercel env MEDIA_PROXY_SECRET)
  */
+export interface Env {
+  MEDIA_PROXY_SECRET?: string;
+}
+
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
@@ -64,6 +71,28 @@ function corsHeaders(extra: Record<string, string> = {}): HeadersInit {
   };
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return out === 0;
+}
+
+/** When MEDIA_PROXY_SECRET is set, require matching `k` query param. */
+function authOk(request: Request, env: Env): boolean {
+  const expected = (env.MEDIA_PROXY_SECRET || '').trim();
+  if (!expected) return true;
+  const provided = new URL(request.url).searchParams.get('k') || '';
+  return timingSafeEqual(provided, expected);
+}
+
+function buildProxyUrl(proxyBase: string, upstreamUrl: string, secret: string | null): string {
+  const u = new URL(proxyBase);
+  u.searchParams.set('url', upstreamUrl);
+  if (secret) u.searchParams.set('k', secret);
+  return u.href;
+}
+
 function stripPngWrapper(buf: Uint8Array): Uint8Array {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
     const marker = new TextEncoder().encode('IEND');
@@ -87,7 +116,12 @@ function stripPngWrapper(buf: Uint8Array): Uint8Array {
   return buf;
 }
 
-function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): string {
+function rewritePlaylist(
+  body: string,
+  playlistUrl: string,
+  proxyBase: string,
+  secret: string | null
+): string {
   return body
     .split(/\r?\n/)
     .map((line) => {
@@ -96,7 +130,7 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
         return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
           try {
             const abs = new URL(uri, playlistUrl).href;
-            return `URI="${proxyBase}?url=${encodeURIComponent(abs)}"`;
+            return `URI="${buildProxyUrl(proxyBase, abs, secret)}"`;
           } catch {
             return `URI="${uri}"`;
           }
@@ -104,7 +138,7 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
       }
       try {
         const abs = new URL(trimmed, playlistUrl).href;
-        return `${proxyBase}?url=${encodeURIComponent(abs)}`;
+        return buildProxyUrl(proxyBase, abs, secret);
       } catch {
         return line;
       }
@@ -112,7 +146,7 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
     .join('\n');
 }
 
-async function handleHls(request: Request, workerOrigin: string): Promise<Response> {
+async function handleHls(request: Request, workerOrigin: string, env: Env): Promise<Response> {
   const target = new URL(request.url).searchParams.get('url');
   if (!target) {
     return new Response('url is required', { status: 400, headers: corsHeaders() });
@@ -158,10 +192,11 @@ async function handleHls(request: Request, workerOrigin: string): Promise<Respon
     /\.m3u8(\?|$)/i.test(parsed.pathname);
 
   const proxyBase = `${workerOrigin}/hls`;
+  const secret = (env.MEDIA_PROXY_SECRET || '').trim() || null;
 
   if (isPlaylist) {
     const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
+    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, secret);
     return new Response(rewritten, {
       status: 200,
       headers: corsHeaders({
@@ -186,7 +221,6 @@ async function handleHls(request: Request, workerOrigin: string): Promise<Respon
     });
   }
 
-  // Buffer only for PNG unwrap; stream when clearly not PNG (saves free-tier CPU).
   const ab = await upstream.arrayBuffer();
   const raw = new Uint8Array(ab);
   const isPng = raw.length > 4 && raw[0] === 0x89 && raw[1] === 0x50 && raw[2] === 0x4e && raw[3] === 0x47;
@@ -242,7 +276,6 @@ async function handlePoster(request: Request): Promise<Response> {
       const contentType = upstream.headers.get('content-type') || '';
       if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) continue;
 
-      // Stream body through — posters are small; avoid extra buffering when possible.
       const type = /^image\//i.test(contentType) ? contentType : 'image/jpeg';
       return new Response(upstream.body, {
         status: 200,
@@ -260,7 +293,7 @@ async function handlePoster(request: Request): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
@@ -278,7 +311,8 @@ export default {
         JSON.stringify({
           ok: true,
           service: 'hianime-media-proxy',
-          routes: ['/hls?url=', '/poster?url='],
+          routes: ['/hls?url=&k=', '/poster?url=&k='],
+          auth: Boolean((env.MEDIA_PROXY_SECRET || '').trim()),
         }),
         {
           status: 200,
@@ -287,7 +321,16 @@ export default {
       );
     }
 
-    if (path === '/hls') return handleHls(request, workerOrigin);
+    if (path === '/hls' || path === '/poster') {
+      if (!authOk(request, env)) {
+        return new Response('invalid or missing media proxy key', {
+          status: 401,
+          headers: corsHeaders(),
+        });
+      }
+    }
+
+    if (path === '/hls') return handleHls(request, workerOrigin, env);
     if (path === '/poster') return handlePoster(request);
 
     return new Response('Not found', { status: 404, headers: corsHeaders() });

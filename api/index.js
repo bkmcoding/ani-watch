@@ -1442,13 +1442,47 @@ function mediaProxyOrigin() {
   if (!raw || !/^https?:\/\//i.test(raw)) return null;
   return raw;
 }
+function mediaProxySecret() {
+  const raw = (process.env.MEDIA_PROXY_SECRET || "").trim();
+  return raw || null;
+}
+function withMediaProxyAuth(proxyUrl) {
+  const k = mediaProxySecret();
+  if (!k) return proxyUrl;
+  try {
+    const u = new URL(proxyUrl);
+    u.searchParams.set("k", k);
+    return u.href;
+  } catch {
+    const join = proxyUrl.includes("?") ? "&" : "?";
+    return `${proxyUrl}${join}k=${encodeURIComponent(k)}`;
+  }
+}
+function mediaProxyAuthOk(provided) {
+  const expected = mediaProxySecret();
+  if (!expected) return true;
+  if (!provided || provided.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
+  }
+  return diff === 0;
+}
 function hlsProxyBase(siteOrigin) {
   const media = mediaProxyOrigin();
   if (media) return `${media}/hls`;
   return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/hls`;
 }
+function posterProxyBase(siteOrigin) {
+  const media = mediaProxyOrigin();
+  if (media) return `${media}/poster`;
+  return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/poster`;
+}
+function buildMediaProxyUrl(proxyBase, upstreamUrl) {
+  return withMediaProxyAuth(`${proxyBase}?url=${encodeURIComponent(upstreamUrl)}`);
+}
 function proxiedHlsUrl(origin, m3u8) {
-  return `${hlsProxyBase(origin)}?url=${encodeURIComponent(m3u8)}`;
+  return buildMediaProxyUrl(hlsProxyBase(origin), m3u8);
 }
 function pickEnglishSubtitle(subs) {
   if (!subs?.length) return null;
@@ -1882,7 +1916,7 @@ function rewritePlaylist(body, playlistUrl, proxyBase) {
       return line.replace(/URI="([^"]+)"/gi, (_, uri) => {
         try {
           const abs = new URL(uri, playlistUrl).href;
-          return `URI="${proxyBase}?url=${encodeURIComponent(abs)}"`;
+          return `URI="${buildMediaProxyUrl(proxyBase, abs)}"`;
         } catch {
           return `URI="${uri}"`;
         }
@@ -1890,13 +1924,16 @@ function rewritePlaylist(body, playlistUrl, proxyBase) {
     }
     try {
       const abs = new URL(trimmed, playlistUrl).href;
-      return `${proxyBase}?url=${encodeURIComponent(abs)}`;
+      return buildMediaProxyUrl(proxyBase, abs);
     } catch {
       return line;
     }
   }).join("\n");
 }
 var hlsProxyController = async (c) => {
+  if (!mediaProxyAuthOk(c.req.query("k") || void 0)) {
+    throw new validationError("invalid or missing media proxy key");
+  }
   const target = c.req.query("url");
   if (!target) throw new validationError("url is required");
   let parsed;
@@ -2063,6 +2100,9 @@ async function loadPoster(href) {
   return job;
 }
 var posterProxyController = async (c) => {
+  if (!mediaProxyAuthOk(c.req.query("k") || void 0)) {
+    throw new validationError("invalid or missing media proxy key");
+  }
   const target = c.req.query("url");
   if (!target) throw new validationError("url is required");
   let parsed;
@@ -4176,6 +4216,8 @@ var landing_controller_default = landingController;
 // src/controllers/browse.controller.ts
 var browseController = async (c) => {
   const origin = requestOrigin(c);
+  const posterProxy = posterProxyBase(origin);
+  const posterKey = mediaProxySecret();
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -4689,6 +4731,8 @@ var browseController = async (c) => {
       var statusEl = document.getElementById('status');
       var crumbs = document.getElementById('crumbs');
       var state = { view: 'home', anime: null, lastAnimes: [] };
+      var POSTER_PROXY_BASE = ${JSON.stringify(posterProxy)};
+      var POSTER_PROXY_KEY = ${JSON.stringify(posterKey)};
 
       try { localStorage.removeItem(KEY); } catch (e) {}
       apiKey.value = sessionStorage.getItem(KEY) || '';
@@ -4779,6 +4823,12 @@ var browseController = async (c) => {
         return abs.indexOf('anipixcdn.co') !== -1;
       }
 
+      function viaPosterProxy(abs) {
+        var u = POSTER_PROXY_BASE + '?url=' + encodeURIComponent(abs);
+        if (POSTER_PROXY_KEY) u += '&k=' + encodeURIComponent(POSTER_PROXY_KEY);
+        return u;
+      }
+
       /**
        * Prefer direct CDN (fast) when hotlink-safe; proxy only as fallback.
        * Dedupes so episode grids sharing one anime poster hit the network once.
@@ -4791,7 +4841,7 @@ var browseController = async (c) => {
           var abs = absUrl(url);
           if (!abs || seen['u:' + abs]) return;
           seen['u:' + abs] = 1;
-          var viaProxy = '/api/v2/hianime/poster?url=' + encodeURIComponent(abs);
+          var viaProxy = viaPosterProxy(abs);
           if (canHotlinkDirect(abs)) {
             direct.push(abs);
             proxied.push(viaProxy);

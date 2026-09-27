@@ -69,51 +69,72 @@ npx wrangler deploy
 Replace `WORKER` with your origin:
 
 ```bash
-# Should return 400 / validation error without url= (proves the Worker is up)
-curl -i "$WORKER/hls"
+# Should return 401 once MEDIA_PROXY_SECRET is set on the Worker
+curl -i "$WORKER/hls?url=https://example.com/x.m3u8"
 
-# Poster probe (use any allowlisted poster URL your API already returns)
-curl -i "$WORKER/poster?url=https://example-allowed-cdn/poster.jpg"
+# With key (use a real allowlisted upstream URL)
+curl -i "$WORKER/hls?url=URL&k=YOUR_SECRET"
 ```
 
 A healthy Worker responds quickly; `502` usually means the upstream CDN blocked the fetch (wrong host or Referer), not a Wrangler misconfig.
 
 ---
 
-## 4. Point Vercel at the Worker
+## 4. Point Vercel at the Worker + set the shared secret
 
-In the [Vercel dashboard](https://vercel.com/dashboard) → your project → **Settings** → **Environment Variables**:
+Generate a long random secret (example):
+
+```bash
+openssl rand -hex 24
+```
+
+### A. Cloudflare Worker secret
+
+From `workers/media-proxy`:
+
+```bash
+npx wrangler secret put MEDIA_PROXY_SECRET
+```
+
+Paste the same secret when prompted. Redeploy if needed:
+
+```bash
+npx wrangler deploy
+```
+
+### B. Vercel project env vars
 
 | Name | Value | Environments |
 | --- | --- | --- |
 | `MEDIA_PROXY_ORIGIN` | `https://hianime-media-proxy.<subdomain>.workers.dev` | Production (and Preview if you want) |
+| `MEDIA_PROXY_SECRET` | *(same secret as Wrangler)* | Production (and Preview if you want) |
 
-Rules:
+Rules for `MEDIA_PROXY_ORIGIN`:
 
 - Use `https://`
 - **No** trailing slash
-- Do **not** include `/hls` or `/poster` in the value — the app appends those paths
+- Do **not** include `/hls` or `/poster` — the app appends those paths
 
-Redeploy the Vercel project so the new env var is picked up (Deployments → … → Redeploy, or push a commit).
+Redeploy the Vercel project so both env vars are picked up.
 
 ### Local / Bun dev
 
-Create or edit `.env` / `.env.local`:
-
 ```env
 MEDIA_PROXY_ORIGIN=https://hianime-media-proxy.<subdomain>.workers.dev
+MEDIA_PROXY_SECRET=your-same-secret
 ```
 
-Restart the dev server. Omit the var to keep using local Vercel-style `/hls` on the same origin.
+If `MEDIA_PROXY_SECRET` is unset on both sides, proxies stay open (dev only). Once set on the Worker, requests without `k=` return **401**.
 
 ---
 
 ## 5. Verify end-to-end
 
 1. Open browse → play an episode.
-2. In DevTools → Network, confirm media requests go to **`*.workers.dev/hls?url=...`**, not your Vercel host `/api/v2/hianime/hls`.
-3. Posters on browse should hit **`*.workers.dev/poster?url=...`** when proxied.
-4. In Vercel → Usage, Fast Origin Transfer should stop climbing during playback (only HTML/JSON should remain).
+2. In DevTools → Network, confirm media requests go to **`*.workers.dev/hls?url=...&k=...`**, not your Vercel host `/api/v2/hianime/hls`.
+3. Posters on browse (fallback path) should hit **`*.workers.dev/poster?url=...&k=...`**.
+4. Hitting the Worker without `k` should return **401**.
+5. In Vercel → Usage, Fast Origin Transfer should stop climbing during playback (only HTML/JSON should remain).
 
 ---
 
@@ -135,6 +156,7 @@ If you outgrow free requests, Workers **Paid** (~$5/mo) is usually cheaper than 
 | Symptom | Likely cause |
 | --- | --- |
 | Watch still hits Vercel `/hls` | `MEDIA_PROXY_ORIGIN` missing, typo, or Vercel not redeployed |
+| `401` / invalid media proxy key | Secret missing/mismatched between Vercel and Wrangler |
 | Worker `url host not allowed` | CDN host not in the Worker allowlist (same list as the API) |
 | Black screen / stuck loading | Upstream blocked; check Worker logs: `npx wrangler tail` |
 | Works locally, fails in prod | Env var set only on Preview, not Production (or vice versa) |
@@ -145,7 +167,8 @@ If you outgrow free requests, Workers **Paid** (~$5/mo) is usually cheaper than 
 ## Rollback
 
 1. Remove `MEDIA_PROXY_ORIGIN` from Vercel (or set it empty).
-2. Redeploy.
+2. Optionally remove `MEDIA_PROXY_SECRET` from Vercel and delete the Worker secret.
+3. Redeploy.
 
 The API falls back to same-origin `/api/v2/hianime/hls` and `/poster` on Vercel again.
 
@@ -154,4 +177,5 @@ The API falls back to same-origin `/api/v2/hianime/hls` and `/poster` on Vercel 
 ## Security notes
 
 - The Worker only proxies **allowlisted** stream/poster hosts (same idea as the API).
-- Anyone who knows the Worker URL can burn your request quota — treat a public `*.workers.dev` link as semi-public. If abuse appears, add a shared secret header/query later and send it from the API when minting proxy URLs.
+- `MEDIA_PROXY_SECRET` is sent as query `k=` (required for `<video>` / `<img>` / HLS.js). It will appear in browser Network tabs — it stops casual quota abuse, not a determined scraper who already has a watch URL.
+- Keep the secret long and random; rotate by updating Wrangler + Vercel together, then redeploy both.

@@ -1,9 +1,11 @@
 import { Context } from 'hono';
 import { faviconLinkTags, SITE_NAME, SITE_TAGLINE } from '../utils/brand';
-import { requestOrigin } from '../utils/streamUrls';
+import { mediaProxySecret, posterProxyBase, requestOrigin } from '../utils/streamUrls';
 
 const browseController = async (c: Context) => {
   const origin = requestOrigin(c);
+  const posterProxy = posterProxyBase(origin);
+  const posterKey = mediaProxySecret();
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -517,6 +519,8 @@ const browseController = async (c: Context) => {
       var statusEl = document.getElementById('status');
       var crumbs = document.getElementById('crumbs');
       var state = { view: 'home', anime: null, lastAnimes: [] };
+      var POSTER_PROXY_BASE = ${JSON.stringify(posterProxy)};
+      var POSTER_PROXY_KEY = ${JSON.stringify(posterKey)};
 
       try { localStorage.removeItem(KEY); } catch (e) {}
       apiKey.value = sessionStorage.getItem(KEY) || '';
@@ -607,6 +611,12 @@ const browseController = async (c: Context) => {
         return abs.indexOf('anipixcdn.co') !== -1;
       }
 
+      function viaPosterProxy(abs) {
+        var u = POSTER_PROXY_BASE + '?url=' + encodeURIComponent(abs);
+        if (POSTER_PROXY_KEY) u += '&k=' + encodeURIComponent(POSTER_PROXY_KEY);
+        return u;
+      }
+
       /**
        * Prefer direct CDN (fast) when hotlink-safe; proxy only as fallback.
        * Dedupes so episode grids sharing one anime poster hit the network once.
@@ -619,7 +629,7 @@ const browseController = async (c: Context) => {
           var abs = absUrl(url);
           if (!abs || seen['u:' + abs]) return;
           seen['u:' + abs] = 1;
-          var viaProxy = '/api/v2/hianime/poster?url=' + encodeURIComponent(abs);
+          var viaProxy = viaPosterProxy(abs);
           if (canHotlinkDirect(abs)) {
             direct.push(abs);
             proxied.push(viaProxy);

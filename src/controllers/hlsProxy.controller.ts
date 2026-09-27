@@ -1,6 +1,13 @@
 import { Context } from 'hono';
 import { validationError } from '../utils/errors';
-import { isAllowedStreamHost, refererForStreamUrl, hlsProxyBase, requestOrigin } from '../utils/streamUrls';
+import {
+  buildMediaProxyUrl,
+  hlsProxyBase,
+  isAllowedStreamHost,
+  mediaProxyAuthOk,
+  refererForStreamUrl,
+  requestOrigin,
+} from '../utils/streamUrls';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
@@ -25,7 +32,7 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
         return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
           try {
             const abs = new URL(uri, playlistUrl).href;
-            return `URI="${proxyBase}?url=${encodeURIComponent(abs)}"`;
+            return `URI="${buildMediaProxyUrl(proxyBase, abs)}"`;
           } catch {
             return `URI="${uri}"`;
           }
@@ -33,7 +40,7 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
       }
       try {
         const abs = new URL(trimmed, playlistUrl).href;
-        return `${proxyBase}?url=${encodeURIComponent(abs)}`;
+        return buildMediaProxyUrl(proxyBase, abs);
       } catch {
         return line;
       }
@@ -42,6 +49,10 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
 }
 
 const hlsProxyController = async (c: Context) => {
+  if (!mediaProxyAuthOk(c.req.query('k') || undefined)) {
+    throw new validationError('invalid or missing media proxy key');
+  }
+
   const target = c.req.query('url');
   if (!target) throw new validationError('url is required');
 

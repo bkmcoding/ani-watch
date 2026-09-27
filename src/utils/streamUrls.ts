@@ -57,6 +57,38 @@ export function mediaProxyOrigin(): string | null {
   return raw;
 }
 
+/** Shared secret for /hls and /poster (`k` query param). Empty = open (dev only). */
+export function mediaProxySecret(): string | null {
+  const raw = (process.env.MEDIA_PROXY_SECRET || '').trim();
+  return raw || null;
+}
+
+/** Append `k=` when MEDIA_PROXY_SECRET is configured. */
+export function withMediaProxyAuth(proxyUrl: string): string {
+  const k = mediaProxySecret();
+  if (!k) return proxyUrl;
+  try {
+    const u = new URL(proxyUrl);
+    u.searchParams.set('k', k);
+    return u.href;
+  } catch {
+    const join = proxyUrl.includes('?') ? '&' : '?';
+    return `${proxyUrl}${join}k=${encodeURIComponent(k)}`;
+  }
+}
+
+/** True when request carries a valid media proxy key (or secret is unset). */
+export function mediaProxyAuthOk(provided: string | null | undefined): boolean {
+  const expected = mediaProxySecret();
+  if (!expected) return true;
+  if (!provided || provided.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 /** Base URL for HLS proxy (Worker `/hls` or same-origin API path). */
 export function hlsProxyBase(siteOrigin: string): string {
   const media = mediaProxyOrigin();
@@ -71,8 +103,13 @@ export function posterProxyBase(siteOrigin: string): string {
   return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/poster`;
 }
 
+/** Build an authenticated proxy URL for an upstream media/poster URL. */
+export function buildMediaProxyUrl(proxyBase: string, upstreamUrl: string): string {
+  return withMediaProxyAuth(`${proxyBase}?url=${encodeURIComponent(upstreamUrl)}`);
+}
+
 export function proxiedHlsUrl(origin: string, m3u8: string): string {
-  return `${hlsProxyBase(origin)}?url=${encodeURIComponent(m3u8)}`;
+  return buildMediaProxyUrl(hlsProxyBase(origin), m3u8);
 }
 
 /** Prefer English softsub VTT from provider track lists (HTML5 <track> needs VTT). */
