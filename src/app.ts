@@ -2,11 +2,11 @@ import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
 import hiAnimeRoutes from './routes/routes';
 import { AppError } from './utils/errors';
-import { fail } from './utils/response';
+import { fail, success } from './utils/response';
 import { logger } from 'hono/logger';
 import config from './config/config';
-import landingController from './controllers/landing.controller';
-import browseController from './controllers/browse.controller';
+
+import { faviconResponse, SITE_NAME, SITE_TAGLINE } from './utils/brand';
 
 const app = new Hono();
 const origins = config.origin.includes(',')
@@ -31,26 +31,33 @@ if (!config.isProduction || config.enableLogging) {
   app.use('/api/v2/*', logger());
 }
 
-app.get('/', async (c: Context) => {
-  try {
-    return await landingController(c);
-  } catch (error: unknown) {
-    if (error instanceof AppError) {
-      return fail(c, error.message, error.statusCode, error.details);
-    }
-    throw error;
-  }
-});
-
-app.get('/browse', async (c: Context) => {
-  try {
-    return await browseController(c);
-  } catch (error: unknown) {
-    if (error instanceof AppError) {
-      return fail(c, error.message, error.statusCode, error.details);
-    }
-    throw error;
-  }
+/** JSON entrypoint — navigate the API via these routes (no HTML frontend). */
+app.get('/', (c: Context) => {
+  return success(c, {
+    name: SITE_NAME,
+    by: 'wab',
+    tagline: SITE_TAGLINE,
+    auth: 'Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, and /hls are public.',
+    flow: [
+      'GET /api/v2/hianime/search?keyword=',
+      'GET /api/v2/hianime/anime/:id/episodes',
+      'GET /api/v2/hianime/episode/sources?animeEpisodeId=&category=sub|dub',
+      'Open data.link (or data.tracks.sub|dub.link) in a browser to play',
+      'Use data.navigation.prev|next or /watch/play to change episodes',
+    ],
+    endpoints: {
+      ping: '/ping',
+      favicon: '/favicon.svg',
+      search: '/api/v2/hianime/search?keyword=',
+      anime: '/api/v2/anime/:id',
+      episodes: '/api/v2/hianime/anime/:id/episodes',
+      servers: '/api/v2/hianime/episode/servers?animeEpisodeId=',
+      sources: '/api/v2/hianime/episode/sources?animeEpisodeId=&category=',
+      watch: '/api/v2/hianime/watch',
+      watchPlay: '/api/v2/hianime/watch/play?animeEpisodeId=&category=',
+      hls: '/api/v2/hianime/hls?url=',
+    },
+  });
 });
 
 app.get('/ping', (c: Context) => {
@@ -61,9 +68,8 @@ app.get('/ping', (c: Context) => {
   });
 });
 
-app.get('/favicon.ico', (c: Context) => {
-  return c.body(null, 204);
-});
+app.get('/favicon.ico', () => faviconResponse());
+app.get('/favicon.svg', () => faviconResponse());
 
 app.route('/api/v2', hiAnimeRoutes);
 app.onError((err, c) => {

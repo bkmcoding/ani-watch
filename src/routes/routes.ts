@@ -13,6 +13,7 @@ import serversController from '../controllers/servers.controller';
 import sourcesController from '../controllers/sources.controller';
 import hlsProxyController from '../controllers/hlsProxy.controller';
 import watchController from '../controllers/watch.controller';
+import watchPlayController from '../controllers/watchPlay.controller';
 import allGenresController from '../controllers/allGenres.controller';
 import { AppError } from '../utils/errors';
 import { fail } from '../utils/response';
@@ -54,6 +55,17 @@ router.get('/episode/sources', handler(sourcesController));
 router.get('/hianime/hls', async (c) => {
   try {
     return await hlsProxyController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
+// Public episode hop — resolves sources then redirects to /watch (used by Prev/Next)
+router.get('/hianime/watch/play', async (c) => {
+  try {
+    return await watchPlayController(c);
   } catch (error: unknown) {
     if (error instanceof AppError) {
       return fail(c, error.message, error.statusCode, error.details);

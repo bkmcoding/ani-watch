@@ -1,6 +1,10 @@
 # Vercel Ignore File
 # Files and directories to exclude from Vercel deployment
 
+# Local Bun entry — MUST NOT be published or Vercel serves it at `/`
+# as a download (breaks the HTML landing page).
+index.ts
+
 # Development files
 .env.local
 .env.development
@@ -12,6 +16,10 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+jest.config.ts
+vitest.config.ts
+eslint.config.js
+tsconfig.json
 
 # Build artifacts
 dist/
@@ -59,6 +67,7 @@ heroku.yml
 # Development scripts
 scripts/
 dev/
+examples/
 
 # Test files
 test/
@@ -69,6 +78,9 @@ tests/
 # Linting
 .eslintcache
 .prettierignore
+.prettierrc
 
 # Misc
 .husky/
+bun.lock
+package-lock.json

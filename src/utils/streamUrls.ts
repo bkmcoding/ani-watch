@@ -68,7 +68,7 @@ export function pickEnglishSubtitle(
   return scored[0]?.url || null;
 }
 
-/** Browser player URL. Pass CDN m3u8(s); optional English CC per audio track. */
+/** Browser player URL. Pass CDN m3u8(s); optional English CC + episode nav meta. */
 export function watchPageUrl(
   origin: string,
   opts: {
@@ -77,6 +77,15 @@ export function watchPageUrl(
     subCc?: string | null;
     dubCc?: string | null;
     category?: string;
+    animeId?: string | null;
+    animeTitle?: string | null;
+    episodeId?: string | null;
+    episodeNumber?: number | null;
+    episodeTitle?: string | null;
+    prevPlay?: string | null;
+    nextPlay?: string | null;
+    epIndex?: number | null;
+    epTotal?: number | null;
   }
 ): string {
   const base = origin.replace(/\/+$/, '');
@@ -85,6 +94,15 @@ export function watchPageUrl(
   if (opts.dub) params.set('dub', opts.dub);
   if (opts.subCc) params.set('subCc', opts.subCc);
   if (opts.dubCc) params.set('dubCc', opts.dubCc);
+  if (opts.animeId) params.set('anime', opts.animeId);
+  if (opts.animeTitle) params.set('title', opts.animeTitle);
+  if (opts.episodeId) params.set('ep', opts.episodeId);
+  if (opts.episodeNumber != null) params.set('n', String(opts.episodeNumber));
+  if (opts.episodeTitle) params.set('epTitle', opts.episodeTitle);
+  if (opts.prevPlay) params.set('prev', opts.prevPlay);
+  if (opts.nextPlay) params.set('next', opts.nextPlay);
+  if (opts.epIndex != null) params.set('i', String(opts.epIndex));
+  if (opts.epTotal != null) params.set('total', String(opts.epTotal));
   const preferred =
     opts.category === 'dub' && opts.dub
       ? 'dub'

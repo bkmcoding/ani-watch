@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 import { validationError } from '../utils/errors';
 import { isAllowedStreamHost, proxiedHlsUrl, requestOrigin } from '../utils/streamUrls';
+import { faviconLinkTags, SITE_NAME, titleFromAnimeSlug } from '../utils/brand';
 
 function parseAllowedUrl(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -13,6 +14,14 @@ function parseAllowedUrl(raw: string | undefined): string | null {
   }
 }
 
+function escAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 const watchController = async (c: Context) => {
   const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
   const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
@@ -20,6 +29,14 @@ const watchController = async (c: Context) => {
   const subCcCdn = parseAllowedUrl(c.req.query('subCc') || undefined);
   const dubCcCdn = parseAllowedUrl(c.req.query('dubCc') || undefined);
   const preferredRaw = (c.req.query('t') || 'sub').toLowerCase();
+  const animeTitle =
+    c.req.query('title')?.trim() || titleFromAnimeSlug(c.req.query('anime') || undefined);
+  const epNum = c.req.query('n') || null;
+  const epTitle = c.req.query('epTitle')?.trim() || null;
+  const epIndex = c.req.query('i') || null;
+  const epTotal = c.req.query('total') || null;
+  const prevPlay = c.req.query('prev') || null;
+  const nextPlay = c.req.query('next') || null;
 
   let resolvedSub = subCdn;
   let resolvedDub = dubCdn;
@@ -37,6 +54,22 @@ const watchController = async (c: Context) => {
   const initial =
     preferredRaw === 'dub' && resolvedDub ? 'dub' : resolvedSub ? 'sub' : 'dub';
   const origin = requestOrigin(c);
+
+  function sameOriginPlay(raw: string | null): string | null {
+    if (!raw) return null;
+    try {
+      const u = new URL(raw, origin);
+      if (u.origin !== new URL(origin).origin) return null;
+      if (!u.pathname.includes('/hianime/watch/play')) return null;
+      return u.href;
+    } catch {
+      return null;
+    }
+  }
+
+  const prevPlaySafe = sameOriginPlay(prevPlay);
+  const nextPlaySafe = sameOriginPlay(nextPlay);
+  const hasNav = Boolean(prevPlaySafe || nextPlaySafe);
   const streams = {
     sub: resolvedSub ? proxiedHlsUrl(origin, resolvedSub) : null,
     dub: resolvedDub ? proxiedHlsUrl(origin, resolvedDub) : null,
@@ -48,13 +81,28 @@ const watchController = async (c: Context) => {
   const hasBoth = Boolean(streams.sub && streams.dub);
   const hasAnyCc = Boolean(captions.sub || captions.dub);
 
+  const pageTitleParts = [SITE_NAME];
+  if (animeTitle && animeTitle !== SITE_NAME) pageTitleParts.unshift(animeTitle);
+  if (epNum) pageTitleParts[0] = `${pageTitleParts[0]} · Ep ${epNum}`;
+  const pageTitle = escAttr(pageTitleParts.join(' — '));
+  const subtitleBits = [
+    epNum ? `Episode ${epNum}` : null,
+    epIndex && epTotal ? `${epIndex}/${epTotal}` : null,
+    epTitle,
+  ].filter(Boolean);
+  const subtitle = escAttr(subtitleBits.join(' · ') || 'by wab');
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
-  <title>Watch</title>
+  <title>${pageTitle}</title>
+  <meta name="application-name" content="${SITE_NAME}" />
+  <meta property="og:title" content="${pageTitle}" />
+  <meta property="og:site_name" content="${SITE_NAME}" />
+  ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
@@ -110,6 +158,15 @@ const watchController = async (c: Context) => {
       color: var(--muted);
     }
     .brand-by em { font-style: normal; color: var(--accent); font-weight: 600; }
+    .ep-line {
+      margin: 2px 0 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      max-width: min(420px, 70vw);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
     .pill-toggle {
@@ -122,9 +179,11 @@ const watchController = async (c: Context) => {
       font: inherit; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em;
       text-transform: uppercase; padding: 8px 14px; border-radius: 999px; cursor: pointer;
       transition: background 0.2s ease, color 0.2s ease;
+      text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
     }
     .pill:hover { color: var(--ink); }
     .pill.is-active { background: var(--accent-dim); color: var(--accent); }
+    a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
     .stage-wrap { display: grid; place-items: center; width: 100%; min-height: 0; }
     .stage {
       position: relative;
@@ -354,15 +413,20 @@ const watchController = async (c: Context) => {
       <div class="brand-wrap">
         <h1 class="brand">ani<span>.</span>watch</h1>
         <p class="brand-by">by <em>wab</em></p>
+        <p class="ep-line" title="${subtitle}">${subtitle}</p>
       </div>
       <div class="header-right">
+        <div class="pill-toggle" id="epNav" ${hasNav ? '' : 'hidden'}>
+          <a class="pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'}>Prev</a>
+          <a class="pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'}>Next</a>
+        </div>
         <div class="pill-toggle" id="audioToggle" ${hasBoth ? '' : 'hidden'}>
           <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${streams.sub ? '' : 'hidden'}>Sub</button>
           <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${streams.dub ? '' : 'hidden'}>Dub</button>
         </div>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? '' : 'hidden'} aria-pressed="false">CC</button>
         <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
-        <p class="hint">Space · F full · T theater · C captions · S/D audio · &lt; &gt; speed</p>
+        <p class="hint">[ ] episodes · Space · F · T · C · S/D audio</p>
       </div>
     </header>
 
@@ -387,6 +451,14 @@ const watchController = async (c: Context) => {
               <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${streams.dub ? '' : 'hidden'}>Dub</button>
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">Only one audio track is available for this episode.</p>
+          </div>
+          <div class="menu-section" ${hasNav ? '' : 'hidden'}>
+            <h3>Episodes</h3>
+            <div class="pill-toggle" style="width:100%;justify-content:stretch">
+              <a class="pill" style="flex:1;text-align:center" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true"'} ${prevPlaySafe ? '' : 'hidden'}>Previous</a>
+              <a class="pill" style="flex:1;text-align:center" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true"'} ${nextPlaySafe ? '' : 'hidden'}>Next</a>
+            </div>
+            <p class="hint" style="margin-top:8px">${epIndex && epTotal ? escAttr(`Episode ${epIndex} of ${epTotal}`) : 'Use [ and ] keys to change episodes.'}</p>
           </div>
           <div class="menu-section" id="ccSection">
             <h3>Subtitles</h3>
@@ -471,7 +543,7 @@ const watchController = async (c: Context) => {
     </div>
 
     <p class="err" id="err" hidden></p>
-    <footer>Sub/Dub · English CC (drag · size · position) · theater — press C for captions</footer>
+    <footer>${SITE_NAME} · by wab · Sub/Dub · CC · Prev/Next episodes — [ ] to hop</footer>
   </div>
 
   <script>
@@ -1107,6 +1179,14 @@ const watchController = async (c: Context) => {
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
         else if (e.key === 'c' || e.key === 'C') {
           if (captions[track]) setCc(!ccOn);
+        }
+        else if (e.key === '[') {
+          var prev = document.getElementById('prevEp');
+          if (prev && prev.getAttribute('href')) location.href = prev.getAttribute('href');
+        }
+        else if (e.key === ']') {
+          var next = document.getElementById('nextEp');
+          if (next && next.getAttribute('href')) location.href = next.getAttribute('href');
         }
         else if (e.key === 'm' || e.key === 'M') toggleMute();
         else if (e.key === 's' || e.key === 'S') { if (streams.sub) loadTrack('sub', true); }
