@@ -553,12 +553,23 @@ const browseController = async (c: Context) => {
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'ep-card';
-          var title = ep.title || ('Episode ' + (ep.number || ''));
+          var num = ep.number;
+          var raw = String(ep.title || ep.alternativeTitle || '').trim();
+          // HiAnime often labels chips "Episode 12" — don't show that twice.
+          var generic =
+            !raw ||
+            /^episode\s*#?\s*\d+$/i.test(raw) ||
+            (num != null && raw === String(num));
+          var epTag = num != null ? 'Ep ' + num : 'Episode';
+          var primary = generic ? epTag : raw;
+          var secondary = generic ? null : epTag;
           btn.innerHTML =
-            posterImg(ep.poster || poster, title) +
-            '<div class="meta"><div class="title">Ep ' + esc(ep.number) +
+            posterImg(ep.poster || poster, primary) +
+            '<div class="meta"><div class="title">' + esc(primary) +
             (ep.isFiller ? '<span class="badge">Filler</span>' : '') +
-            '</div><div class="sub">' + esc(title) + '</div></div>';
+            '</div>' +
+            (secondary ? '<div class="sub">' + esc(secondary) + '</div>' : '') +
+            '</div>';
           btn.addEventListener('click', function () { playEpisode(ep); });
           grid.appendChild(btn);
         });
