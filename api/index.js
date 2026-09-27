@@ -61,18 +61,18 @@ var handler_default = handler;
 
 // src/config/config.ts
 var config = {
-  baseurl: "https://aniwatchtv.to",
-  baseurl2: "https://aniwatchtv.to",
-  origin: "*",
-  port: 5e3,
+  baseurl: process.env.BASE_URL || process.env.HIANIME_BASE_URL || "https://hianime.lu",
+  baseurl2: process.env.BASE_URL_2 || process.env.BASE_URL || process.env.HIANIME_BASE_URL || "https://hianime.lu",
+  origin: process.env.CORS_ORIGIN || "*",
+  port: Number(process.env.PORT) || 5e3,
   headers: {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0"
+    "User-Agent": process.env.SCRAPE_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
   },
   logLevel: "INFO",
-  enableLogging: false,
-  isProduction: true,
-  isDevelopment: false,
-  isVercel: false
+  enableLogging: process.env.ENABLE_LOGGING === "true",
+  isProduction: process.env.NODE_ENV === "production",
+  isDevelopment: process.env.NODE_ENV !== "production",
+  isVercel: Boolean(process.env.VERCEL)
 };
 var config_default = config;
 
@@ -1423,12 +1423,14 @@ var topSearch_controller_default = topSearchController;
 // src/routes/routes.ts
 var router = new Hono();
 router.get("/home", handler_default(homepage_controller_default));
+router.get("/hianime/home", handler_default(homepage_controller_default));
 router.get("/top-search", handler_default(topSearch_controller_default));
 router.get("/schedules", handler_default(schedules_controller_default));
 router.get("/schedule/next/:id", handler_default(nextEpisodeSchedule_controller_default));
 router.get("/anime/:id", handler_default(detailpage_controller_default));
 router.get("/animes/:query/:category?", handler_default(listpage_controller_default));
 router.get("/search", handler_default(search_controller_default));
+router.get("/hianime/search", handler_default(search_controller_default));
 router.get(
   "/filter/options",
   handler_default(async () => filter_default)

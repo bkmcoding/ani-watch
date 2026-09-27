@@ -21,12 +21,14 @@ import topSearchController from '../controllers/topSearch.controller';
 const router = new Hono();
 
 router.get('/home', handler(homepageController));
+router.get('/hianime/home', handler(homepageController));
 router.get('/top-search', handler(topSearchController));
 router.get('/schedules', handler(schedulesController));
 router.get('/schedule/next/:id', handler(nextEpisodeScheduleController));
 router.get('/anime/:id', handler(detailpageController));
 router.get('/animes/:query/:category?', handler(listpageController));
 router.get('/search', handler(searchController));
+router.get('/hianime/search', handler(searchController));
 router.get(
   '/filter/options',
   handler(async () => filterOptions)
