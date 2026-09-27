@@ -12,19 +12,29 @@ import {
   fetchTheme,
   htmlFromAjax,
 } from '../utils/themeAjax';
-import { proxiedHlsUrl } from './hlsProxy.controller';
+import { proxiedHlsUrl, requestOrigin, watchPageUrl } from '../utils/streamUrls';
 
 function withPlayableProxy(c: Context, stream: StreamResult, server: string, category: string) {
-  const origin = new URL(c.req.url).origin;
+  const origin = requestOrigin(c);
+  const sources = stream.sources.map((s) => {
+    const link = watchPageUrl(origin, s.url);
+    return {
+      ...s,
+      // Browser-openable page (plays in-tab; does not download .m3u8)
+      url: link,
+      isM3U8: false,
+      type: 'link' as const,
+      // Raw proxied playlist for VLC/mpv/bots that speak HLS
+      streamUrl: proxiedHlsUrl(origin, s.url),
+      originalUrl: s.url,
+    };
+  });
+
   return {
     ...stream,
-    // Direct CDN URLs need Referer + PNG unwrap — unusable in VLC/mpv as-is.
-    // Proxied URLs rewrite playlists and strip the PNG wrapper so normal players work.
-    sources: stream.sources.map((s) => ({
-      ...s,
-      url: proxiedHlsUrl(origin, s.url),
-      originalUrl: s.url,
-    })),
+    // Top-level share link — open this in a browser
+    link: sources[0]?.url || null,
+    sources,
     headers: {
       Referer: `${origin}/`,
       'User-Agent': stream.headers['User-Agent'] || stream.headers['user-agent'] || '',
@@ -68,7 +78,6 @@ const sourcesController = async (c: Context) => {
   }
 
   if (!/megaplay/i.test(picked.embedUrl)) {
-    // Only MegaPlay embeds expose decryptable HLS today (ZokoAnime is a different player).
     const megaplayFallback = pickServer(
       servers.filter((s) => /megaplay/i.test(s.embedUrl)),
       'hd-1',

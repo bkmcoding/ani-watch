@@ -12,6 +12,7 @@ import episodesController from '../controllers/episodes.controller';
 import serversController from '../controllers/servers.controller';
 import sourcesController from '../controllers/sources.controller';
 import hlsProxyController from '../controllers/hlsProxy.controller';
+import watchController from '../controllers/watch.controller';
 import allGenresController from '../controllers/allGenres.controller';
 import { AppError } from '../utils/errors';
 import { fail } from '../utils/response';
@@ -53,6 +54,17 @@ router.get('/episode/sources', handler(sourcesController));
 router.get('/hianime/hls', async (c) => {
   try {
     return await hlsProxyController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
+// Browser player page — open this link; it plays instead of downloading .m3u8
+router.get('/hianime/watch', async (c) => {
+  try {
+    return await watchController(c);
   } catch (error: unknown) {
     if (error instanceof AppError) {
       return fail(c, error.message, error.statusCode, error.details);

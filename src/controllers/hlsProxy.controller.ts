@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import { validationError } from '../utils/errors';
+import { requestOrigin } from '../utils/streamUrls';
 
 const REFERRER = 'https://megaplay.buzz/';
 const UA =
@@ -19,7 +20,6 @@ function hostAllowed(hostname: string): boolean {
 }
 
 function stripPngWrapper(buf: Buffer): Buffer {
-  // MegaPlay serves MPEG-TS inside a tiny 1x1 PNG (IEND then raw TS).
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
     const iend = buf.indexOf(Buffer.from('IEND'));
     if (iend > 0 && iend + 8 < buf.length) {
@@ -36,7 +36,6 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
     .map((line) => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) {
-        // Rewrite URI="..." attributes (iframe playlists etc.)
         return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
           try {
             const abs = new URL(uri, playlistUrl).href;
@@ -91,8 +90,7 @@ const hlsProxyController = async (c: Context) => {
     ct.includes('m3u8') ||
     /\.m3u8(\?|$)/i.test(parsed.pathname);
 
-  const reqUrl = new URL(c.req.url);
-  const proxyBase = `${reqUrl.origin}/api/v2/hianime/hls`;
+  const proxyBase = `${requestOrigin(c)}/api/v2/hianime/hls`;
 
   if (isPlaylist) {
     const text = await upstream.text();
@@ -120,9 +118,3 @@ const hlsProxyController = async (c: Context) => {
 };
 
 export default hlsProxyController;
-
-/** Build a same-origin proxy URL for a MegaPlay CDN m3u8. */
-export function proxiedHlsUrl(origin: string, m3u8: string): string {
-  const base = origin.replace(/\/+$/, '');
-  return `${base}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
-}

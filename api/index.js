@@ -1256,6 +1256,102 @@ var serversController = async (c) => {
 };
 var servers_controller_default = serversController;
 
+// src/utils/streamUrls.ts
+function requestOrigin(c) {
+  const url = new URL(c.req.url);
+  const xfProto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+  const xfHost = (c.req.header("x-forwarded-host") || c.req.header("host") || url.host).split(",")[0]?.trim();
+  const host = xfHost || url.host;
+  let proto = xfProto || url.protocol.replace(":", "") || "https";
+  const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  if (!local && proto === "http") proto = "https";
+  return `${proto}://${host}`;
+}
+function proxiedHlsUrl(origin, m3u8) {
+  return `${origin.replace(/\/+$/, "")}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
+}
+function watchPageUrl(origin, m3u8) {
+  return `${origin.replace(/\/+$/, "")}/api/v2/hianime/watch?url=${encodeURIComponent(m3u8)}`;
+}
+
+// src/controllers/sources.controller.ts
+function withPlayableProxy(c, stream, server, category) {
+  const origin = requestOrigin(c);
+  const sources = stream.sources.map((s) => {
+    const link = watchPageUrl(origin, s.url);
+    return {
+      ...s,
+      // Browser-openable page (plays in-tab; does not download .m3u8)
+      url: link,
+      isM3U8: false,
+      type: "link",
+      // Raw proxied playlist for VLC/mpv/bots that speak HLS
+      streamUrl: proxiedHlsUrl(origin, s.url),
+      originalUrl: s.url
+    };
+  });
+  return {
+    ...stream,
+    // Top-level share link — open this in a browser
+    link: sources[0]?.url || null,
+    sources,
+    headers: {
+      Referer: `${origin}/`,
+      "User-Agent": stream.headers["User-Agent"] || stream.headers["user-agent"] || ""
+    },
+    server,
+    category
+  };
+}
+var sourcesController = async (c) => {
+  const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
+  const server = (c.req.query("server") || "hd-1").toLowerCase();
+  const category = (c.req.query("category") || c.req.query("type") || "sub").toLowerCase();
+  if (!animeEpisodeId) {
+    throw new validationError("animeEpisodeId is required", {
+      example: "one-piece-1?ep=1"
+    });
+  }
+  const epNum = episodeNumericId(animeEpisodeId);
+  const slug = animeSlugFromEpisodeId(animeEpisodeId);
+  const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
+  const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
+  if (!result.success || !result.data) {
+    throw new validationError(result.message || "could not load episode servers", {
+      animeEpisodeId
+    });
+  }
+  const servers = parseThemeServers(htmlFromAjax(result.data));
+  let picked = pickServer(servers, server, category);
+  if (!picked) {
+    throw new validationError(`No ${category} server matching "${server}"`, {
+      available: servers.map((s) => ({ type: s.type, serverName: s.serverName }))
+    });
+  }
+  if (!/megaplay/i.test(picked.embedUrl)) {
+    const megaplayFallback = pickServer(
+      servers.filter((s) => /megaplay/i.test(s.embedUrl)),
+      "hd-1",
+      category
+    );
+    if (!megaplayFallback) {
+      throw new validationError(
+        `Server "${picked.serverName}" is not a MegaPlay embed; no stream extractor available`,
+        { embedUrl: picked.embedUrl }
+      );
+    }
+    picked = megaplayFallback;
+  }
+  const stream = await resolveMegaPlaySources(picked.embedUrl);
+  return withPlayableProxy(
+    c,
+    stream,
+    picked.serverName.toLowerCase().replace(/\s+/g, "-"),
+    category
+  );
+};
+var sources_controller_default = sourcesController;
+
 // src/controllers/hlsProxy.controller.ts
 var REFERRER = "https://megaplay.buzz/";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
@@ -1327,8 +1423,7 @@ var hlsProxyController = async (c) => {
   }
   const ct = (upstream.headers.get("content-type") || "").toLowerCase();
   const isPlaylist = ct.includes("mpegurl") || ct.includes("m3u8") || /\.m3u8(\?|$)/i.test(parsed.pathname);
-  const reqUrl = new URL(c.req.url);
-  const proxyBase = `${reqUrl.origin}/api/v2/hianime/hls`;
+  const proxyBase = `${requestOrigin(c)}/api/v2/hianime/hls`;
   if (isPlaylist) {
     const text = await upstream.text();
     const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
@@ -1353,79 +1448,86 @@ var hlsProxyController = async (c) => {
   });
 };
 var hlsProxy_controller_default = hlsProxyController;
-function proxiedHlsUrl(origin, m3u8) {
-  const base = origin.replace(/\/+$/, "");
-  return `${base}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
-}
 
-// src/controllers/sources.controller.ts
-function withPlayableProxy(c, stream, server, category) {
-  const origin = new URL(c.req.url).origin;
-  return {
-    ...stream,
-    // Direct CDN URLs need Referer + PNG unwrap — unusable in VLC/mpv as-is.
-    // Proxied URLs rewrite playlists and strip the PNG wrapper so normal players work.
-    sources: stream.sources.map((s) => ({
-      ...s,
-      url: proxiedHlsUrl(origin, s.url),
-      originalUrl: s.url
-    })),
-    headers: {
-      Referer: `${origin}/`,
-      "User-Agent": stream.headers["User-Agent"] || stream.headers["user-agent"] || ""
-    },
-    server,
-    category
-  };
+// src/controllers/watch.controller.ts
+var ALLOWED_HOST_SUFFIXES2 = [
+  "megaplay.buzz",
+  "shiora.top",
+  "tiktokcdn.com",
+  "tiktokcdn-us.com",
+  "hiddenvertex.top"
+];
+function hostAllowed2(hostname) {
+  const host = hostname.toLowerCase();
+  return ALLOWED_HOST_SUFFIXES2.some((s) => host === s || host.endsWith("." + s));
 }
-var sourcesController = async (c) => {
-  const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
-  const server = (c.req.query("server") || "hd-1").toLowerCase();
-  const category = (c.req.query("category") || c.req.query("type") || "sub").toLowerCase();
-  if (!animeEpisodeId) {
-    throw new validationError("animeEpisodeId is required", {
-      example: "one-piece-1?ep=1"
-    });
+var watchController = async (c) => {
+  const target = c.req.query("url");
+  if (!target) throw new validationError("url is required");
+  let parsed;
+  try {
+    parsed = new URL(target);
+  } catch {
+    throw new validationError("url must be absolute");
   }
-  const epNum = episodeNumericId(animeEpisodeId);
-  const slug = animeSlugFromEpisodeId(animeEpisodeId);
-  const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
-  const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
-  if (!result.success || !result.data) {
-    throw new validationError(result.message || "could not load episode servers", {
-      animeEpisodeId
-    });
+  if (!/^https?:$/i.test(parsed.protocol) || !hostAllowed2(parsed.hostname)) {
+    throw new validationError("url host not allowed");
   }
-  const servers = parseThemeServers(htmlFromAjax(result.data));
-  let picked = pickServer(servers, server, category);
-  if (!picked) {
-    throw new validationError(`No ${category} server matching "${server}"`, {
-      available: servers.map((s) => ({ type: s.type, serverName: s.serverName }))
-    });
-  }
-  if (!/megaplay/i.test(picked.embedUrl)) {
-    const megaplayFallback = pickServer(
-      servers.filter((s) => /megaplay/i.test(s.embedUrl)),
-      "hd-1",
-      category
-    );
-    if (!megaplayFallback) {
-      throw new validationError(
-        `Server "${picked.serverName}" is not a MegaPlay embed; no stream extractor available`,
-        { embedUrl: picked.embedUrl }
-      );
+  const origin = requestOrigin(c);
+  const streamSrc = proxiedHlsUrl(origin, parsed.href);
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Watch</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0b0b; color: #eee; font-family: system-ui, sans-serif; }
+    .wrap { min-height: 100%; display: grid; place-items: center; padding: 12px; box-sizing: border-box; }
+    video { width: min(100%, 1100px); max-height: 100vh; background: #000; border-radius: 8px; }
+    .err { color: #f88; margin-top: 12px; max-width: 40rem; text-align: center; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <video id="v" controls autoplay playsinline></video>
+      <p class="err" id="err" hidden></p>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var src = ${JSON.stringify(streamSrc)};
+      var video = document.getElementById('v');
+      var err = document.getElementById('err');
+      function fail(msg) { err.hidden = false; err.textContent = msg; }
+      if (window.Hls && Hls.isSupported()) {
+        var hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+        hls.loadSource(src);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.ERROR, function (_e, data) {
+          if (data && data.fatal) fail('Playback failed (' + data.type + '). Try refreshing.');
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = src;
+      } else {
+        fail('This browser cannot play HLS. Open the link in Chrome/Firefox/Safari.');
+      }
+    })();
+  </script>
+</body>
+</html>`;
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*"
     }
-    picked = megaplayFallback;
-  }
-  const stream = await resolveMegaPlaySources(picked.embedUrl);
-  return withPlayableProxy(
-    c,
-    stream,
-    picked.serverName.toLowerCase().replace(/\s+/g, "-"),
-    category
-  );
+  });
 };
-var sources_controller_default = sourcesController;
+var watch_controller_default = watchController;
 
 // src/controllers/allGenres.controller.ts
 var allGenres = [
@@ -1876,6 +1978,16 @@ router.get("/episode/sources", handler_default(sources_controller_default));
 router.get("/hianime/hls", async (c) => {
   try {
     return await hlsProxy_controller_default(c);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
+router.get("/hianime/watch", async (c) => {
+  try {
+    return await watch_controller_default(c);
   } catch (error) {
     if (error instanceof AppError) {
       return fail(c, error.message, error.statusCode, error.details);

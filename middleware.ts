@@ -17,10 +17,15 @@ export default function middleware(request: Request) {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  // HLS proxy must be public: VLC/mpv fetch playlists + segments without API keys.
-  // Host allowlisting inside the proxy prevents open-proxy abuse.
+  // Public playback endpoints (no API key): HTML watch page + HLS proxy.
+  // Host allowlisting inside those handlers prevents open-proxy abuse.
   const path = new URL(request.url).pathname;
-  if (path === '/api/v2/hianime/hls' || path.startsWith('/api/v2/hianime/hls/')) {
+  if (
+    path === '/api/v2/hianime/hls' ||
+    path.startsWith('/api/v2/hianime/hls/') ||
+    path === '/api/v2/hianime/watch' ||
+    path.startsWith('/api/v2/hianime/watch/')
+  ) {
     return next();
   }
 

@@ -143,35 +143,34 @@ function qualityRank(source) {
 }
 
 /**
- * Highest .m3u8 in a watch payload, plus the Referer the CDN usually demands.
+ * Prefer the browser watch page link; fall back to an HLS URL for CLI players.
  */
 export function pickStream(payload) {
-  const listed = (payload?.sources ?? []).filter(
-    (source) => source?.url && (source.isM3U8 || /\.m3u8(\?|$)/i.test(source.url)),
-  );
-  const master = listed.find((source) => /^https?:\/\//i.test(source.url))?.url;
-  const streams = listed.flatMap((source) => {
-    let url = source.url;
-    if (!/^https?:\/\//i.test(url)) {
-      if (!master) return [];
-      try {
-        url = new URL(url, master).href;
-      } catch {
-        return [];
-      }
-    }
-    return [{ ...source, url }];
-  });
-  if (!streams.length) return null;
+  const page =
+    payload?.link ||
+    payload?.sources?.find((s) => s?.type === 'link' && s?.url)?.url ||
+    payload?.sources?.find((s) => s?.url && /\/hianime\/watch\?/i.test(s.url))?.url;
+  if (page) {
+    return { url: page, quality: 'auto', referer: null, kind: 'page' };
+  }
 
-  streams.sort((a, b) => qualityRank(b) - qualityRank(a));
-  const best = streams[0];
+  const listed = (payload?.sources ?? []).flatMap((source) => {
+    const candidates = [source?.streamUrl, source?.url].filter(Boolean);
+    return candidates
+      .filter((url) => source?.isM3U8 || /\.m3u8(\?|$)/i.test(url) || /\/hianime\/hls\?/i.test(url))
+      .map((url) => ({ ...source, url }));
+  });
+  if (!listed.length) return null;
+
+  listed.sort((a, b) => qualityRank(b) - qualityRank(a));
+  const best = listed[0];
   const rank = qualityRank(best);
   const headers = payload.headers ?? {};
   return {
     url: best.url,
     quality: rank ? `${rank}p` : best.quality || 'auto',
     referer: headers.Referer || headers.referer || null,
+    kind: 'hls',
   };
 }
 
