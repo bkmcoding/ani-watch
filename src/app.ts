@@ -5,6 +5,8 @@ import { AppError } from './utils/errors';
 import { fail } from './utils/response';
 import { logger } from 'hono/logger';
 import config from './config/config';
+import landingController from './controllers/landing.controller';
+import browseController from './controllers/browse.controller';
 
 const app = new Hono();
 const origins = config.origin.includes(',')
@@ -28,6 +30,28 @@ app.use(
 if (!config.isProduction || config.enableLogging) {
   app.use('/api/v2/*', logger());
 }
+
+app.get('/', async (c: Context) => {
+  try {
+    return await landingController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
+
+app.get('/browse', async (c: Context) => {
+  try {
+    return await browseController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
 
 app.get('/ping', (c: Context) => {
   return c.json({
