@@ -100,6 +100,16 @@ const watchController = async (c: Context) => {
       font-size: clamp(1.35rem, 2.4vw, 1.75rem); letter-spacing: -0.03em; margin: 0;
     }
     .brand span { color: var(--accent); }
+    .brand-wrap { display: flex; flex-direction: column; gap: 2px; }
+    .brand-by {
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: lowercase;
+      color: var(--muted);
+    }
+    .brand-by em { font-style: normal; color: var(--accent); font-weight: 600; }
     .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
     .pill-toggle {
@@ -131,6 +141,58 @@ const watchController = async (c: Context) => {
       width: 100%; height: 100%; display: block; background: #000;
       object-fit: contain; cursor: pointer;
     }
+    /* Hide any native cue chrome — we render CC ourselves */
+    video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; }
+    .cc-layer {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
+      display: none;
+    }
+    .cc-layer.is-on { display: block; }
+    .cc-box {
+      position: absolute;
+      left: var(--cc-x, 50%);
+      bottom: var(--cc-y, 12%);
+      top: auto;
+      transform: translateX(-50%);
+      max-width: min(92%, 920px);
+      width: max-content;
+      text-align: center;
+      pointer-events: auto;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      padding: 0.35em 0.7em;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.62);
+      color: #fff;
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: var(--cc-size, 32px);
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: 0.01em;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.85);
+      white-space: pre-wrap;
+      word-break: break-word;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+    .cc-box.is-visible { opacity: 1; }
+    .cc-box.is-dragging { cursor: grabbing; transition: none; }
+    .cc-box:empty { display: none; }
+    .menu-slider {
+      width: 100%;
+      appearance: none; height: 6px; border-radius: 999px;
+      background: rgba(255,255,255,0.18); outline: none; cursor: pointer;
+    }
+    .menu-slider::-webkit-slider-thumb {
+      appearance: none; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .menu-slider::-moz-range-thumb {
+      width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--accent);
+    }
+    .pos-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pos-row .pill { flex: 1; text-align: center; padding: 8px 6px; }
     .overlay {
       position: absolute; inset: 0; display: grid; place-items: center;
       pointer-events: none;
@@ -217,7 +279,7 @@ const watchController = async (c: Context) => {
     .speed-chip:hover, .speed-chip.is-active { color: var(--accent); border-color: rgba(61,214,198,0.4); background: var(--accent-dim); }
     .menu {
       position: absolute; right: 12px; bottom: 58px;
-      width: min(280px, calc(100% - 24px));
+      width: min(300px, calc(100% - 24px));
       background: var(--panel); border: 1px solid var(--line);
       border-radius: 14px; padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
       display: none; z-index: 5; backdrop-filter: blur(16px);
@@ -263,17 +325,6 @@ const watchController = async (c: Context) => {
       transition: opacity 0.3s ease;
     }
 
-    video::-webkit-media-text-track-display { overflow: visible !important; }
-    video::cue {
-      font-family: "DM Sans", system-ui, sans-serif;
-      font-size: clamp(16px, 2.2vw, 22px);
-      font-weight: 600;
-      line-height: 1.35;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.55);
-      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-    }
-
     /* Theater mode */
     body.theater { background: #000; }
     body.theater .page { padding: 0; gap: 0; }
@@ -300,7 +351,10 @@ const watchController = async (c: Context) => {
 <body>
   <div class="page">
     <header>
-      <h1 class="brand">ani<span>.</span>watch</h1>
+      <div class="brand-wrap">
+        <h1 class="brand">ani<span>.</span>watch</h1>
+        <p class="brand-by">by <em>wab</em></p>
+      </div>
       <div class="header-right">
         <div class="pill-toggle" id="audioToggle" ${hasBoth ? '' : 'hidden'}>
           <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${streams.sub ? '' : 'hidden'}>Sub</button>
@@ -315,6 +369,9 @@ const watchController = async (c: Context) => {
     <div class="stage-wrap">
       <div class="stage is-loading is-paused" id="stage">
         <video id="v" playsinline preload="auto"></video>
+        <div class="cc-layer" id="ccLayer" aria-live="polite">
+          <div class="cc-box" id="ccBox" title="Drag to move"></div>
+        </div>
         <div class="overlay">
           <button type="button" class="big-btn" id="bigPlay" aria-label="Play">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -331,11 +388,29 @@ const watchController = async (c: Context) => {
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">Only one audio track is available for this episode.</p>
           </div>
-          <div class="menu-section">
+          <div class="menu-section" id="ccSection">
             <h3>Subtitles</h3>
             <div class="menu-row">
               <label for="ccToggle">English CC</label>
               <button type="button" class="switch" id="ccToggle" aria-pressed="false" ${hasAnyCc ? '' : 'disabled'}></button>
+            </div>
+            <div id="ccControls" ${hasAnyCc ? '' : 'hidden'}>
+              <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <label for="ccSize">Size</label>
+                  <span class="hint" id="ccSizeLabel">32px</span>
+                </div>
+                <input class="menu-slider" id="ccSize" type="range" min="20" max="56" step="1" value="32" aria-label="Caption size" />
+              </div>
+              <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
+                <label>Position</label>
+                <div class="pos-row" id="ccPosRow">
+                  <button type="button" class="pill" data-cc-pos="top">Top</button>
+                  <button type="button" class="pill" data-cc-pos="middle">Mid</button>
+                  <button type="button" class="pill is-active" data-cc-pos="bottom">Bottom</button>
+                </div>
+                <p class="hint" style="margin:0">Or drag the captions on the video.</p>
+              </div>
             </div>
             <p class="hint" id="ccHint" style="margin-top:8px;${hasAnyCc ? 'display:none' : ''}">No English softsubs for this episode.</p>
           </div>
@@ -396,7 +471,7 @@ const watchController = async (c: Context) => {
     </div>
 
     <p class="err" id="err" hidden></p>
-    <footer>Sub/Dub · English CC · speed · theater · settings — press C for captions</footer>
+    <footer>Sub/Dub · English CC (drag · size · position) · theater — press C for captions</footer>
   </div>
 
   <script>
@@ -429,6 +504,10 @@ const watchController = async (c: Context) => {
       var ccToggle = document.getElementById('ccToggle');
       var ccBtn = document.getElementById('ccBtn');
       var ccTop = document.getElementById('ccTop');
+      var ccLayer = document.getElementById('ccLayer');
+      var ccBox = document.getElementById('ccBox');
+      var ccSize = document.getElementById('ccSize');
+      var ccSizeLabel = document.getElementById('ccSizeLabel');
       var pipBtn = document.getElementById('pipBtn');
       var hideTimer = null;
       var hls = null;
@@ -436,6 +515,16 @@ const watchController = async (c: Context) => {
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
+      var ccSizePx = Math.min(56, Math.max(20, Number(localStorage.getItem('ani.ccSize') || '32') || 32));
+      var ccX = Number(localStorage.getItem('ani.ccX'));
+      var ccY = Number(localStorage.getItem('ani.ccY'));
+      if (!isFinite(ccX)) ccX = 50;
+      if (!isFinite(ccY)) ccY = 12;
+      var ccCues = [];
+      var ccSrcLoaded = '';
+      var ccFetchToken = 0;
+      var activeCueText = '';
+      var draggingCc = false;
 
       var ICONS = {
         play: '<path d="M8 5v14l11-7z"/>',
@@ -529,51 +618,169 @@ const watchController = async (c: Context) => {
           ccToggle.classList.toggle('is-on', ccOn && available);
           ccToggle.setAttribute('aria-pressed', ccOn && available ? 'true' : 'false');
         }
+        if (ccLayer) ccLayer.classList.toggle('is-on', ccOn && available);
       }
 
-      function clearTextTracks() {
-        Array.from(video.querySelectorAll('track')).forEach(function (el) {
-          try { el.remove(); } catch (e) {}
+      function parseTs(raw) {
+        var s = String(raw || '').trim().replace(',', '.');
+        var parts = s.split(':');
+        var h = 0, m = 0, sec = 0;
+        if (parts.length === 3) {
+          h = Number(parts[0]) || 0;
+          m = Number(parts[1]) || 0;
+          sec = parseFloat(parts[2]) || 0;
+        } else if (parts.length === 2) {
+          m = Number(parts[0]) || 0;
+          sec = parseFloat(parts[1]) || 0;
+        } else {
+          sec = parseFloat(s) || 0;
+        }
+        return h * 3600 + m * 60 + sec;
+      }
+
+      function parseVtt(text) {
+        var cues = [];
+        var blocks = String(text || '').replace(/\\r/g, '').split(/\\n\\n+/);
+        for (var i = 0; i < blocks.length; i++) {
+          var block = blocks[i].trim();
+          if (!block || /^WEBVTT/i.test(block) || /^NOTE\\b/i.test(block) || /^STYLE\\b/i.test(block)) continue;
+          var lines = block.split('\\n');
+          var timeIdx = -1;
+          for (var j = 0; j < lines.length; j++) {
+            if (lines[j].indexOf('-->') >= 0) { timeIdx = j; break; }
+          }
+          if (timeIdx < 0) continue;
+          var m = lines[timeIdx].match(/([\\d:.]+)\\s*-->\\s*([\\d:.]+)/);
+          if (!m) continue;
+          var body = lines.slice(timeIdx + 1).join('\\n')
+            .replace(/<\\/?[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .trim();
+          if (!body) continue;
+          cues.push({ start: parseTs(m[1]), end: parseTs(m[2]), text: body });
+        }
+        return cues;
+      }
+
+      function applyCcStyle() {
+        if (!ccBox) return;
+        ccBox.style.setProperty('--cc-size', ccSizePx + 'px');
+        ccBox.style.setProperty('--cc-x', ccX + '%');
+        ccBox.style.setProperty('--cc-y', ccY + '%');
+        if (ccSize) ccSize.value = String(ccSizePx);
+        if (ccSizeLabel) ccSizeLabel.textContent = ccSizePx + 'px';
+        document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
+          var pos = btn.getAttribute('data-cc-pos');
+          var active =
+            (pos === 'top' && ccY >= 78) ||
+            (pos === 'middle' && ccY >= 40 && ccY < 78) ||
+            (pos === 'bottom' && ccY < 40);
+          btn.classList.toggle('is-active', active);
         });
+      }
+
+      function persistCcLayout() {
+        localStorage.setItem('ani.ccSize', String(ccSizePx));
+        localStorage.setItem('ani.ccX', String(Math.round(ccX * 10) / 10));
+        localStorage.setItem('ani.ccY', String(Math.round(ccY * 10) / 10));
+      }
+
+      function setCcPos(preset) {
+        if (preset === 'top') { ccX = 50; ccY = 86; }
+        else if (preset === 'middle') { ccX = 50; ccY = 48; }
+        else { ccX = 50; ccY = 12; }
+        applyCcStyle();
+        persistCcLayout();
+      }
+
+      function hideCcText() {
+        activeCueText = '';
+        if (ccBox) {
+          ccBox.textContent = '';
+          ccBox.classList.remove('is-visible');
+        }
+      }
+
+      function unloadCaptions() {
+        ccFetchToken += 1;
+        ccCues = [];
+        ccSrcLoaded = '';
+        hideCcText();
+        if (ccLayer) ccLayer.classList.remove('is-on');
+        // Also disable any leftover native tracks from older sessions
         try {
-          Array.from(video.textTracks || []).forEach(function (tt) {
-            tt.mode = 'disabled';
-          });
+          Array.from(video.querySelectorAll('track')).forEach(function (el) { el.remove(); });
+          Array.from(video.textTracks || []).forEach(function (tt) { tt.mode = 'disabled'; });
         } catch (e) {}
       }
 
+      function renderCcAt(t) {
+        if (!ccOn || !ccCues.length) {
+          hideCcText();
+          return;
+        }
+        var text = '';
+        for (var i = 0; i < ccCues.length; i++) {
+          var c = ccCues[i];
+          if (t >= c.start && t <= c.end) {
+            text = text ? text + '\\n' + c.text : c.text;
+          }
+        }
+        if (text === activeCueText) return;
+        activeCueText = text;
+        if (!ccBox) return;
+        if (!text) {
+          ccBox.textContent = '';
+          ccBox.classList.remove('is-visible');
+          return;
+        }
+        ccBox.textContent = text;
+        ccBox.classList.add('is-visible');
+      }
+
       function applyCaptions() {
-        clearTextTracks();
         var src = captions[track];
+        syncCcButtons();
         if (!ccOn || !src) {
+          unloadCaptions();
           syncCcButtons();
           return;
         }
-        var el = document.createElement('track');
-        el.kind = 'subtitles';
-        el.label = 'English';
-        el.srclang = 'en';
-        el.src = src;
-        el.default = true;
-        video.appendChild(el);
-        var enable = function () {
-          try {
-            Array.from(video.textTracks || []).forEach(function (tt) {
-              tt.mode = (tt.language === 'en' || /english/i.test(tt.label || '')) ? 'showing' : 'disabled';
-            });
-            if (video.textTracks && video.textTracks.length && video.textTracks[0].mode !== 'showing') {
-              video.textTracks[0].mode = 'showing';
-            }
-          } catch (e) {}
-        };
-        el.addEventListener('load', enable);
-        setTimeout(enable, 250);
-        syncCcButtons();
+        if (ccLayer) ccLayer.classList.add('is-on');
+        applyCcStyle();
+        if (ccSrcLoaded === src && ccCues.length) {
+          renderCcAt(video.currentTime || 0);
+          return;
+        }
+        var token = ++ccFetchToken;
+        ccCues = [];
+        hideCcText();
+        fetch(src)
+          .then(function (r) {
+            if (!r.ok) throw new Error('cc ' + r.status);
+            return r.text();
+          })
+          .then(function (text) {
+            if (token !== ccFetchToken) return;
+            ccCues = parseVtt(text);
+            ccSrcLoaded = src;
+            renderCcAt(video.currentTime || 0);
+          })
+          .catch(function () {
+            if (token !== ccFetchToken) return;
+            ccCues = [];
+            ccSrcLoaded = '';
+            hideCcText();
+          });
       }
 
       function setCc(on) {
         ccOn = !!on;
         localStorage.setItem('ani.cc', ccOn ? '1' : '0');
+        if (!ccOn) unloadCaptions();
         applyCaptions();
       }
 
@@ -669,7 +876,7 @@ const watchController = async (c: Context) => {
         stage.classList.add('is-loading');
         try { video.pause(); } catch (e) {}
         destroyHls();
-        clearTextTracks();
+        unloadCaptions();
         video.removeAttribute('src');
         try { video.load(); } catch (e) {}
 
@@ -773,6 +980,55 @@ const watchController = async (c: Context) => {
       if (ccBtn) ccBtn.addEventListener('click', onCcClick);
       if (ccTop) ccTop.addEventListener('click', onCcClick);
       if (ccToggle) ccToggle.addEventListener('click', onCcClick);
+      if (ccSize) {
+        ccSize.addEventListener('input', function (e) {
+          e.stopPropagation();
+          ccSizePx = Number(ccSize.value) || 32;
+          applyCcStyle();
+          persistCcLayout();
+        });
+        ccSize.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+      document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          setCcPos(btn.getAttribute('data-cc-pos') || 'bottom');
+        });
+      });
+      if (ccBox) {
+        ccBox.addEventListener('pointerdown', function (e) {
+          if (!ccOn) return;
+          e.preventDefault();
+          e.stopPropagation();
+          draggingCc = true;
+          ccBox.classList.add('is-dragging');
+          ccBox.setPointerCapture(e.pointerId);
+        });
+        ccBox.addEventListener('pointermove', function (e) {
+          if (!draggingCc) return;
+          e.preventDefault();
+          var rect = stage.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          ccX = Math.min(92, Math.max(8, ((e.clientX - rect.left) / rect.width) * 100));
+          ccY = Math.min(90, Math.max(4, ((rect.bottom - e.clientY) / rect.height) * 100));
+          applyCcStyle();
+        });
+        function endCcDrag(e) {
+          if (!draggingCc) return;
+          draggingCc = false;
+          ccBox.classList.remove('is-dragging');
+          try { ccBox.releasePointerCapture(e.pointerId); } catch (err) {}
+          persistCcLayout();
+        }
+        ccBox.addEventListener('pointerup', endCcDrag);
+        ccBox.addEventListener('pointercancel', endCcDrag);
+        ccBox.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+      }
+      applyCcStyle();
       loopToggle.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         video.loop = !video.loop;
@@ -819,7 +1075,13 @@ const watchController = async (c: Context) => {
         setMuted(video.muted);
       });
 
-      video.addEventListener('timeupdate', updateProgress);
+      video.addEventListener('timeupdate', function () {
+        updateProgress();
+        renderCcAt(video.currentTime || 0);
+      });
+      video.addEventListener('seeked', function () {
+        renderCcAt(video.currentTime || 0);
+      });
       video.addEventListener('loadedmetadata', updateProgress);
       video.addEventListener('ratechange', function () {
         if (Math.abs(video.playbackRate - rate) > 0.01) setRate(video.playbackRate);
