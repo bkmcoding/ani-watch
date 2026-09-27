@@ -184,6 +184,12 @@ const browseController = async (c: Context) => {
       border-top: 1px solid var(--line);
     }
     .key-panel.is-open { display: grid; }
+    .hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
@@ -254,7 +260,7 @@ const browseController = async (c: Context) => {
     .tick .sub { color: var(--accent); background: var(--accent-dim); }
     .ep-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
     }
     .ep-card {
@@ -268,7 +274,7 @@ const browseController = async (c: Context) => {
       color: inherit;
       padding: 0;
       display: grid;
-      grid-template-columns: 64px 1fr;
+      grid-template-columns: 72px 1fr;
       transition: border-color 0.2s ease, transform 0.2s var(--ease);
     }
     .ep-card:hover {
@@ -277,9 +283,9 @@ const browseController = async (c: Context) => {
     }
     .ep-card .poster {
       aspect-ratio: auto;
-      width: 64px;
+      width: 72px;
       height: 100%;
-      min-height: 78px;
+      min-height: 88px;
     }
     .ep-card .meta { padding: 10px 12px; align-content: center; }
     .badge {
@@ -361,11 +367,12 @@ const browseController = async (c: Context) => {
         </div>
       </div>
       <div class="key-panel" id="keyPanel">
-        <label class="field-label" for="apiKey">x-api-key (saved in this browser)</label>
+        <label class="field-label" for="apiKey">x-api-key (this browser tab only)</label>
         <div class="search-row">
           <input id="apiKey" type="password" autocomplete="off" placeholder="BOT_SECRET_KEY" />
           <button type="button" class="btn ghost" id="saveKey">Save</button>
         </div>
+        <p class="hint">Kept in sessionStorage — cleared when you close the tab. Only sent as <code>x-api-key</code> to this site.</p>
       </div>
       <div class="meta-row">
         <div class="crumbs" id="crumbs"><span>Search a title to begin</span></div>
@@ -376,15 +383,16 @@ const browseController = async (c: Context) => {
     <main id="main">
       <div class="empty">
         <h2>Find something to watch</h2>
-        <p>Enter your API key once, then search. Posters come from the API — open an episode to launch the player.</p>
+        <p>Enter your API key once, then search. Posters load through our proxy — open an episode to launch the player.</p>
       </div>
     </main>
 
-    <footer>${SITE_NAME} · ${SITE_TAGLINE} · posters from HiAnime · watch opens in a new tab</footer>
+    <footer>${SITE_NAME} · ${SITE_TAGLINE} · watch opens in a new tab</footer>
   </div>
 
   <script>
     (function () {
+      var KEY = 'ani.apiKey';
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
       var searchBtn = document.getElementById('searchBtn');
@@ -396,17 +404,20 @@ const browseController = async (c: Context) => {
       var crumbs = document.getElementById('crumbs');
       var state = { view: 'home', anime: null, lastAnimes: [] };
 
-      apiKey.value = localStorage.getItem('ani.apiKey') || '';
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      apiKey.value = sessionStorage.getItem(KEY) || '';
       if (!apiKey.value.trim()) keyPanel.classList.add('is-open');
 
       function persistKey() {
-        localStorage.setItem('ani.apiKey', apiKey.value.trim());
+        var v = apiKey.value.trim();
+        if (v) sessionStorage.setItem(KEY, v);
+        else sessionStorage.removeItem(KEY);
       }
       apiKey.addEventListener('change', persistKey);
       apiKey.addEventListener('blur', persistKey);
       saveKey.addEventListener('click', function () {
         persistKey();
-        setStatus(apiKey.value.trim() ? 'API key saved' : 'API key cleared');
+        setStatus(apiKey.value.trim() ? 'API key saved for this tab' : 'API key cleared');
         keyPanel.classList.remove('is-open');
       });
       keyToggle.addEventListener('click', function () {
@@ -451,9 +462,16 @@ const browseController = async (c: Context) => {
           .replace(/"/g, '&quot;');
       }
 
+      /** Route posters through our allowlisted proxy (CDN hotlink protection). */
+      function posterSrc(url) {
+        if (!url || !/^https?:\\/\\//i.test(url)) return null;
+        return '/api/v2/hianime/poster?url=' + encodeURIComponent(url);
+      }
+
       function posterImg(url, alt) {
-        if (url) {
-          return '<img class="poster" src="' + esc(url) + '" alt="' + esc(alt || '') + '" loading="lazy" referrerpolicy="no-referrer" />';
+        var src = posterSrc(url);
+        if (src) {
+          return '<img class="poster" src="' + esc(src) + '" alt="' + esc(alt || '') + '" loading="lazy" decoding="async" />';
         }
         return '<div class="poster ph" aria-hidden="true">No art</div>';
       }

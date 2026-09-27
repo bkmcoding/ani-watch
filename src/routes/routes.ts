@@ -12,6 +12,7 @@ import episodesController from '../controllers/episodes.controller';
 import serversController from '../controllers/servers.controller';
 import sourcesController from '../controllers/sources.controller';
 import hlsProxyController from '../controllers/hlsProxy.controller';
+import posterProxyController from '../controllers/posterProxy.controller';
 import watchController from '../controllers/watch.controller';
 import watchPlayController from '../controllers/watchPlay.controller';
 import allGenresController from '../controllers/allGenres.controller';
@@ -55,6 +56,17 @@ router.get('/episode/sources', handler(sourcesController));
 router.get('/hianime/hls', async (c) => {
   try {
     return await hlsProxyController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
+// Poster proxy — HiAnime CDN hotlink bypass (allowlisted hosts)
+router.get('/hianime/poster', async (c) => {
+  try {
+    return await posterProxyController(c);
   } catch (error: unknown) {
     if (error instanceof AppError) {
       return fail(c, error.message, error.statusCode, error.details);

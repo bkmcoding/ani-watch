@@ -56,7 +56,7 @@ app.get('/api', (c: Context) => {
       home: '/',
       browse: '/browse',
     },
-    auth: 'Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, and /hls are public.',
+    auth: 'Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, /hls, and /poster are public.',
     flow: [
       'GET /api/v2/hianime/search?keyword=',
       'GET /api/v2/hianime/anime/:id/episodes',
@@ -75,6 +75,7 @@ app.get('/api', (c: Context) => {
       watch: '/api/v2/hianime/watch',
       watchPlay: '/api/v2/hianime/watch/play?animeEpisodeId=&category=',
       hls: '/api/v2/hianime/hls?url=',
+      poster: '/api/v2/hianime/poster?url=',
     },
   });
 });

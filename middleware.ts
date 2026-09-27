@@ -23,6 +23,8 @@ export default function middleware(request: Request) {
   if (
     path === '/api/v2/hianime/hls' ||
     path.startsWith('/api/v2/hianime/hls/') ||
+    path === '/api/v2/hianime/poster' ||
+    path.startsWith('/api/v2/hianime/poster/') ||
     path === '/api/v2/hianime/watch' ||
     path.startsWith('/api/v2/hianime/watch/')
   ) {

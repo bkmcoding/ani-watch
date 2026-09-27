@@ -1,0 +1,24 @@
+/** HiAnime / Zoro thumbnail hosts (BunnyCDN hotlink-protected). */
+const POSTER_HOST_SUFFIXES = [
+  'noitatnemucod.net',
+  'bunnycdn.ru',
+  'b-cdn.net',
+];
+
+export function isAllowedPosterHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s));
+}
+
+/** Same-origin proxy so browse can show posters despite CDN hotlink rules. */
+export function proxiedPosterUrl(origin: string, poster: string | null | undefined): string | null {
+  if (!poster || !/^https?:\/\//i.test(poster)) return null;
+  try {
+    const host = new URL(poster).hostname;
+    if (!isAllowedPosterHost(host)) return poster;
+  } catch {
+    return null;
+  }
+  const base = origin.replace(/\/+$/, '');
+  return `${base}/api/v2/hianime/poster?url=${encodeURIComponent(poster)}`;
+}

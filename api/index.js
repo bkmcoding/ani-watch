@@ -1750,6 +1750,61 @@ var hlsProxyController = async (c) => {
 };
 var hlsProxy_controller_default = hlsProxyController;
 
+// src/utils/posterUrls.ts
+var POSTER_HOST_SUFFIXES = [
+  "noitatnemucod.net",
+  "bunnycdn.ru",
+  "b-cdn.net"
+];
+function isAllowedPosterHost(hostname) {
+  const host = hostname.toLowerCase();
+  return POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
+}
+
+// src/controllers/posterProxy.controller.ts
+var UA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+var posterProxyController = async (c) => {
+  const target = c.req.query("url");
+  if (!target) throw new validationError("url is required");
+  let parsed;
+  try {
+    parsed = new URL(target);
+  } catch {
+    throw new validationError("url must be absolute");
+  }
+  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedPosterHost(parsed.hostname)) {
+    throw new validationError("url host not allowed");
+  }
+  const site = String(config_default.baseurl || "https://hianime.lu").replace(/\/+$/, "");
+  const referer = `${site}/`;
+  const upstream = await fetch(parsed.href, {
+    headers: {
+      "User-Agent": UA2,
+      Referer: referer,
+      Origin: site,
+      Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+    },
+    redirect: "follow"
+  });
+  if (!upstream.ok) {
+    return c.text(`Upstream ${upstream.status}`, 502);
+  }
+  const contentType = upstream.headers.get("content-type") || "image/jpeg";
+  if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) {
+    return c.text("Upstream was not an image", 502);
+  }
+  const buf = Buffer.from(await upstream.arrayBuffer());
+  return new Response(buf, {
+    status: 200,
+    headers: {
+      "Content-Type": /^image\//i.test(contentType) ? contentType : "image/jpeg",
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      "Access-Control-Allow-Origin": "*"
+    }
+  });
+};
+var posterProxy_controller_default = posterProxyController;
+
 // src/controllers/watch.controller.ts
 function parseAllowedUrl(raw) {
   if (!raw) return null;
@@ -3445,6 +3500,16 @@ router.get("/hianime/hls", async (c) => {
     throw error;
   }
 });
+router.get("/hianime/poster", async (c) => {
+  try {
+    return await posterProxy_controller_default(c);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
 router.get("/hianime/watch/play", async (c) => {
   try {
     return await watchPlay_controller_default(c);
@@ -3828,6 +3893,12 @@ var browseController = async (c) => {
       border-top: 1px solid var(--line);
     }
     .key-panel.is-open { display: grid; }
+    .hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
@@ -3898,7 +3969,7 @@ var browseController = async (c) => {
     .tick .sub { color: var(--accent); background: var(--accent-dim); }
     .ep-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
     }
     .ep-card {
@@ -3912,7 +3983,7 @@ var browseController = async (c) => {
       color: inherit;
       padding: 0;
       display: grid;
-      grid-template-columns: 64px 1fr;
+      grid-template-columns: 72px 1fr;
       transition: border-color 0.2s ease, transform 0.2s var(--ease);
     }
     .ep-card:hover {
@@ -3921,9 +3992,9 @@ var browseController = async (c) => {
     }
     .ep-card .poster {
       aspect-ratio: auto;
-      width: 64px;
+      width: 72px;
       height: 100%;
-      min-height: 78px;
+      min-height: 88px;
     }
     .ep-card .meta { padding: 10px 12px; align-content: center; }
     .badge {
@@ -4005,11 +4076,12 @@ var browseController = async (c) => {
         </div>
       </div>
       <div class="key-panel" id="keyPanel">
-        <label class="field-label" for="apiKey">x-api-key (saved in this browser)</label>
+        <label class="field-label" for="apiKey">x-api-key (this browser tab only)</label>
         <div class="search-row">
           <input id="apiKey" type="password" autocomplete="off" placeholder="BOT_SECRET_KEY" />
           <button type="button" class="btn ghost" id="saveKey">Save</button>
         </div>
+        <p class="hint">Kept in sessionStorage \u2014 cleared when you close the tab. Only sent as <code>x-api-key</code> to this site.</p>
       </div>
       <div class="meta-row">
         <div class="crumbs" id="crumbs"><span>Search a title to begin</span></div>
@@ -4020,15 +4092,16 @@ var browseController = async (c) => {
     <main id="main">
       <div class="empty">
         <h2>Find something to watch</h2>
-        <p>Enter your API key once, then search. Posters come from the API \u2014 open an episode to launch the player.</p>
+        <p>Enter your API key once, then search. Posters load through our proxy \u2014 open an episode to launch the player.</p>
       </div>
     </main>
 
-    <footer>${SITE_NAME} \xB7 ${SITE_TAGLINE} \xB7 posters from HiAnime \xB7 watch opens in a new tab</footer>
+    <footer>${SITE_NAME} \xB7 ${SITE_TAGLINE} \xB7 watch opens in a new tab</footer>
   </div>
 
   <script>
     (function () {
+      var KEY = 'ani.apiKey';
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
       var searchBtn = document.getElementById('searchBtn');
@@ -4040,17 +4113,20 @@ var browseController = async (c) => {
       var crumbs = document.getElementById('crumbs');
       var state = { view: 'home', anime: null, lastAnimes: [] };
 
-      apiKey.value = localStorage.getItem('ani.apiKey') || '';
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      apiKey.value = sessionStorage.getItem(KEY) || '';
       if (!apiKey.value.trim()) keyPanel.classList.add('is-open');
 
       function persistKey() {
-        localStorage.setItem('ani.apiKey', apiKey.value.trim());
+        var v = apiKey.value.trim();
+        if (v) sessionStorage.setItem(KEY, v);
+        else sessionStorage.removeItem(KEY);
       }
       apiKey.addEventListener('change', persistKey);
       apiKey.addEventListener('blur', persistKey);
       saveKey.addEventListener('click', function () {
         persistKey();
-        setStatus(apiKey.value.trim() ? 'API key saved' : 'API key cleared');
+        setStatus(apiKey.value.trim() ? 'API key saved for this tab' : 'API key cleared');
         keyPanel.classList.remove('is-open');
       });
       keyToggle.addEventListener('click', function () {
@@ -4095,9 +4171,16 @@ var browseController = async (c) => {
           .replace(/"/g, '&quot;');
       }
 
+      /** Route posters through our allowlisted proxy (CDN hotlink protection). */
+      function posterSrc(url) {
+        if (!url || !/^https?:\\/\\//i.test(url)) return null;
+        return '/api/v2/hianime/poster?url=' + encodeURIComponent(url);
+      }
+
       function posterImg(url, alt) {
-        if (url) {
-          return '<img class="poster" src="' + esc(url) + '" alt="' + esc(alt || '') + '" loading="lazy" referrerpolicy="no-referrer" />';
+        var src = posterSrc(url);
+        if (src) {
+          return '<img class="poster" src="' + esc(src) + '" alt="' + esc(alt || '') + '" loading="lazy" decoding="async" />';
         }
         return '<div class="poster ph" aria-hidden="true">No art</div>';
       }
@@ -4308,7 +4391,7 @@ app.get("/api", (c) => {
       home: "/",
       browse: "/browse"
     },
-    auth: "Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, and /hls are public.",
+    auth: "Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, /hls, and /poster are public.",
     flow: [
       "GET /api/v2/hianime/search?keyword=",
       "GET /api/v2/hianime/anime/:id/episodes",
@@ -4326,7 +4409,8 @@ app.get("/api", (c) => {
       sources: "/api/v2/hianime/episode/sources?animeEpisodeId=&category=",
       watch: "/api/v2/hianime/watch",
       watchPlay: "/api/v2/hianime/watch/play?animeEpisodeId=&category=",
-      hls: "/api/v2/hianime/hls?url="
+      hls: "/api/v2/hianime/hls?url=",
+      poster: "/api/v2/hianime/poster?url="
     }
   });
 });
