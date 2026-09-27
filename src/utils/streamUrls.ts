@@ -21,13 +21,29 @@ const ALLOWED_HOST_SUFFIXES = [
   'tiktokcdn.com',
   'tiktokcdn-us.com',
   'hiddenvertex.top',
+  'aniwatchtv.uk',
+  'zokoanime.video',
 ];
 
-/** CDN hosts used by MegaPlay playlists / segments. */
+/** CDN hosts used by MegaPlay / Zoko playlists and segments. */
 export function isAllowedStreamHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   if (host.startsWith('megap.')) return true;
+  if (host.startsWith('hls') && host.includes('aniwatchtv')) return true;
   return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s));
+}
+
+/** Upstream Referer the CDN expects when we proxy a playlist/segment. */
+export function refererForStreamUrl(url: string): string {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes('aniwatchtv') || host.includes('zoko')) {
+      return 'https://zokoanime.video/';
+    }
+  } catch {
+    // fall through
+  }
+  return 'https://megaplay.buzz/';
 }
 
 export function proxiedHlsUrl(origin: string, m3u8: string): string {

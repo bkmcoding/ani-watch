@@ -1256,6 +1256,60 @@ var serversController = async (c) => {
 };
 var servers_controller_default = serversController;
 
+// src/services/zoko.ts
+var OBF_KEY = "otaku-embed-v1";
+var DEFAULT_UA2 = config_default.headers?.["User-Agent"] || "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+function xor(str) {
+  let out = "";
+  for (let i = 0; i < str.length; i++) {
+    out += String.fromCharCode(str.charCodeAt(i) ^ OBF_KEY.charCodeAt(i % OBF_KEY.length));
+  }
+  return out;
+}
+function deobfuscateZoko(blob) {
+  const decoded = xor(Buffer.from(blob, "base64").toString("binary"));
+  const json = decodeURIComponent(
+    Array.from(decoded, (ch) => "%" + ch.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+  );
+  return JSON.parse(json);
+}
+async function resolveZokoSources(embedUrl) {
+  const res = await fetch(embedUrl, {
+    headers: {
+      "User-Agent": DEFAULT_UA2,
+      Referer: `${config_default.baseurl}/`,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    },
+    redirect: "follow",
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!res.ok) throw new Error(`Zoko embed HTTP ${res.status}`);
+  const html = await res.text();
+  const blob = html.match(/window\.__P\s*=\s*["']([^"']+)["']/)?.[1];
+  if (!blob) throw new Error("Zoko embed missing __P payload");
+  const data = deobfuscateZoko(blob);
+  const m3u8 = data.src;
+  if (!m3u8 || !/\.m3u8(\?|$)/i.test(m3u8)) {
+    throw new Error("Zoko payload missing m3u8 src");
+  }
+  return {
+    headers: {
+      Referer: "https://zokoanime.video/",
+      "User-Agent": DEFAULT_UA2
+    },
+    sources: [{ url: m3u8, isM3U8: true, quality: "auto" }],
+    subtitles: (data.subtitles || []).filter((t) => t.src).map((t) => ({
+      lang: t.label || t.lang || "Unknown",
+      url: t.src,
+      default: Boolean(t.default)
+    })),
+    intro: null,
+    outro: null,
+    anilistID: null,
+    malID: null
+  };
+}
+
 // src/utils/streamUrls.ts
 function requestOrigin(c) {
   const url = new URL(c.req.url);
@@ -1273,12 +1327,25 @@ var ALLOWED_HOST_SUFFIXES = [
   "akirax.buzz",
   "tiktokcdn.com",
   "tiktokcdn-us.com",
-  "hiddenvertex.top"
+  "hiddenvertex.top",
+  "aniwatchtv.uk",
+  "zokoanime.video"
 ];
 function isAllowedStreamHost(hostname) {
   const host = hostname.toLowerCase();
   if (host.startsWith("megap.")) return true;
+  if (host.startsWith("hls") && host.includes("aniwatchtv")) return true;
   return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
+}
+function refererForStreamUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes("aniwatchtv") || host.includes("zoko")) {
+      return "https://zokoanime.video/";
+    }
+  } catch {
+  }
+  return "https://megaplay.buzz/";
 }
 function proxiedHlsUrl(origin, m3u8) {
   return `${origin.replace(/\/+$/, "")}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
@@ -1305,22 +1372,47 @@ function pickMegaPlay(servers, category, server) {
     category
   );
 }
+function pickZoko(servers, category) {
+  const pool = servers.filter((s) => s.type === category && /zoko/i.test(s.embedUrl));
+  return pool[0] || null;
+}
 async function resolveCategory(servers, category, server) {
-  const picked = pickMegaPlay(servers, category, server);
-  if (!picked) return null;
-  try {
-    const stream = await resolveMegaPlaySources(picked.embedUrl);
-    const m3u8 = stream.sources[0]?.url;
-    if (!m3u8) return null;
-    return {
-      category,
-      server: picked.serverName.toLowerCase().replace(/\s+/g, "-"),
-      m3u8,
-      stream
-    };
-  } catch {
-    return null;
+  const mega = pickMegaPlay(servers, category, server);
+  if (mega) {
+    try {
+      const stream = await resolveMegaPlaySources(mega.embedUrl);
+      const m3u8 = stream.sources[0]?.url;
+      if (m3u8) {
+        return {
+          category,
+          provider: "megaplay",
+          server: mega.serverName.toLowerCase().replace(/\s+/g, "-"),
+          m3u8,
+          stream
+        };
+      }
+    } catch {
+    }
   }
+  const zoko = pickZoko(servers, category);
+  if (zoko) {
+    try {
+      const stream = await resolveZokoSources(zoko.embedUrl);
+      const m3u8 = stream.sources[0]?.url;
+      if (m3u8) {
+        return {
+          category,
+          provider: "zoko",
+          server: zoko.serverName.toLowerCase().replace(/\s+/g, "-"),
+          m3u8,
+          stream
+        };
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 var sourcesController = async (c) => {
   const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
@@ -1348,7 +1440,7 @@ var sourcesController = async (c) => {
     hasDub ? resolveCategory(servers, "dub", server) : Promise.resolve(null)
   ]);
   if (!subTrack && !dubTrack) {
-    throw new validationError("No MegaPlay sub/dub stream found for this episode", {
+    throw new validationError("No playable sub/dub stream found for this episode", {
       available: servers.map((s) => ({ type: s.type, serverName: s.serverName }))
     });
   }
@@ -1373,7 +1465,8 @@ var sourcesController = async (c) => {
       }),
       streamUrl: proxiedHlsUrl(origin, track.m3u8),
       originalUrl: track.m3u8,
-      server: track.server
+      server: track.server,
+      provider: track.provider
     };
   }
   return {
@@ -1399,13 +1492,13 @@ var sourcesController = async (c) => {
       "User-Agent": active.stream.headers["User-Agent"] || ""
     },
     server: active.server,
-    category: active.category
+    category: active.category,
+    provider: active.provider
   };
 };
 var sources_controller_default = sourcesController;
 
 // src/controllers/hlsProxy.controller.ts
-var REFERRER = "https://megaplay.buzz/";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
 function stripPngWrapper(buf) {
   if (buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
@@ -1450,11 +1543,17 @@ var hlsProxyController = async (c) => {
   if (!/^https?:$/i.test(parsed.protocol) || !isAllowedStreamHost(parsed.hostname)) {
     throw new validationError("url host not allowed");
   }
+  const referer = refererForStreamUrl(parsed.href);
+  let originHeader = "https://megaplay.buzz";
+  try {
+    originHeader = new URL(referer).origin;
+  } catch {
+  }
   const upstream = await fetch(parsed.href, {
     headers: {
       "User-Agent": UA,
-      Referer: REFERRER,
-      Origin: "https://megaplay.buzz",
+      Referer: referer,
+      Origin: originHeader,
       Accept: "*/*"
     },
     redirect: "follow"

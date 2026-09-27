@@ -131,7 +131,10 @@ export async function animeInfo(anime) {
     id,
     title,
     image: typeof anime === 'object' ? anime.image : undefined,
-    audio: typeof anime === 'object' && anime.subOrDub === 'dub' ? 'dub' : 'sub',
+    audio:
+      typeof anime === 'object' && anime.subOrDub === 'dub'
+        ? 'dub'
+        : 'sub', // prefer sub when both / unknown
     episodes,
   };
 }

@@ -1,8 +1,7 @@
 import { Context } from 'hono';
 import { validationError } from '../utils/errors';
-import { isAllowedStreamHost, requestOrigin } from '../utils/streamUrls';
+import { isAllowedStreamHost, refererForStreamUrl, requestOrigin } from '../utils/streamUrls';
 
-const REFERRER = 'https://megaplay.buzz/';
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
@@ -57,11 +56,19 @@ const hlsProxyController = async (c: Context) => {
     throw new validationError('url host not allowed');
   }
 
+  const referer = refererForStreamUrl(parsed.href);
+  let originHeader = 'https://megaplay.buzz';
+  try {
+    originHeader = new URL(referer).origin;
+  } catch {
+    // keep default
+  }
+
   const upstream = await fetch(parsed.href, {
     headers: {
       'User-Agent': UA,
-      Referer: REFERRER,
-      Origin: 'https://megaplay.buzz',
+      Referer: referer,
+      Origin: originHeader,
       Accept: '*/*',
     },
     redirect: 'follow',

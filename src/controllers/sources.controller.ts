@@ -6,6 +6,7 @@ import {
   resolveMegaPlaySources,
   ThemeServer,
 } from '../services/megaplay';
+import { resolveZokoSources } from '../services/zoko';
 import {
   animeSlugFromEpisodeId,
   episodeNumericId,
@@ -24,32 +25,62 @@ function pickMegaPlay(servers: ThemeServer[], category: string, server: string) 
   );
 }
 
+function pickZoko(servers: ThemeServer[], category: string) {
+  const pool = servers.filter((s) => s.type === category && /zoko/i.test(s.embedUrl));
+  return pool[0] || null;
+}
+
 async function resolveCategory(
   servers: ThemeServer[],
   category: 'sub' | 'dub',
   server: string
 ) {
-  const picked = pickMegaPlay(servers, category, server);
-  if (!picked) return null;
-  try {
-    const stream = await resolveMegaPlaySources(picked.embedUrl);
-    const m3u8 = stream.sources[0]?.url;
-    if (!m3u8) return null;
-    return {
-      category,
-      server: picked.serverName.toLowerCase().replace(/\s+/g, '-'),
-      m3u8,
-      stream,
-    };
-  } catch {
-    return null;
+  const mega = pickMegaPlay(servers, category, server);
+  if (mega) {
+    try {
+      const stream = await resolveMegaPlaySources(mega.embedUrl);
+      const m3u8 = stream.sources[0]?.url;
+      if (m3u8) {
+        return {
+          category,
+          provider: 'megaplay' as const,
+          server: mega.serverName.toLowerCase().replace(/\s+/g, '-'),
+          m3u8,
+          stream,
+        };
+      }
+    } catch {
+      // fall through to Zoko
+    }
   }
+
+  const zoko = pickZoko(servers, category);
+  if (zoko) {
+    try {
+      const stream = await resolveZokoSources(zoko.embedUrl);
+      const m3u8 = stream.sources[0]?.url;
+      if (m3u8) {
+        return {
+          category,
+          provider: 'zoko' as const,
+          server: zoko.serverName.toLowerCase().replace(/\s+/g, '-'),
+          m3u8,
+          stream,
+        };
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 const sourcesController = async (c: Context) => {
   const animeEpisodeId =
     c.req.query('animeEpisodeId') || c.req.query('episodeId') || c.req.param('episodeId');
   const server = (c.req.query('server') || 'hd-1').toLowerCase();
+  // Always prefer sub unless the caller explicitly asks for dub.
   const preferred = (c.req.query('category') || c.req.query('type') || 'sub').toLowerCase();
 
   if (!animeEpisodeId) {
@@ -74,19 +105,19 @@ const sourcesController = async (c: Context) => {
   const hasSub = servers.some((s) => s.type === 'sub');
   const hasDub = servers.some((s) => s.type === 'dub');
 
-  // Resolve available audio tracks in parallel (MegaPlay only).
   const [subTrack, dubTrack] = await Promise.all([
     hasSub ? resolveCategory(servers, 'sub', server) : Promise.resolve(null),
     hasDub ? resolveCategory(servers, 'dub', server) : Promise.resolve(null),
   ]);
 
   if (!subTrack && !dubTrack) {
-    throw new validationError('No MegaPlay sub/dub stream found for this episode', {
+    throw new validationError('No playable sub/dub stream found for this episode', {
       available: servers.map((s) => ({ type: s.type, serverName: s.serverName })),
     });
   }
 
   const origin = requestOrigin(c);
+  // Prefer requested category, but never hide the other when both resolve.
   const active =
     (preferred === 'dub' && dubTrack) ||
     (preferred === 'sub' && subTrack) ||
@@ -115,6 +146,7 @@ const sourcesController = async (c: Context) => {
       streamUrl: proxiedHlsUrl(origin, track.m3u8),
       originalUrl: track.m3u8,
       server: track.server,
+      provider: track.provider,
     };
   }
 
@@ -142,6 +174,7 @@ const sourcesController = async (c: Context) => {
     },
     server: active.server,
     category: active.category,
+    provider: active.provider,
   };
 };
 
