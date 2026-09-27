@@ -68,7 +68,7 @@ export function pickEnglishSubtitle(
   return scored[0]?.url || null;
 }
 
-/** Browser player URL. Pass CDN m3u8(s); optional English CC + episode nav meta. */
+/** Browser player URL. Pass CDN m3u8(s); optional English CC + short episode-nav ids. */
 export function watchPageUrl(
   origin: string,
   opts: {
@@ -82,8 +82,9 @@ export function watchPageUrl(
     episodeId?: string | null;
     episodeNumber?: number | null;
     episodeTitle?: string | null;
-    prevPlay?: string | null;
-    nextPlay?: string | null;
+    /** Neighbor episode ids only (keep watch URLs short). */
+    prevEpisodeId?: string | null;
+    nextEpisodeId?: string | null;
     epIndex?: number | null;
     epTotal?: number | null;
   }
@@ -99,8 +100,8 @@ export function watchPageUrl(
   if (opts.episodeId) params.set('ep', opts.episodeId);
   if (opts.episodeNumber != null) params.set('n', String(opts.episodeNumber));
   if (opts.episodeTitle) params.set('epTitle', opts.episodeTitle);
-  if (opts.prevPlay) params.set('prev', opts.prevPlay);
-  if (opts.nextPlay) params.set('next', opts.nextPlay);
+  if (opts.prevEpisodeId) params.set('prevEp', opts.prevEpisodeId);
+  if (opts.nextEpisodeId) params.set('nextEp', opts.nextEpisodeId);
   if (opts.epIndex != null) params.set('i', String(opts.epIndex));
   if (opts.epTotal != null) params.set('total', String(opts.epTotal));
   const preferred =
@@ -117,4 +118,18 @@ export function watchPageUrl(
   const primary = preferred === 'dub' ? opts.dub : opts.sub || opts.dub;
   if (primary) params.set('url', primary);
   return `${base}/api/v2/hianime/watch?${params.toString()}`;
+}
+
+/** Public hop URL used by Prev/Next on the watch page. */
+export function watchPlayUrl(
+  origin: string,
+  episodeId: string,
+  category: string = 'sub'
+): string {
+  const base = origin.replace(/\/+$/, '');
+  const params = new URLSearchParams({
+    animeEpisodeId: episodeId.includes('::') ? episodeId.replace('::', '?') : episodeId,
+    category: category === 'dub' ? 'dub' : 'sub',
+  });
+  return `${base}/api/v2/hianime/watch/play?${params.toString()}`;
 }

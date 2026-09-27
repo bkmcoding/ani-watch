@@ -1,6 +1,11 @@
 import { Context } from 'hono';
 import { validationError } from '../utils/errors';
-import { isAllowedStreamHost, proxiedHlsUrl, requestOrigin } from '../utils/streamUrls';
+import {
+  isAllowedStreamHost,
+  proxiedHlsUrl,
+  requestOrigin,
+  watchPlayUrl,
+} from '../utils/streamUrls';
 import { faviconLinkTags, SITE_NAME, titleFromAnimeSlug } from '../utils/brand';
 
 function parseAllowedUrl(raw: string | undefined): string | null {
@@ -22,6 +27,14 @@ function escAttr(s: string): string {
     .replace(/>/g, '&gt;');
 }
 
+function parseEpisodeIdParam(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.trim().replace(/::/g, '?');
+  if (!cleaned || cleaned.length > 220) return null;
+  if (/[\s<>"']/.test(cleaned)) return null;
+  return cleaned;
+}
+
 const watchController = async (c: Context) => {
   const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
   const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
@@ -35,8 +48,10 @@ const watchController = async (c: Context) => {
   const epTitle = c.req.query('epTitle')?.trim() || null;
   const epIndex = c.req.query('i') || null;
   const epTotal = c.req.query('total') || null;
-  const prevPlay = c.req.query('prev') || null;
-  const nextPlay = c.req.query('next') || null;
+  const prevEpisodeId = parseEpisodeIdParam(c.req.query('prevEp') || undefined);
+  const nextEpisodeId = parseEpisodeIdParam(c.req.query('nextEp') || undefined);
+  const legacyPrev = c.req.query('prev') || null;
+  const legacyNext = c.req.query('next') || null;
 
   let resolvedSub = subCdn;
   let resolvedDub = dubCdn;
@@ -67,8 +82,13 @@ const watchController = async (c: Context) => {
     }
   }
 
-  const prevPlaySafe = sameOriginPlay(prevPlay);
-  const nextPlaySafe = sameOriginPlay(nextPlay);
+  const category = initial === 'dub' ? 'dub' : 'sub';
+  const prevPlaySafe =
+    (prevEpisodeId ? watchPlayUrl(origin, prevEpisodeId, category) : null) ||
+    sameOriginPlay(legacyPrev);
+  const nextPlaySafe =
+    (nextEpisodeId ? watchPlayUrl(origin, nextEpisodeId, category) : null) ||
+    sameOriginPlay(legacyNext);
   const hasNav = Boolean(prevPlaySafe || nextPlaySafe);
   const streams = {
     sub: resolvedSub ? proxiedHlsUrl(origin, resolvedSub) : null,
@@ -89,8 +109,9 @@ const watchController = async (c: Context) => {
     epNum ? `Episode ${epNum}` : null,
     epIndex && epTotal ? `${epIndex}/${epTotal}` : null,
     epTitle,
-  ].filter(Boolean);
-  const subtitle = escAttr(subtitleBits.join(' · ') || 'by wab');
+  ].filter(Boolean) as string[];
+  const hasEpisodeMeta = subtitleBits.length > 0;
+  const subtitle = hasEpisodeMeta ? escAttr(subtitleBits.join(' · ')) : '';
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -183,6 +204,13 @@ const watchController = async (c: Context) => {
     }
     .pill:hover { color: var(--ink); }
     .pill.is-active { background: var(--accent-dim); color: var(--accent); }
+    .pill.nav-pill {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid rgba(61,214,198,0.35);
+      min-width: 72px;
+    }
+    .pill.nav-pill:hover { background: rgba(61, 214, 198, 0.3); color: var(--ink); }
     a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
     .stage-wrap { display: grid; place-items: center; width: 100%; min-height: 0; }
     .stage {
@@ -413,12 +441,12 @@ const watchController = async (c: Context) => {
       <div class="brand-wrap">
         <h1 class="brand">ani<span>.</span>watch</h1>
         <p class="brand-by">by <em>wab</em></p>
-        <p class="ep-line" title="${subtitle}">${subtitle}</p>
+        ${hasEpisodeMeta ? `<p class="ep-line" title="${subtitle}">${subtitle}</p>` : ''}
       </div>
       <div class="header-right">
         <div class="pill-toggle" id="epNav" ${hasNav ? '' : 'hidden'}>
-          <a class="pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'}>Prev</a>
-          <a class="pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'}>Next</a>
+          <a class="pill nav-pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'}>← Prev</a>
+          <a class="pill nav-pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'}>Next →</a>
         </div>
         <div class="pill-toggle" id="audioToggle" ${hasBoth ? '' : 'hidden'}>
           <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${streams.sub ? '' : 'hidden'}>Sub</button>
@@ -426,7 +454,6 @@ const watchController = async (c: Context) => {
         </div>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? '' : 'hidden'} aria-pressed="false">CC</button>
         <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
-        <p class="hint">[ ] episodes · Space · F · T · C · S/D audio</p>
       </div>
     </header>
 
@@ -458,7 +485,7 @@ const watchController = async (c: Context) => {
               <a class="pill" style="flex:1;text-align:center" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true"'} ${prevPlaySafe ? '' : 'hidden'}>Previous</a>
               <a class="pill" style="flex:1;text-align:center" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true"'} ${nextPlaySafe ? '' : 'hidden'}>Next</a>
             </div>
-            <p class="hint" style="margin-top:8px">${epIndex && epTotal ? escAttr(`Episode ${epIndex} of ${epTotal}`) : 'Use [ and ] keys to change episodes.'}</p>
+            <p class="hint" style="margin-top:8px">${epIndex && epTotal ? escAttr(`Episode ${epIndex} of ${epTotal}`) : 'Jump with the Prev / Next buttons.'}</p>
           </div>
           <div class="menu-section" id="ccSection">
             <h3>Subtitles</h3>
@@ -524,6 +551,8 @@ const watchController = async (c: Context) => {
             <input class="vol" id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
             <span class="time" id="time">0:00 / 0:00</span>
             <button type="button" class="speed-chip" id="speedBtn" title="Playback speed">1x</button>
+            <a class="pill nav-pill" id="prevEpBar" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'} style="padding:6px 10px;min-width:auto">← Prev</a>
+            <a class="pill nav-pill" id="nextEpBar" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'} style="padding:6px 10px;min-width:auto">Next →</a>
             <button type="button" class="ctrl" id="ccBtn" aria-label="English captions" title="English CC (C)" ${hasAnyCc ? '' : 'hidden'}>
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-8.5 10.5c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7H9.5v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 0.7 1 1.3 0 1-.9 1.4-2.1 1.4zm7 0c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7h-.7v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 .7 1 1.3 0 1-.9 1.4-2.1 1.4z"/></svg>
             </button>
@@ -543,7 +572,7 @@ const watchController = async (c: Context) => {
     </div>
 
     <p class="err" id="err" hidden></p>
-    <footer>${SITE_NAME} · by wab · Sub/Dub · CC · Prev/Next episodes — [ ] to hop</footer>
+    <footer>${SITE_NAME} · by wab · Sub/Dub · CC · use Prev/Next for episodes</footer>
   </div>
 
   <script>

@@ -17,6 +17,7 @@ import {
   pickEnglishSubtitle,
   proxiedHlsUrl,
   watchPageUrl,
+  watchPlayUrl,
 } from '../utils/streamUrls';
 import { titleFromAnimeSlug } from '../utils/brand';
 
@@ -83,19 +84,6 @@ async function resolveCategory(
 
 function normalizeEpisodeId(raw: string): string {
   return raw.includes('::') ? raw.replace('::', '?') : raw;
-}
-
-function playPageUrl(
-  origin: string,
-  episodeId: string,
-  category: string
-): string {
-  const base = origin.replace(/\/+$/, '');
-  const params = new URLSearchParams({
-    animeEpisodeId: normalizeEpisodeId(episodeId),
-    category: category === 'dub' ? 'dub' : 'sub',
-  });
-  return `${base}/api/v2/hianime/watch/play?${params.toString()}`;
 }
 
 async function findNeighbors(slug: string, currentEpNum: string) {
@@ -220,8 +208,8 @@ export async function resolveEpisodePlayback(
     episodeId,
     episodeNumber,
     episodeTitle,
-    prevPlay: prevId ? playPageUrl(origin, prevId, active.category) : null,
-    nextPlay: nextId ? playPageUrl(origin, nextId, active.category) : null,
+    prevEpisodeId: prevId,
+    nextEpisodeId: nextId,
     epIndex: neighbors?.index ?? null,
     epTotal: neighbors?.total ?? null,
   };
@@ -285,8 +273,8 @@ export async function resolveEpisodePlayback(
     episodeNumber,
     episodeTitle,
     navigation: {
-      prev: prevId ? playPageUrl(origin, prevId, active.category) : null,
-      next: nextId ? playPageUrl(origin, nextId, active.category) : null,
+      prev: prevId ? watchPlayUrl(origin, prevId, active.category) : null,
+      next: nextId ? watchPlayUrl(origin, nextId, active.category) : null,
       index: neighbors?.index ?? null,
       total: neighbors?.total ?? null,
     },
