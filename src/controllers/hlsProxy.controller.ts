@@ -99,6 +99,24 @@ const hlsProxyController = async (c: Context) => {
     });
   }
 
+  const isVtt =
+    ct.includes('text/vtt') ||
+    ct.includes('vtt') ||
+    /\.vtt(\?|$)/i.test(parsed.pathname);
+  const isAss = /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes('ass');
+
+  if (isVtt || isAss) {
+    const text = await upstream.text();
+    return new Response(text, {
+      status: 200,
+      headers: {
+        'Content-Type': isAss ? 'text/plain; charset=utf-8' : 'text/vtt; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
+
   const buf = Buffer.from(await upstream.arrayBuffer());
   const media = stripPngWrapper(buf);
   return new Response(media, {

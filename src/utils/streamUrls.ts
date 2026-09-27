@@ -50,15 +50,41 @@ export function proxiedHlsUrl(origin: string, m3u8: string): string {
   return `${origin.replace(/\/+$/, '')}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
 }
 
-/** Browser player URL. Pass CDN m3u8(s); page shows Sub/Dub toggle when both exist. */
+/** Prefer English softsub VTT from provider track lists (HTML5 <track> needs VTT). */
+export function pickEnglishSubtitle(
+  subs: Array<{ lang?: string; url?: string }> | undefined | null
+): string | null {
+  if (!subs?.length) return null;
+  const scored = subs
+    .filter((s) => s.url && /^https?:\/\//i.test(s.url) && /\.vtt(\?|$)/i.test(s.url))
+    .map((s) => {
+      const lang = (s.lang || '').trim();
+      let score = 0;
+      if (/^(en|eng|english)([-_]|$)/i.test(lang) || /\benglish\b/i.test(lang)) score += 10;
+      return { url: s.url as string, score };
+    })
+    .filter((s) => s.score >= 10)
+    .sort((a, b) => b.score - a.score);
+  return scored[0]?.url || null;
+}
+
+/** Browser player URL. Pass CDN m3u8(s); optional English CC per audio track. */
 export function watchPageUrl(
   origin: string,
-  opts: { sub?: string | null; dub?: string | null; category?: string }
+  opts: {
+    sub?: string | null;
+    dub?: string | null;
+    subCc?: string | null;
+    dubCc?: string | null;
+    category?: string;
+  }
 ): string {
   const base = origin.replace(/\/+$/, '');
   const params = new URLSearchParams();
   if (opts.sub) params.set('sub', opts.sub);
   if (opts.dub) params.set('dub', opts.dub);
+  if (opts.subCc) params.set('subCc', opts.subCc);
+  if (opts.dubCc) params.set('dubCc', opts.dubCc);
   const preferred =
     opts.category === 'dub' && opts.dub
       ? 'dub'

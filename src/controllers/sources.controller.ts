@@ -13,7 +13,12 @@ import {
   fetchTheme,
   htmlFromAjax,
 } from '../utils/themeAjax';
-import { proxiedHlsUrl, requestOrigin, watchPageUrl } from '../utils/streamUrls';
+import {
+  pickEnglishSubtitle,
+  proxiedHlsUrl,
+  requestOrigin,
+  watchPageUrl,
+} from '../utils/streamUrls';
 
 function pickMegaPlay(servers: ThemeServer[], category: string, server: string) {
   const picked = pickServer(servers, server, category);
@@ -128,25 +133,40 @@ const sourcesController = async (c: Context) => {
     throw new validationError(`No ${preferred} stream available`);
   }
 
-  const link = watchPageUrl(origin, {
+  const subCc = pickEnglishSubtitle(subTrack?.stream.subtitles);
+  const dubCc = pickEnglishSubtitle(dubTrack?.stream.subtitles);
+  const watchOpts = {
     sub: subTrack?.m3u8 || null,
     dub: dubTrack?.m3u8 || null,
+    subCc,
+    dubCc,
+  };
+
+  const link = watchPageUrl(origin, {
+    ...watchOpts,
     category: active.category,
   });
 
   const tracks: Record<string, unknown> = {};
   for (const track of [subTrack, dubTrack]) {
     if (!track) continue;
+    const enCc = pickEnglishSubtitle(track.stream.subtitles);
     tracks[track.category] = {
       link: watchPageUrl(origin, {
-        sub: subTrack?.m3u8 || null,
-        dub: dubTrack?.m3u8 || null,
+        ...watchOpts,
         category: track.category,
       }),
       streamUrl: proxiedHlsUrl(origin, track.m3u8),
       originalUrl: track.m3u8,
       server: track.server,
       provider: track.provider,
+      subtitles: track.stream.subtitles,
+      englishCc: enCc
+        ? {
+            url: proxiedHlsUrl(origin, enCc),
+            originalUrl: enCc,
+          }
+        : null,
     };
   }
 

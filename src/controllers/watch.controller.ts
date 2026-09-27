@@ -17,6 +17,8 @@ const watchController = async (c: Context) => {
   const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
   const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
   const legacy = parseAllowedUrl(c.req.query('url') || undefined);
+  const subCcCdn = parseAllowedUrl(c.req.query('subCc') || undefined);
+  const dubCcCdn = parseAllowedUrl(c.req.query('dubCc') || undefined);
   const preferredRaw = (c.req.query('t') || 'sub').toLowerCase();
 
   let resolvedSub = subCdn;
@@ -39,7 +41,12 @@ const watchController = async (c: Context) => {
     sub: resolvedSub ? proxiedHlsUrl(origin, resolvedSub) : null,
     dub: resolvedDub ? proxiedHlsUrl(origin, resolvedDub) : null,
   };
+  const captions = {
+    sub: subCcCdn ? proxiedHlsUrl(origin, subCcCdn) : null,
+    dub: dubCcCdn ? proxiedHlsUrl(origin, dubCcCdn) : null,
+  };
   const hasBoth = Boolean(streams.sub && streams.dub);
+  const hasAnyCc = Boolean(captions.sub || captions.dub);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -256,10 +263,19 @@ const watchController = async (c: Context) => {
       transition: opacity 0.3s ease;
     }
 
-    /* Theater mode */
-    body.theater {
-      background: #000;
+    video::-webkit-media-text-track-display { overflow: visible !important; }
+    video::cue {
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: clamp(16px, 2.2vw, 22px);
+      font-weight: 600;
+      line-height: 1.35;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
+
+    /* Theater mode */
+    body.theater { background: #000; }
     body.theater .page { padding: 0; gap: 0; }
     body.theater header,
     body.theater footer { opacity: 0; pointer-events: none; height: 0; overflow: hidden; margin: 0; padding: 0; }
@@ -290,8 +306,9 @@ const watchController = async (c: Context) => {
           <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${streams.sub ? '' : 'hidden'}>Sub</button>
           <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${streams.dub ? '' : 'hidden'}>Dub</button>
         </div>
+        <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? '' : 'hidden'} aria-pressed="false">CC</button>
         <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
-        <p class="hint">Space · F full · T theater · S/D audio · &lt; &gt; speed</p>
+        <p class="hint">Space · F full · T theater · C captions · S/D audio · &lt; &gt; speed</p>
       </div>
     </header>
 
@@ -313,6 +330,14 @@ const watchController = async (c: Context) => {
               <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${streams.dub ? '' : 'hidden'}>Dub</button>
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">Only one audio track is available for this episode.</p>
+          </div>
+          <div class="menu-section">
+            <h3>Subtitles</h3>
+            <div class="menu-row">
+              <label for="ccToggle">English CC</label>
+              <button type="button" class="switch" id="ccToggle" aria-pressed="false" ${hasAnyCc ? '' : 'disabled'}></button>
+            </div>
+            <p class="hint" id="ccHint" style="margin-top:8px;${hasAnyCc ? 'display:none' : ''}">No English softsubs for this episode.</p>
           </div>
           <div class="menu-section">
             <h3>Speed</h3>
@@ -352,6 +377,9 @@ const watchController = async (c: Context) => {
             <input class="vol" id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
             <span class="time" id="time">0:00 / 0:00</span>
             <button type="button" class="speed-chip" id="speedBtn" title="Playback speed">1x</button>
+            <button type="button" class="ctrl" id="ccBtn" aria-label="English captions" title="English CC (C)" ${hasAnyCc ? '' : 'hidden'}>
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-8.5 10.5c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7H9.5v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 0.7 1 1.3 0 1-.9 1.4-2.1 1.4zm7 0c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7h-.7v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 .7 1 1.3 0 1-.9 1.4-2.1 1.4z"/></svg>
+            </button>
             <span class="spacer"></span>
             <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.89 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
@@ -368,12 +396,13 @@ const watchController = async (c: Context) => {
     </div>
 
     <p class="err" id="err" hidden></p>
-    <footer>Sub/Dub · speed · theater · settings — press T for theater view</footer>
+    <footer>Sub/Dub · English CC · speed · theater · settings — press C for captions</footer>
   </div>
 
   <script>
     (function () {
       var streams = ${JSON.stringify(streams)};
+      var captions = ${JSON.stringify(captions)};
       var track = ${JSON.stringify(initial)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
@@ -397,12 +426,16 @@ const watchController = async (c: Context) => {
       var theaterToggle = document.getElementById('theaterToggle');
       var theaterBtn = document.getElementById('theaterBtn');
       var theaterTop = document.getElementById('theaterTop');
+      var ccToggle = document.getElementById('ccToggle');
+      var ccBtn = document.getElementById('ccBtn');
+      var ccTop = document.getElementById('ccTop');
       var pipBtn = document.getElementById('pipBtn');
       var hideTimer = null;
       var hls = null;
       var switching = false;
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
+      var ccOn = localStorage.getItem('ani.cc') === '1';
 
       var ICONS = {
         play: '<path d="M8 5v14l11-7z"/>',
@@ -480,6 +513,68 @@ const watchController = async (c: Context) => {
         theaterBtn.classList.toggle('is-on', theater);
         localStorage.setItem('ani.theater', theater ? '1' : '0');
         pokeControls();
+      }
+
+      function syncCcButtons() {
+        var available = Boolean(captions[track]);
+        [ccBtn, ccTop].forEach(function (el) {
+          if (!el) return;
+          el.hidden = !captions.sub && !captions.dub;
+          el.disabled = !available;
+          el.classList.toggle('is-active', ccOn && available);
+          el.setAttribute('aria-pressed', ccOn && available ? 'true' : 'false');
+        });
+        if (ccToggle) {
+          ccToggle.disabled = !available;
+          ccToggle.classList.toggle('is-on', ccOn && available);
+          ccToggle.setAttribute('aria-pressed', ccOn && available ? 'true' : 'false');
+        }
+      }
+
+      function clearTextTracks() {
+        Array.from(video.querySelectorAll('track')).forEach(function (el) {
+          try { el.remove(); } catch (e) {}
+        });
+        try {
+          Array.from(video.textTracks || []).forEach(function (tt) {
+            tt.mode = 'disabled';
+          });
+        } catch (e) {}
+      }
+
+      function applyCaptions() {
+        clearTextTracks();
+        var src = captions[track];
+        if (!ccOn || !src) {
+          syncCcButtons();
+          return;
+        }
+        var el = document.createElement('track');
+        el.kind = 'subtitles';
+        el.label = 'English';
+        el.srclang = 'en';
+        el.src = src;
+        el.default = true;
+        video.appendChild(el);
+        var enable = function () {
+          try {
+            Array.from(video.textTracks || []).forEach(function (tt) {
+              tt.mode = (tt.language === 'en' || /english/i.test(tt.label || '')) ? 'showing' : 'disabled';
+            });
+            if (video.textTracks && video.textTracks.length && video.textTracks[0].mode !== 'showing') {
+              video.textTracks[0].mode = 'showing';
+            }
+          } catch (e) {}
+        };
+        el.addEventListener('load', enable);
+        setTimeout(enable, 250);
+        syncCcButtons();
+      }
+
+      function setCc(on) {
+        ccOn = !!on;
+        localStorage.setItem('ani.cc', ccOn ? '1' : '0');
+        applyCaptions();
       }
 
       function setRate(next) {
@@ -574,11 +669,13 @@ const watchController = async (c: Context) => {
         stage.classList.add('is-loading');
         try { video.pause(); } catch (e) {}
         destroyHls();
+        clearTextTracks();
         video.removeAttribute('src');
         try { video.load(); } catch (e) {}
 
         function finishReady() {
           video.playbackRate = rate;
+          applyCaptions();
           var finished = false;
           var start = function () {
             if (finished) return;
@@ -641,6 +738,7 @@ const watchController = async (c: Context) => {
       setRate(rate);
       setTheater(theater);
       syncAudioButtons();
+      syncCcButtons();
 
       playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
       bigPlay.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
@@ -666,6 +764,15 @@ const watchController = async (c: Context) => {
         e.preventDefault(); e.stopPropagation();
         setTheater(!theater);
       });
+      function onCcClick(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!captions[track]) return;
+        setCc(!ccOn);
+      }
+      if (ccBtn) ccBtn.addEventListener('click', onCcClick);
+      if (ccTop) ccTop.addEventListener('click', onCcClick);
+      if (ccToggle) ccToggle.addEventListener('click', onCcClick);
       loopToggle.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         video.loop = !video.loop;
@@ -736,6 +843,9 @@ const watchController = async (c: Context) => {
         if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
+        else if (e.key === 'c' || e.key === 'C') {
+          if (captions[track]) setCc(!ccOn);
+        }
         else if (e.key === 'm' || e.key === 'M') toggleMute();
         else if (e.key === 's' || e.key === 'S') { if (streams.sub) loadTrack('sub', true); }
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
