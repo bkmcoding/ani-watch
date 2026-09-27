@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import { faviconLinkTags, SITE_NAME, SITE_TAGLINE } from '../utils/brand';
+import { vercelObservabilityScriptTags } from '../utils/vercelObservability';
 import { requestOrigin } from '../utils/streamUrls';
 
 const landingController = async (c: Context) => {
@@ -161,6 +162,7 @@ const landingController = async (c: Context) => {
     </main>
     <footer>${SITE_NAME} · ${SITE_TAGLINE}</footer>
   </div>
+  ${vercelObservabilityScriptTags()}
 </body>
 </html>`;
 

@@ -79,13 +79,14 @@ app.get('/api', (c: Context) => {
       home: '/',
       browse: '/browse',
     },
-    auth: 'Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, /hls, and /poster are public.',
+    auth: 'Send header x-api-key (BOT_SECRET_KEY) for /api/v2 JSON routes. /watch, /watch/play, /watch/episodes, /hls, and /poster are public.',
     flow: [
       'GET /api/v2/hianime/search?keyword=',
       'GET /api/v2/hianime/anime/:id/episodes',
       'GET /api/v2/hianime/episode/sources?animeEpisodeId=&category=sub|dub',
       'Open data.link (or data.tracks.sub|dub.link) in a browser to play',
       'Use data.navigation.prev|next or /watch/play to change episodes',
+      'Player episode picker: GET /api/v2/hianime/watch/episodes?anime=',
     ],
     endpoints: {
       ping: '/ping',
@@ -98,6 +99,7 @@ app.get('/api', (c: Context) => {
       sources: '/api/v2/hianime/episode/sources?animeEpisodeId=&category=',
       watch: '/api/v2/hianime/watch',
       watchPlay: '/api/v2/hianime/watch/play?animeEpisodeId=&category=',
+      watchEpisodes: '/api/v2/hianime/watch/episodes?anime=',
       hls: '/api/v2/hianime/hls?url=',
       poster: '/api/v2/hianime/poster?url=',
     },

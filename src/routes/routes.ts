@@ -15,6 +15,7 @@ import hlsProxyController from '../controllers/hlsProxy.controller';
 import posterProxyController from '../controllers/posterProxy.controller';
 import watchController from '../controllers/watch.controller';
 import watchPlayController from '../controllers/watchPlay.controller';
+import watchEpisodesController from '../controllers/watchEpisodes.controller';
 import allGenresController from '../controllers/allGenres.controller';
 import { AppError } from '../utils/errors';
 import { fail } from '../utils/response';
@@ -78,6 +79,17 @@ router.get('/hianime/poster', async (c) => {
 router.get('/hianime/watch/play', async (c) => {
   try {
     return await watchPlayController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
+// Public compact episode list for the watch player picker
+router.get('/hianime/watch/episodes', async (c) => {
+  try {
+    return await watchEpisodesController(c);
   } catch (error: unknown) {
     if (error instanceof AppError) {
       return fail(c, error.message, error.statusCode, error.details);

@@ -1,0 +1,16 @@
+/**
+ * Deferred Vercel Web Analytics + Speed Insights snippets for string-HTML pages.
+ * (Hono has no React/client entry for inject().)
+ */
+export function vercelObservabilityScriptTags(): string {
+  return [
+    `<script>`,
+    `  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };`,
+    `</script>`,
+    `<script defer src="/_vercel/insights/script.js"></script>`,
+    `<script>`,
+    `  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };`,
+    `</script>`,
+    `<script defer src="/_vercel/speed-insights/script.js"></script>`,
+  ].join('\n  ');
+}

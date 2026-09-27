@@ -7,6 +7,7 @@ import {
   watchPlayUrl,
 } from '../utils/streamUrls';
 import { faviconLinkTags, SITE_NAME, titleFromAnimeSlug } from '../utils/brand';
+import { vercelObservabilityScriptTags } from '../utils/vercelObservability';
 
 function parseAllowedUrl(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -77,6 +78,7 @@ const watchController = async (c: Context) => {
   const preferredRaw = (c.req.query('t') || 'sub').toLowerCase();
   const animeTitle =
     c.req.query('title')?.trim() || titleFromAnimeSlug(c.req.query('anime') || undefined);
+  const animeId = (c.req.query('anime') || '').trim() || null;
   const epNum = c.req.query('n') || null;
   const epTitle = c.req.query('epTitle')?.trim() || null;
   const epIndex = c.req.query('i') || null;
@@ -132,6 +134,7 @@ const watchController = async (c: Context) => {
     (nextEpisodeId ? watchPlayUrl(origin, nextEpisodeId, category) : null) ||
     sameOriginPlay(legacyNext);
   const hasNav = Boolean(prevPlaySafe || nextPlaySafe);
+  const hasAnime = Boolean(animeId);
   const streams = {
     sub: resolvedSub ? proxiedHlsUrl(origin, resolvedSub) : null,
     dub: resolvedDub ? proxiedHlsUrl(origin, resolvedDub) : null,
@@ -512,6 +515,50 @@ const watchController = async (c: Context) => {
       max-width: var(--stage-max); width: 100%; margin: 0 auto;
       color: var(--muted); font-size: 0.8rem;
       transition: opacity 0.3s ease;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    }
+    footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    footer a:hover { text-decoration: underline; }
+    .ep-panel {
+      position: absolute; left: 12px; bottom: 58px;
+      width: min(340px, calc(100% - 24px));
+      max-height: min(52vh, 420px);
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      display: none; z-index: 5; backdrop-filter: blur(16px);
+      flex-direction: column; overflow: hidden;
+    }
+    .ep-panel.is-open { display: flex; }
+    .ep-panel-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 12px 12px 8px; border-bottom: 1px solid var(--line);
+    }
+    .ep-panel-head h3 {
+      margin: 0; font-size: 0.72rem; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); font-weight: 600;
+    }
+    .ep-panel-status { margin: 0; padding: 10px 12px; font-size: 0.82rem; color: var(--muted); }
+    .ep-list {
+      overflow: auto; overscroll-behavior: contain;
+      padding: 6px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .ep-item {
+      appearance: none; border: 0; background: transparent; color: var(--ink);
+      font: inherit; text-align: left; cursor: pointer;
+      display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
+      padding: 8px 10px; border-radius: 10px; width: 100%;
+      transition: background 0.15s ease;
+    }
+    .ep-item:hover { background: rgba(255,255,255,0.06); }
+    .ep-item.is-current { background: var(--accent-dim); color: var(--accent); }
+    .ep-item .ep-n { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--muted); }
+    .ep-item.is-current .ep-n { color: var(--accent); }
+    .ep-item .ep-t {
+      font-size: 0.88rem; line-height: 1.3;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ep-item.is-filler .ep-n::after {
+      content: "F"; margin-left: 4px; font-size: 0.65rem; opacity: 0.7;
     }
 
     /* Theater mode */
@@ -546,6 +593,8 @@ const watchController = async (c: Context) => {
         ${hasEpisodeMeta ? `<p class="ep-line" title="${subtitle}">${subtitle}</p>` : ''}
       </div>
       <div class="header-right">
+        <a class="pill" href="/browse" title="Back to browse">Browse</a>
+        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? '' : 'hidden'}>Episodes</button>
         <div class="pill-toggle" id="epNav" ${hasNav ? '' : 'hidden'}>
           <a class="pill nav-pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'}>← Prev</a>
           <a class="pill nav-pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'}>Next →</a>
@@ -574,6 +623,15 @@ const watchController = async (c: Context) => {
         </div>
         <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
 
+        <div class="ep-panel" id="epPanel" role="dialog" aria-label="Episode list" hidden>
+          <div class="ep-panel-head">
+            <h3>Episodes</h3>
+            <button type="button" class="pill" id="epPanelClose" style="padding:6px 10px">Close</button>
+          </div>
+          <p class="ep-panel-status" id="epPanelStatus">Loading…</p>
+          <div class="ep-list" id="epList" hidden></div>
+        </div>
+
         <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
           <div class="menu-section">
             <h3>Audio</h3>
@@ -583,13 +641,14 @@ const watchController = async (c: Context) => {
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">Only one audio track is available for this episode.</p>
           </div>
-          <div class="menu-section" ${hasNav ? '' : 'hidden'}>
+          <div class="menu-section" ${hasNav || hasAnime ? '' : 'hidden'}>
             <h3>Episodes</h3>
             <div class="pill-toggle" style="width:100%;justify-content:stretch">
               <a class="pill" style="flex:1;text-align:center" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true"'} ${prevPlaySafe ? '' : 'hidden'}>Previous</a>
               <a class="pill" style="flex:1;text-align:center" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true"'} ${nextPlaySafe ? '' : 'hidden'}>Next</a>
             </div>
-            <p class="hint" style="margin-top:8px">${epIndex && epTotal ? escAttr(`Episode ${epIndex} of ${epTotal}`) : 'Jump with the Prev / Next buttons.'}</p>
+            <button type="button" class="pill" id="epListBtnMenu" style="width:100%;margin-top:8px;justify-content:center" ${hasAnime ? '' : 'hidden'}>All episodes</button>
+            <p class="hint" style="margin-top:8px">${epIndex && epTotal ? escAttr(`Episode ${epIndex} of ${epTotal}`) : 'Jump with Prev / Next or the episode list.'}</p>
           </div>
           <div class="menu-section" id="ccSection">
             <h3>Subtitles</h3>
@@ -676,7 +735,10 @@ const watchController = async (c: Context) => {
     </div>
 
     <p class="err" id="err" hidden></p>
-    <footer>${SITE_NAME} · by wab · Sub/Dub · CC · use Prev/Next for episodes</footer>
+    <footer>
+      <span>${SITE_NAME} · by wab · Sub/Dub · CC · Episodes · Prev/Next</span>
+      <a href="/browse">Browse</a>
+    </footer>
   </div>
 
   <script>
@@ -685,6 +747,9 @@ const watchController = async (c: Context) => {
       var captions = ${JSON.stringify(captions)};
       var skips = ${JSON.stringify(skips)};
       var providers = ${JSON.stringify(providers)};
+      var animeId = ${JSON.stringify(animeId)};
+      var playCategory = ${JSON.stringify(category)};
+      var currentEpNum = ${JSON.stringify(epNum)};
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
       var track = ${JSON.stringify(initial)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -719,6 +784,12 @@ const watchController = async (c: Context) => {
       var pipBtn = document.getElementById('pipBtn');
       var skipBtn = document.getElementById('skipBtn');
       var providerBadge = document.getElementById('providerBadge');
+      var epListBtn = document.getElementById('epListBtn');
+      var epListBtnMenu = document.getElementById('epListBtnMenu');
+      var epPanel = document.getElementById('epPanel');
+      var epPanelClose = document.getElementById('epPanelClose');
+      var epPanelStatus = document.getElementById('epPanelStatus');
+      var epList = document.getElementById('epList');
       var hideTimer = null;
       var hls = null;
       var switching = false;
@@ -1205,7 +1276,128 @@ const watchController = async (c: Context) => {
         settingsMenu.classList.toggle('is-open', open);
         stage.classList.toggle('settings-open', open);
         settingsBtn.classList.toggle('is-on', open);
-        if (open) pokeControls();
+        if (open) {
+          setEpPanel(false);
+          pokeControls();
+        }
+      }
+
+      function setEpPanel(open) {
+        if (!epPanel || !animeId) return;
+        epPanel.hidden = !open;
+        epPanel.classList.toggle('is-open', open);
+        if (epListBtn) epListBtn.classList.toggle('is-active', open);
+        if (open) {
+          toggleSettings(false);
+          pokeControls();
+          loadEpisodeList();
+        }
+      }
+
+      function toggleEpPanel() {
+        if (!animeId) return;
+        setEpPanel(!(epPanel && epPanel.classList.contains('is-open')));
+      }
+
+      function playEpisodeId(episodeId) {
+        if (!episodeId) return;
+        var params = new URLSearchParams({
+          animeEpisodeId: String(episodeId).replace(/::/g, '?'),
+          category: playCategory === 'dub' ? 'dub' : 'sub',
+        });
+        location.href = '/api/v2/hianime/watch/play?' + params.toString();
+      }
+
+      function readEpsCache() {
+        if (!animeId) return null;
+        try {
+          var raw = sessionStorage.getItem('ani.eps.' + animeId);
+          if (!raw) return null;
+          var parsed = JSON.parse(raw);
+          if (!parsed || !parsed.expires || parsed.expires < Date.now()) return null;
+          if (!parsed.data || !Array.isArray(parsed.data.episodes)) return null;
+          return parsed.data;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function writeEpsCache(data) {
+        if (!animeId || !data) return;
+        try {
+          sessionStorage.setItem(
+            'ani.eps.' + animeId,
+            JSON.stringify({ expires: Date.now() + 15 * 60 * 1000, data: data })
+          );
+        } catch (e) {}
+      }
+
+      function renderEpisodeList(data) {
+        if (!epList || !epPanelStatus) return;
+        var episodes = (data && data.episodes) || [];
+        if (!episodes.length) {
+          epList.hidden = true;
+          epPanelStatus.hidden = false;
+          epPanelStatus.textContent = 'No episodes found.';
+          return;
+        }
+        epPanelStatus.hidden = true;
+        epList.hidden = false;
+        epList.innerHTML = '';
+        var cur = currentEpNum != null ? String(currentEpNum) : '';
+        var currentEl = null;
+        episodes.forEach(function (ep) {
+          if (!ep || !ep.id) return;
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'ep-item' + (ep.filler ? ' is-filler' : '');
+          var n = ep.n != null ? String(ep.n) : '';
+          if (n && n === cur) {
+            btn.className += ' is-current';
+            currentEl = btn;
+          }
+          btn.innerHTML =
+            '<span class="ep-n">' + (n || '—') + '</span>' +
+            '<span class="ep-t"></span>';
+          btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            playEpisodeId(ep.id);
+          });
+          epList.appendChild(btn);
+        });
+        if (currentEl && typeof currentEl.scrollIntoView === 'function') {
+          try { currentEl.scrollIntoView({ block: 'center' }); } catch (e) {}
+        }
+      }
+
+      function loadEpisodeList() {
+        if (!animeId || !epPanelStatus) return;
+        var cached = readEpsCache();
+        if (cached) {
+          renderEpisodeList(cached);
+          return;
+        }
+        epList.hidden = true;
+        epPanelStatus.hidden = false;
+        epPanelStatus.textContent = 'Loading…';
+        fetch('/api/v2/hianime/watch/episodes?anime=' + encodeURIComponent(animeId))
+          .then(function (r) {
+            if (!r.ok) throw new Error('list ' + r.status);
+            return r.json();
+          })
+          .then(function (json) {
+            var data = json && json.data ? json.data : json;
+            if (!data || !Array.isArray(data.episodes)) throw new Error('bad list');
+            writeEpsCache(data);
+            renderEpisodeList(data);
+          })
+          .catch(function () {
+            epList.hidden = true;
+            epPanelStatus.hidden = false;
+            epPanelStatus.textContent = 'Could not load episodes.';
+          });
       }
 
       // Wire UI
@@ -1227,6 +1419,28 @@ const watchController = async (c: Context) => {
         e.preventDefault(); e.stopPropagation();
         toggleSettings();
       });
+      if (epListBtn) {
+        epListBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleEpPanel();
+        });
+      }
+      if (epListBtnMenu) {
+        epListBtnMenu.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSettings(false);
+          setEpPanel(true);
+        });
+      }
+      if (epPanelClose) {
+        epPanelClose.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          setEpPanel(false);
+        });
+      }
       theaterBtn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         setTheater(!theater);
@@ -1377,9 +1591,17 @@ const watchController = async (c: Context) => {
       stage.addEventListener('mousemove', pokeControls);
       stage.addEventListener('touchstart', pokeControls, { passive: true });
       document.addEventListener('click', function (e) {
-        if (!settingsMenu.classList.contains('is-open')) return;
-        if (settingsMenu.contains(e.target) || settingsBtn.contains(e.target) || speedBtn.contains(e.target)) return;
-        toggleSettings(false);
+        if (settingsMenu.classList.contains('is-open')) {
+          if (!(settingsMenu.contains(e.target) || settingsBtn.contains(e.target) || speedBtn.contains(e.target))) {
+            toggleSettings(false);
+          }
+        }
+        if (epPanel && epPanel.classList.contains('is-open')) {
+          if (epPanel.contains(e.target)) return;
+          if (epListBtn && epListBtn.contains(e.target)) return;
+          if (epListBtnMenu && epListBtnMenu.contains(e.target)) return;
+          setEpPanel(false);
+        }
       });
 
       document.addEventListener('keydown', function (e) {
@@ -1387,6 +1609,9 @@ const watchController = async (c: Context) => {
         if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
+        else if (e.key === 'e' || e.key === 'E') {
+          if (animeId) { e.preventDefault(); toggleEpPanel(); }
+        }
         else if (e.key === 'c' || e.key === 'C') {
           if (captions[track]) setCc(!ccOn);
         }
@@ -1405,7 +1630,10 @@ const watchController = async (c: Context) => {
         else if (e.key === '.' || e.key === '>') cycleRate(1);
         else if (e.key === 'ArrowRight') video.currentTime = Math.min((video.duration || 0), video.currentTime + 10);
         else if (e.key === 'ArrowLeft') video.currentTime = Math.max(0, video.currentTime - 10);
-        else if (e.key === 'Escape' && theater && !document.fullscreenElement) setTheater(false);
+        else if (e.key === 'Escape') {
+          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+          else if (theater && !document.fullscreenElement) setTheater(false);
+        }
         pokeControls();
       });
 
@@ -1415,6 +1643,7 @@ const watchController = async (c: Context) => {
       loadTrack(track, false);
     })();
   </script>
+  ${vercelObservabilityScriptTags()}
 </body>
 </html>`;
 

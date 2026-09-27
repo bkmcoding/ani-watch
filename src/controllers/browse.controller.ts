@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import { faviconLinkTags, SITE_NAME, SITE_TAGLINE } from '../utils/brand';
+import { vercelObservabilityScriptTags } from '../utils/vercelObservability';
 import { mediaProxySecret, posterProxyBase, requestOrigin } from '../utils/streamUrls';
 
 const browseController = async (c: Context) => {
@@ -1003,6 +1004,7 @@ const browseController = async (c: Context) => {
       q.focus();
     })();
   </script>
+  ${vercelObservabilityScriptTags()}
 </body>
 </html>`;
 
