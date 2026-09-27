@@ -38,6 +38,7 @@ export function animeSlugFromEpisodeId(episodeId: string): string | null {
   return slug || null;
 }
 
+/** Theme AJAX — cached ~2 minutes (episode lists / servers change slowly). */
 export async function fetchTheme(path: string, refererPath?: string) {
   const referer = refererPath
     ? `${config.baseurl}${refererPath.startsWith('/') ? refererPath : `/${refererPath}`}`
@@ -49,5 +50,6 @@ export async function fetchTheme(path: string, refererPath?: string) {
       'X-Requested-With': 'XMLHttpRequest',
       Accept: 'application/json, text/javascript, */*; q=0.01',
     },
+    cacheTtlMs: 120_000,
   });
 }

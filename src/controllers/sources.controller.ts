@@ -8,6 +8,7 @@ const sourcesController = async (c: Context) => {
     c.req.query('animeEpisodeId') || c.req.query('episodeId') || c.req.param('episodeId');
   const server = (c.req.query('server') || 'hd-1').toLowerCase();
   const preferred = (c.req.query('category') || c.req.query('type') || 'sub').toLowerCase();
+  const nav = c.req.query('nav');
 
   if (!animeEpisodeId) {
     throw new validationError('animeEpisodeId is required', {
@@ -19,6 +20,7 @@ const sourcesController = async (c: Context) => {
     return await resolveEpisodePlayback(requestOrigin(c), animeEpisodeId, {
       server,
       category: preferred,
+      nav: nav !== '0' && nav !== 'false',
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to resolve sources';

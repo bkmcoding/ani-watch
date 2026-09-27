@@ -14,6 +14,7 @@ const suggestionController = async (c: Context): Promise<Suggestion[]> => {
 
   const result = await axiosInstance(endpoint, {
     headers: { Referer: `${config.baseurl}/home` },
+    cacheTtlMs: 60_000,
   });
 
   if (!result.success || !result.data) {

@@ -7,7 +7,7 @@ import { DetailAnime } from '../types/anime';
 const detailpageController = async (c: Context): Promise<DetailAnime> => {
   const id = c.req.param('id');
 
-  const result = await axiosInstance(`/${id}`);
+  const result = await axiosInstance(`/${id}`, { cacheTtlMs: 180_000 });
   if (!result.success || !result.data) {
     throw new validationError(
       result.message || 'Failed to fetch detail page',

@@ -6,6 +6,7 @@ import { handle } from "@hono/node-server/vercel";
 // src/app.ts
 import { Hono as Hono2 } from "hono";
 import { cors } from "hono/cors";
+import { compress } from "hono/compress";
 
 // src/routes/routes.ts
 import { Hono } from "hono";
@@ -76,85 +77,124 @@ var config = {
 };
 var config_default = config;
 
+// src/utils/ttlCache.ts
+function createTtlCache(opts = {}) {
+  const max = opts.max ?? 300;
+  const store = /* @__PURE__ */ new Map();
+  const inflight2 = /* @__PURE__ */ new Map();
+  function get(key) {
+    const hit = store.get(key);
+    if (!hit) return void 0;
+    if (hit.expires < Date.now()) {
+      store.delete(key);
+      return void 0;
+    }
+    store.delete(key);
+    store.set(key, hit);
+    return hit.value;
+  }
+  function set(key, value, ttlMs) {
+    if (ttlMs <= 0) return;
+    if (store.size >= max) {
+      const oldest = store.keys().next().value;
+      if (oldest !== void 0) store.delete(oldest);
+    }
+    store.set(key, { value, expires: Date.now() + ttlMs });
+  }
+  async function getOrSet(key, ttlMs, loader) {
+    if (ttlMs <= 0) return loader();
+    const cached2 = get(key);
+    if (cached2 !== void 0) return cached2;
+    const pending = inflight2.get(key);
+    if (pending) return pending;
+    const job = (async () => {
+      const value = await loader();
+      set(key, value, ttlMs);
+      return value;
+    })().finally(() => {
+      inflight2.delete(key);
+    });
+    inflight2.set(key, job);
+    return job;
+  }
+  return { get, set, getOrSet, size: () => store.size };
+}
+var scrapeCache = createTtlCache({ max: 400 });
+async function cached(key, ttlMs, loader) {
+  return scrapeCache.getOrSet(key, ttlMs, loader);
+}
+
 // src/services/axiosInstance.ts
-var MAX_RETRIES = 3;
+var MAX_RETRIES = 2;
 var RETRY_DELAY = 1e3;
 var TIMEOUT = 1e4;
 var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 var axiosInstance = async (endpoint, options = {}) => {
-  const { headers: customHeaders = {}, retries = MAX_RETRIES } = options;
-  const url = config_default.baseurl + endpoint;
-  let lastError = null;
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      if (attempt > 0) {
-        const delay = RETRY_DELAY * Math.pow(2, attempt - 1);
-        console.log(`Retry attempt ${attempt + 1}/${retries} after ${delay}ms delay...`);
-        await sleep(delay);
-      }
-      console.log(`Fetching (attempt ${attempt + 1}/${retries}): ${url}`);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
-      const response = await fetch(url, {
-        headers: {
-          ...config_default.headers || {},
-          ...customHeaders,
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.5",
-          "Accept-Encoding": "gzip, deflate, br",
-          Connection: "keep-alive",
-          "Upgrade-Insecure-Requests": "1",
-          "Cache-Control": "max-age=0"
-        },
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      console.log(`Response status: ${response.status}`);
-      if (response.status === 429) {
-        const retryAfter = response.headers.get("retry-after");
-        const waitTime = retryAfter ? parseInt(retryAfter) * 1e3 : RETRY_DELAY * 2;
-        console.warn(`Rate limited. Waiting ${waitTime}ms before retry...`);
-        await sleep(waitTime);
-        continue;
-      }
-      if (response.status >= 500 && response.status < 600) {
-        throw new Error(`Server error: HTTP ${response.status}`);
-      }
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      const data = await response.text();
-      if (!data || data.length === 0) {
-        throw new Error("Empty response received");
-      }
-      console.log(`Success: Received data length: ${data.length}`);
-      return {
-        success: true,
-        data
-      };
-    } catch (error) {
-      if (error instanceof Error) {
-        lastError = error;
-        console.error(
-          `Fetch error (attempt ${attempt + 1}/${retries}) for ${endpoint}:`,
-          error.message
-        );
-        if (error.name === "AbortError") {
-          lastError = new Error("Request timeout - the external API took too long to respond");
+  const { headers: customHeaders = {}, retries = MAX_RETRIES, cacheTtlMs = 0 } = options;
+  const cacheKey = `axios:${endpoint}|${JSON.stringify(customHeaders)}`;
+  const run = async () => {
+    let lastError = null;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = RETRY_DELAY * Math.pow(2, attempt - 1);
+          await sleep(delay);
         }
-        if (error.message.includes("HTTP 40") && !error.message.includes("429")) {
-          break;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+        const response = await fetch(config_default.baseurl + endpoint, {
+          headers: {
+            ...config_default.headers || {},
+            ...customHeaders,
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            Connection: "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Cache-Control": "max-age=0"
+          },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("retry-after");
+          const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1e3 : RETRY_DELAY * 2;
+          await sleep(waitTime);
+          continue;
         }
-      }
-      if (attempt === retries - 1) {
-        break;
+        if (response.status >= 500 && response.status < 600) {
+          throw new Error(`Server error: HTTP ${response.status}`);
+        }
+        if (!response.ok) {
+          return {
+            success: false,
+            message: `HTTP ${response.status}: ${response.statusText}`
+          };
+        }
+        const data = await response.text();
+        if (!data || data.length === 0) {
+          throw new Error("Empty response received");
+        }
+        return {
+          success: true,
+          data
+        };
+      } catch (error) {
+        if (error instanceof Error) {
+          lastError = error.name === "AbortError" ? new Error("Request timeout - the external API took too long to respond") : error;
+        }
+        if (attempt === retries - 1) break;
       }
     }
-  }
-  return {
-    success: false,
-    message: lastError?.message || "Unknown error occurred"
+    return {
+      success: false,
+      message: lastError?.message || "Unknown error occurred"
+    };
   };
+  if (cacheTtlMs > 0) {
+    return cached(cacheKey, cacheTtlMs, run);
+  }
+  return run();
 };
 
 // src/extractor/extractHomepage.ts
@@ -351,7 +391,7 @@ var extractHomepage = (html) => {
 // src/controllers/homepage.controller.ts
 var homepageController = async () => {
   console.log("Fetching homepage data from external API...");
-  const result = await axiosInstance("/home");
+  const result = await axiosInstance("/home", { cacheTtlMs: 12e4 });
   if (!result.success || !result.data) {
     console.error("Homepage fetch failed:", result.message);
     throw new validationError(result.message || "Failed to fetch homepage");
@@ -563,7 +603,7 @@ var extractDetailpage = (html) => {
 // src/controllers/detailpage.controller.ts
 var detailpageController = async (c) => {
   const id = c.req.param("id");
-  const result = await axiosInstance(`/${id}`);
+  const result = await axiosInstance(`/${id}`, { cacheTtlMs: 18e4 });
   if (!result.success || !result.data) {
     throw new validationError(
       result.message || "Failed to fetch detail page",
@@ -711,7 +751,7 @@ var listpageController = async (c) => {
   let nromalizeCategory = category && category.replaceAll(" ", "-").toLowerCase();
   if (nromalizeCategory === "martial-arts") nromalizeCategory = "marial-arts";
   const endpoint = category ? `/${query}/${nromalizeCategory}?page=${page}` : `/${query}?page=${page}`;
-  const result = await axiosInstance(endpoint);
+  const result = await axiosInstance(endpoint, { cacheTtlMs: 12e4 });
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure given endpoint is correct");
   }
@@ -728,7 +768,7 @@ var searchController = async (c) => {
   if (!keyword) throw new validationError("query is required");
   const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, "+");
   const endpoint = `/search?keyword=${noSpaceKeyword}&page=${page}`;
-  const result = await axiosInstance(endpoint);
+  const result = await axiosInstance(endpoint, { cacheTtlMs: 9e4 });
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure given endpoint is correct");
   }
@@ -801,7 +841,8 @@ var suggestionController = async (c) => {
   const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, "+");
   const endpoint = `/ajax/search/suggest?keyword=${noSpaceKeyword}`;
   const result = await axiosInstance(endpoint, {
-    headers: { Referer: `${config_default.baseurl}/home` }
+    headers: { Referer: `${config_default.baseurl}/home` },
+    cacheTtlMs: 6e4
   });
   if (!result.success || !result.data) {
     throw new validationError(result.message || "suggestion not found");
@@ -1081,7 +1122,8 @@ async function fetchTheme(path, refererPath) {
       Referer: referer,
       "X-Requested-With": "XMLHttpRequest",
       Accept: "application/json, text/javascript, */*; q=0.01"
-    }
+    },
+    cacheTtlMs: 12e4
   });
 }
 
@@ -1090,16 +1132,24 @@ var episodesController = async (c) => {
   const id = c.req.param("id");
   if (!id) throw new validationError("id is required");
   const idNum = animeNumericId(id);
-  const [listResult, detailResult] = await Promise.all([
-    fetchTheme(`episode/list/${idNum}`, `/watch/${id}`),
-    axiosInstance(`/${id}`)
-  ]);
+  const wantPoster = c.req.query("poster") === "1" || c.req.query("poster") === "true";
+  const listResult = await fetchTheme(`episode/list/${idNum}`, `/watch/${id}`);
   if (!listResult.success || !listResult.data) {
     throw new validationError(listResult.message || "make sure the id is correct", {
       validIdEX: "one-piece-1"
     });
   }
-  const poster = detailResult.success && detailResult.data ? extractDetailpage(detailResult.data).poster : null;
+  let poster = null;
+  if (wantPoster) {
+    try {
+      const detailResult = await axiosInstance(`/${id}`, { cacheTtlMs: 18e4 });
+      if (detailResult.success && detailResult.data) {
+        poster = extractDetailpage(detailResult.data).poster;
+      }
+    } catch {
+      poster = null;
+    }
+  }
   const extracted = extractEpisodes(htmlFromAjax(listResult.data));
   const episodes = extracted.map((ep) => ({
     title: ep.title,
@@ -1468,6 +1518,8 @@ function faviconLinkTags(origin) {
 }
 
 // src/services/episodeSources.ts
+var STREAM_TTL_MS = 18e4;
+var OTHER_CATEGORY_BUDGET_MS = 3500;
 function pickMegaPlay(servers, category, server) {
   const picked = pickServer(servers, server, category);
   if (picked && /megaplay/i.test(picked.embedUrl)) return picked;
@@ -1481,20 +1533,25 @@ function pickZoko(servers, category) {
   const pool = servers.filter((s) => s.type === category && /zoko/i.test(s.embedUrl));
   return pool[0] || null;
 }
-async function resolveCategory(servers, category, server) {
+async function resolveCategory(servers, category, server, episodeId) {
+  const cacheKey = `stream:${episodeId}:${category}:${server}`;
+  const cachedHit = scrapeCache.get(cacheKey);
+  if (cachedHit) return cachedHit;
   const mega = pickMegaPlay(servers, category, server);
   if (mega) {
     try {
       const stream = await resolveMegaPlaySources(mega.embedUrl);
       const m3u8 = stream.sources[0]?.url;
       if (m3u8) {
-        return {
+        const track = {
           category,
           provider: "megaplay",
           server: mega.serverName.toLowerCase().replace(/\s+/g, "-"),
           m3u8,
           stream
         };
+        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
+        return track;
       }
     } catch {
     }
@@ -1505,13 +1562,15 @@ async function resolveCategory(servers, category, server) {
       const stream = await resolveZokoSources(zoko.embedUrl);
       const m3u8 = stream.sources[0]?.url;
       if (m3u8) {
-        return {
+        const track = {
           category,
           provider: "zoko",
           server: zoko.serverName.toLowerCase().replace(/\s+/g, "-"),
           m3u8,
           stream
         };
+        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
+        return track;
       }
     } catch {
       return null;
@@ -1546,30 +1605,58 @@ async function findNeighbors(slug, currentEpNum) {
     return null;
   }
 }
+function withTimeout(promise, ms) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    }, ms);
+    promise.then((v) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(v);
+      }
+    }).catch(() => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(null);
+      }
+    });
+  });
+}
 async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
   const server = (opts?.server || "hd-1").toLowerCase();
-  const preferred = (opts?.category || "sub").toLowerCase();
+  const preferred = (opts?.category || "sub").toLowerCase() === "dub" ? "dub" : "sub";
+  const other = preferred === "sub" ? "dub" : "sub";
   const episodeId = normalizeEpisodeId(animeEpisodeId);
   const epNum = episodeNumericId(episodeId);
   const slug = animeSlugFromEpisodeId(episodeId);
   const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
+  const wantNav = opts?.nav !== false;
   const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
   if (!result.success || !result.data) {
     throw new Error(result.message || "could not load episode servers");
   }
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  const hasSub = servers.some((s) => s.type === "sub");
-  const hasDub = servers.some((s) => s.type === "dub");
-  const neighborsPromise = slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
-  const [subTrack, dubTrack, neighbors] = await Promise.all([
-    hasSub ? resolveCategory(servers, "sub", server) : Promise.resolve(null),
-    hasDub ? resolveCategory(servers, "dub", server) : Promise.resolve(null),
-    neighborsPromise
+  const hasPreferred = servers.some((s) => s.type === preferred);
+  const hasOther = servers.some((s) => s.type === other);
+  const neighborsPromise = wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
+  const primary = hasPreferred ? await resolveCategory(servers, preferred, server, episodeId) : null;
+  const [secondary, neighbors] = await Promise.all([
+    hasOther ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS) : Promise.resolve(null),
+    withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS)
   ]);
+  const subTrack = preferred === "sub" ? primary : secondary;
+  const dubTrack = preferred === "dub" ? primary : secondary;
   if (!subTrack && !dubTrack) {
     throw new Error("No playable sub/dub stream found for this episode");
   }
-  const active = preferred === "dub" && dubTrack || preferred === "sub" && subTrack || subTrack || dubTrack;
+  const active = primary || subTrack || dubTrack;
   if (!active) {
     throw new Error(`No ${preferred} stream available`);
   }
@@ -1663,6 +1750,7 @@ var sourcesController = async (c) => {
   const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
   const server = (c.req.query("server") || "hd-1").toLowerCase();
   const preferred = (c.req.query("category") || c.req.query("type") || "sub").toLowerCase();
+  const nav = c.req.query("nav");
   if (!animeEpisodeId) {
     throw new validationError("animeEpisodeId is required", {
       example: "one-piece-1?ep=1"
@@ -1671,7 +1759,8 @@ var sourcesController = async (c) => {
   try {
     return await resolveEpisodePlayback(requestOrigin(c), animeEpisodeId, {
       server,
-      category: preferred
+      category: preferred,
+      nav: nav !== "0" && nav !== "false"
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to resolve sources";
@@ -1846,8 +1935,8 @@ async function fetchPoster(url, referer, origin) {
   }
 }
 async function loadPoster(href) {
-  const cached = cacheGet(href);
-  if (cached) return cached;
+  const cached2 = cacheGet(href);
+  if (cached2) return cached2;
   const pending = inflight.get(href);
   if (pending) return pending;
   const job = (async () => {
@@ -4831,13 +4920,14 @@ var browse_controller_default = browseController;
 // src/app.ts
 var app = new Hono2();
 var origins = config_default.origin.includes(",") ? config_default.origin.split(",").map((o) => o.trim()) : config_default.origin === "*" ? "*" : [config_default.origin];
+app.use("*", compress());
 app.use(
   "*",
   cors({
     origin: origins,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Api-Key"],
-    exposeHeaders: ["Content-Length", "X-Request-Id"],
+    exposeHeaders: ["Content-Length", "X-Request-Id", "Cache-Control"],
     maxAge: 600,
     credentials: true
   })
@@ -4845,6 +4935,16 @@ app.use(
 if (!config_default.isProduction || config_default.enableLogging) {
   app.use("/api/v2/*", logger());
 }
+app.use("/api/v2/*", async (c, next) => {
+  await next();
+  if (c.req.method !== "GET") return;
+  const path = new URL(c.req.url).pathname;
+  if (path.includes("/search") || path.includes("/suggestion") || path.includes("/animes/") || /\/anime\/[^/]+\/episodes/.test(path) || /\/anime\/[^/]+$/.test(path) || path.endsWith("/home") || path.endsWith("/hianime/home")) {
+    c.header("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+  } else if (path.includes("/episode/sources") || path.includes("/episode/servers")) {
+    c.header("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
+  }
+});
 async function htmlRoute(c, fn) {
   try {
     return await fn(c);
@@ -4880,6 +4980,7 @@ app.get("/api", (c) => {
       search: "/api/v2/hianime/search?keyword=",
       anime: "/api/v2/anime/:id",
       episodes: "/api/v2/hianime/anime/:id/episodes",
+      episodesWithPoster: "/api/v2/hianime/anime/:id/episodes?poster=1",
       servers: "/api/v2/hianime/episode/servers?animeEpisodeId=",
       sources: "/api/v2/hianime/episode/sources?animeEpisodeId=&category=",
       watch: "/api/v2/hianime/watch",

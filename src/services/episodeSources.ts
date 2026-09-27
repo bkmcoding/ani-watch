@@ -20,6 +20,18 @@ import {
   watchPlayUrl,
 } from '../utils/streamUrls';
 import { titleFromAnimeSlug } from '../utils/brand';
+import { scrapeCache } from '../utils/ttlCache';
+
+const STREAM_TTL_MS = 180_000; // 3 minutes
+const OTHER_CATEGORY_BUDGET_MS = 3_500;
+
+type ResolvedTrack = {
+  category: 'sub' | 'dub';
+  provider: 'megaplay' | 'zoko';
+  server: string;
+  m3u8: string;
+  stream: Awaited<ReturnType<typeof resolveMegaPlaySources>>;
+};
 
 function pickMegaPlay(servers: ThemeServer[], category: string, server: string) {
   const picked = pickServer(servers, server, category);
@@ -39,21 +51,28 @@ function pickZoko(servers: ThemeServer[], category: string) {
 async function resolveCategory(
   servers: ThemeServer[],
   category: 'sub' | 'dub',
-  server: string
-) {
+  server: string,
+  episodeId: string
+): Promise<ResolvedTrack | null> {
+  const cacheKey = `stream:${episodeId}:${category}:${server}`;
+  const cachedHit = scrapeCache.get(cacheKey) as ResolvedTrack | undefined;
+  if (cachedHit) return cachedHit;
+
   const mega = pickMegaPlay(servers, category, server);
   if (mega) {
     try {
       const stream = await resolveMegaPlaySources(mega.embedUrl);
       const m3u8 = stream.sources[0]?.url;
       if (m3u8) {
-        return {
+        const track: ResolvedTrack = {
           category,
-          provider: 'megaplay' as const,
+          provider: 'megaplay',
           server: mega.serverName.toLowerCase().replace(/\s+/g, '-'),
           m3u8,
           stream,
         };
+        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
+        return track;
       }
     } catch {
       // fall through to Zoko
@@ -66,13 +85,15 @@ async function resolveCategory(
       const stream = await resolveZokoSources(zoko.embedUrl);
       const m3u8 = stream.sources[0]?.url;
       if (m3u8) {
-        return {
+        const track: ResolvedTrack = {
           category,
-          provider: 'zoko' as const,
+          provider: 'zoko',
           server: zoko.serverName.toLowerCase().replace(/\s+/g, '-'),
           m3u8,
           stream,
         };
+        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
+        return track;
       }
     } catch {
       return null;
@@ -89,6 +110,7 @@ function normalizeEpisodeId(raw: string): string {
 async function findNeighbors(slug: string, currentEpNum: string) {
   try {
     const idNum = animeNumericId(slug);
+    // fetchTheme is already TTL-cached
     const list = await fetchTheme(`episode/list/${idNum}`, `/watch/${slug}`);
     if (!list.success || !list.data) return null;
     const episodes = extractEpisodes(htmlFromAjax(list.data));
@@ -111,6 +133,33 @@ async function findNeighbors(slug: string, currentEpNum: string) {
   } catch {
     return null;
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    }, ms);
+    promise
+      .then((v) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(v);
+        }
+      })
+      .catch(() => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(null);
+        }
+      });
+  });
 }
 
 export type EpisodePlayback = {
@@ -144,14 +193,18 @@ export type EpisodePlayback = {
 export async function resolveEpisodePlayback(
   origin: string,
   animeEpisodeId: string,
-  opts?: { server?: string; category?: string }
+  opts?: { server?: string; category?: string; nav?: boolean }
 ): Promise<EpisodePlayback> {
   const server = (opts?.server || 'hd-1').toLowerCase();
-  const preferred = (opts?.category || 'sub').toLowerCase();
+  const preferred = ((opts?.category || 'sub').toLowerCase() === 'dub' ? 'dub' : 'sub') as
+    | 'sub'
+    | 'dub';
+  const other = (preferred === 'sub' ? 'dub' : 'sub') as 'sub' | 'dub';
   const episodeId = normalizeEpisodeId(animeEpisodeId);
   const epNum = episodeNumericId(episodeId);
   const slug = animeSlugFromEpisodeId(episodeId);
   const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
+  const wantNav = opts?.nav !== false;
 
   const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
   if (!result.success || !result.data) {
@@ -159,27 +212,33 @@ export async function resolveEpisodePlayback(
   }
 
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  const hasSub = servers.some((s) => s.type === 'sub');
-  const hasDub = servers.some((s) => s.type === 'dub');
+  const hasPreferred = servers.some((s) => s.type === preferred);
+  const hasOther = servers.some((s) => s.type === other);
 
-  const neighborsPromise = slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
+  const neighborsPromise =
+    wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
 
-  const [subTrack, dubTrack, neighbors] = await Promise.all([
-    hasSub ? resolveCategory(servers, 'sub', server) : Promise.resolve(null),
-    hasDub ? resolveCategory(servers, 'dub', server) : Promise.resolve(null),
-    neighborsPromise,
+  // Resolve requested category first (main latency win).
+  const primary = hasPreferred
+    ? await resolveCategory(servers, preferred, server, episodeId)
+    : null;
+
+  // Best-effort other category + neighbors with a short budget (don't block playback).
+  const [secondary, neighbors] = await Promise.all([
+    hasOther
+      ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS)
+      : Promise.resolve(null),
+    withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS),
   ]);
+
+  const subTrack = preferred === 'sub' ? primary : secondary;
+  const dubTrack = preferred === 'dub' ? primary : secondary;
 
   if (!subTrack && !dubTrack) {
     throw new Error('No playable sub/dub stream found for this episode');
   }
 
-  const active =
-    (preferred === 'dub' && dubTrack) ||
-    (preferred === 'sub' && subTrack) ||
-    subTrack ||
-    dubTrack;
-
+  const active = primary || subTrack || dubTrack;
   if (!active) {
     throw new Error(`No ${preferred} stream available`);
   }

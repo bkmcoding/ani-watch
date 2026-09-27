@@ -13,7 +13,7 @@ const searchController = async (c: Context) => {
   const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, '+');
 
   const endpoint = `/search?keyword=${noSpaceKeyword}&page=${page}`;
-  const result = await axiosInstance(endpoint);
+  const result = await axiosInstance(endpoint, { cacheTtlMs: 90_000 });
 
   if (!result.success || !result.data) {
     throw new validationError(result.message || 'make sure given endpoint is correct');

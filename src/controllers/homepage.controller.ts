@@ -5,7 +5,7 @@ import { HomePage } from '../types/anime';
 
 const homepageController = async (): Promise<HomePage> => {
   console.log('Fetching homepage data from external API...');
-  const result = await axiosInstance('/home');
+  const result = await axiosInstance('/home', { cacheTtlMs: 120_000 });
 
   if (!result.success || !result.data) {
     console.error('Homepage fetch failed:', result.message);

@@ -1,103 +1,106 @@
 import config from '../config/config';
+import { cached } from '../utils/ttlCache';
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
 const TIMEOUT = 10000;
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const axiosInstance = async (
+export type AxiosInstanceOptions = {
+  headers?: Record<string, string>;
+  retries?: number;
+  /** Cache successful responses for this many ms (0 = no cache). */
+  cacheTtlMs?: number;
+};
+
+const axiosInstance = async (
   endpoint: string,
-  options: { headers?: Record<string, string>; retries?: number } = {}
+  options: AxiosInstanceOptions = {}
 ) => {
-  const { headers: customHeaders = {}, retries = MAX_RETRIES } = options;
-  const url = config.baseurl + endpoint;
-  let lastError = null;
+  const { headers: customHeaders = {}, retries = MAX_RETRIES, cacheTtlMs = 0 } = options;
+  const cacheKey = `axios:${endpoint}|${JSON.stringify(customHeaders)}`;
 
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      if (attempt > 0) {
-        const delay = RETRY_DELAY * Math.pow(2, attempt - 1);
-        console.log(`Retry attempt ${attempt + 1}/${retries} after ${delay}ms delay...`);
-        await sleep(delay);
-      }
+  const run = async () => {
+    let lastError: Error | null = null;
 
-      console.log(`Fetching (attempt ${attempt + 1}/${retries}): ${url}`);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
-
-      const response = await fetch(url, {
-        headers: {
-          ...(config.headers || {}),
-          ...customHeaders,
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate, br',
-          Connection: 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-          'Cache-Control': 'max-age=0',
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      console.log(`Response status: ${response.status}`);
-
-      if (response.status === 429) {
-        const retryAfter = response.headers.get('retry-after');
-        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : RETRY_DELAY * 2;
-        console.warn(`Rate limited. Waiting ${waitTime}ms before retry...`);
-        await sleep(waitTime);
-        continue;
-      }
-
-      if (response.status >= 500 && response.status < 600) {
-        throw new Error(`Server error: HTTP ${response.status}`);
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.text();
-
-      if (!data || data.length === 0) {
-        throw new Error('Empty response received');
-      }
-
-      console.log(`Success: Received data length: ${data.length}`);
-
-      return {
-        success: true,
-        data,
-      };
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        lastError = error;
-        console.error(
-          `Fetch error (attempt ${attempt + 1}/${retries}) for ${endpoint}:`,
-          error.message
-        );
-
-        if (error.name === 'AbortError') {
-          lastError = new Error('Request timeout - the external API took too long to respond');
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = RETRY_DELAY * Math.pow(2, attempt - 1);
+          await sleep(delay);
         }
 
-        if (error.message.includes('HTTP 40') && !error.message.includes('429')) {
-          break;
-        }
-      }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
 
-      if (attempt === retries - 1) {
-        break;
+        const response = await fetch(config.baseurl + endpoint, {
+          headers: {
+            ...(config.headers || {}),
+            ...customHeaders,
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            Connection: 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('retry-after');
+          const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_DELAY * 2;
+          await sleep(waitTime);
+          continue;
+        }
+
+        // Retry only transient upstream failures
+        if (response.status >= 500 && response.status < 600) {
+          throw new Error(`Server error: HTTP ${response.status}`);
+        }
+
+        if (!response.ok) {
+          // 4xx (except 429): do not retry
+          return {
+            success: false as const,
+            message: `HTTP ${response.status}: ${response.statusText}`,
+          };
+        }
+
+        const data = await response.text();
+        if (!data || data.length === 0) {
+          throw new Error('Empty response received');
+        }
+
+        return {
+          success: true as const,
+          data,
+        };
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          lastError =
+            error.name === 'AbortError'
+              ? new Error('Request timeout - the external API took too long to respond')
+              : error;
+        }
+        if (attempt === retries - 1) break;
       }
     }
-  }
 
-  return {
-    success: false,
-    message: lastError?.message || 'Unknown error occurred',
+    return {
+      success: false as const,
+      message: lastError?.message || 'Unknown error occurred',
+    };
   };
+
+  if (cacheTtlMs > 0) {
+    return cached(cacheKey, cacheTtlMs, run);
+  }
+  return run();
 };
+
+export { axiosInstance };
+export default axiosInstance;

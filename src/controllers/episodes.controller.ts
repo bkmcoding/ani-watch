@@ -11,11 +11,10 @@ const episodesController = async (c: Context) => {
   if (!id) throw new validationError('id is required');
 
   const idNum = animeNumericId(id);
+  const wantPoster =
+    c.req.query('poster') === '1' || c.req.query('poster') === 'true';
 
-  const [listResult, detailResult] = await Promise.all([
-    fetchTheme(`episode/list/${idNum}`, `/watch/${id}`),
-    axiosInstance(`/${id}`),
-  ]);
+  const listResult = await fetchTheme(`episode/list/${idNum}`, `/watch/${id}`);
 
   if (!listResult.success || !listResult.data) {
     throw new validationError(listResult.message || 'make sure the id is correct', {
@@ -23,10 +22,17 @@ const episodesController = async (c: Context) => {
     });
   }
 
-  const poster =
-    detailResult.success && detailResult.data
-      ? extractDetailpage(detailResult.data).poster
-      : null;
+  let poster: string | null = null;
+  if (wantPoster) {
+    try {
+      const detailResult = await axiosInstance(`/${id}`, { cacheTtlMs: 180_000 });
+      if (detailResult.success && detailResult.data) {
+        poster = extractDetailpage(detailResult.data).poster;
+      }
+    } catch {
+      poster = null;
+    }
+  }
 
   const extracted = extractEpisodes(htmlFromAjax(listResult.data));
   const episodes = extracted.map((ep) => ({

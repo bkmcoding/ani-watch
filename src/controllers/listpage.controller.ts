@@ -46,7 +46,7 @@ const listpageController = async (c: Context): Promise<ListPageResponse> => {
     ? `/${query}/${nromalizeCategory}?page=${page}`
     : `/${query}?page=${page}`;
 
-  const result = await axiosInstance(endpoint);
+  const result = await axiosInstance(endpoint, { cacheTtlMs: 120_000 });
 
   if (!result.success || !result.data) {
     throw new validationError(result.message || 'make sure given endpoint is correct');

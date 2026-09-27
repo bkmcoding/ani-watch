@@ -1,5 +1,6 @@
 import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
+import { compress } from 'hono/compress';
 import hiAnimeRoutes from './routes/routes';
 import { AppError } from './utils/errors';
 import { fail, success } from './utils/response';
@@ -16,13 +17,15 @@ const origins = config.origin.includes(',')
     ? '*'
     : [config.origin];
 
+app.use('*', compress());
+
 app.use(
   '*',
   cors({
     origin: origins,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Api-Key'],
-    exposeHeaders: ['Content-Length', 'X-Request-Id'],
+    exposeHeaders: ['Content-Length', 'X-Request-Id', 'Cache-Control'],
     maxAge: 600,
     credentials: true,
   })
@@ -31,6 +34,26 @@ app.use(
 if (!config.isProduction || config.enableLogging) {
   app.use('/api/v2/*', logger());
 }
+
+/** Client/CDN caching for scrape-backed JSON GETs (server also has short TTL memory cache). */
+app.use('/api/v2/*', async (c, next) => {
+  await next();
+  if (c.req.method !== 'GET') return;
+  const path = new URL(c.req.url).pathname;
+  if (
+    path.includes('/search') ||
+    path.includes('/suggestion') ||
+    path.includes('/animes/') ||
+    /\/anime\/[^/]+\/episodes/.test(path) ||
+    /\/anime\/[^/]+$/.test(path) ||
+    path.endsWith('/home') ||
+    path.endsWith('/hianime/home')
+  ) {
+    c.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  } else if (path.includes('/episode/sources') || path.includes('/episode/servers')) {
+    c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+  }
+});
 
 async function htmlRoute(c: Context, fn: (c: Context) => Promise<Response>) {
   try {
@@ -70,6 +93,7 @@ app.get('/api', (c: Context) => {
       search: '/api/v2/hianime/search?keyword=',
       anime: '/api/v2/anime/:id',
       episodes: '/api/v2/hianime/anime/:id/episodes',
+      episodesWithPoster: '/api/v2/hianime/anime/:id/episodes?poster=1',
       servers: '/api/v2/hianime/episode/servers?animeEpisodeId=',
       sources: '/api/v2/hianime/episode/sources?animeEpisodeId=&category=',
       watch: '/api/v2/hianime/watch',
