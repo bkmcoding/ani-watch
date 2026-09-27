@@ -699,11 +699,31 @@ var searchController = async (c) => {
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure given endpoint is correct");
   }
-  const response = extractListPage(result.data);
-  if (response.response.length < 1) {
+  const parsed = extractListPage(result.data);
+  if (parsed.response.length < 1) {
     throw new NotFoundError("page not found");
   }
-  return response;
+  const animes = parsed.response.map((item) => ({
+    id: item.id,
+    name: item.title,
+    jname: item.alternativeTitle,
+    poster: item.poster,
+    duration: item.duration,
+    type: item.type,
+    rating: null,
+    episodes: item.episodes
+  }));
+  return {
+    animes,
+    // Keep legacy field used by this repo's README / older clients
+    response: parsed.response,
+    pageInfo: parsed.pageInfo,
+    currentPage: parsed.pageInfo.currentPage,
+    hasNextPage: parsed.pageInfo.hasNextPage,
+    totalPages: parsed.pageInfo.totalPages,
+    top10: parsed.top10,
+    genres: parsed.genres
+  };
 };
 var search_controller_default = searchController;
 
@@ -982,21 +1002,45 @@ var extractEpisodes = (html) => {
 };
 
 // src/controllers/episodes.controller.ts
+function htmlFromAjax(payload) {
+  try {
+    const parsed = JSON.parse(payload);
+    if (typeof parsed?.html === "string") return parsed.html;
+  } catch {
+  }
+  return payload;
+}
 var episodesController = async (c) => {
   const id = c.req.param("id");
   if (!id) throw new validationError("id is required");
   const idNum = id.split("-").at(-1);
   const ajaxUrl = `/ajax/v2/episode/list/${idNum}`;
   const result = await axiosInstance(ajaxUrl, {
-    headers: { Referer: `${config_default.baseurl}/watch/${id}` }
+    headers: {
+      Referer: `${config_default.baseurl}/watch/${id}`,
+      "X-Requested-With": "XMLHttpRequest"
+    }
   });
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure the id is correct", {
       validIdEX: "one-piece-100"
     });
   }
-  const response = extractEpisodes(result.data);
-  return response;
+  const extracted = extractEpisodes(htmlFromAjax(result.data));
+  const episodes = extracted.map((ep) => ({
+    title: ep.title,
+    alternativeTitle: ep.alternativeTitle,
+    episodeId: ep.id?.includes("::") ? ep.id.replace("::", "?") : ep.id,
+    number: ep.episodeNumber,
+    isFiller: ep.isFiller,
+    // legacy fields
+    id: ep.id,
+    episodeNumber: ep.episodeNumber
+  }));
+  return {
+    totalEpisodes: episodes.length,
+    episodes
+  };
 };
 var episodes_controller_default = episodesController;
 
@@ -1440,6 +1484,8 @@ router.get("/suggestion", handler_default(suggestion_controller_default));
 router.get("/characters/:id", handler_default(characters_controller_default));
 router.get("/character/:id", handler_default(characterDetail_controller_default));
 router.get("/episodes/:id", handler_default(episodes_controller_default));
+router.get("/hianime/anime/:id/episodes", handler_default(episodes_controller_default));
+router.get("/anime/:id/episodes", handler_default(episodes_controller_default));
 router.get("/genres", handler_default(allGenres_controller_default));
 router.get("/news", handler_default(news_controller_default));
 router.get("/random", handler_default(random_controller_default));

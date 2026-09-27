@@ -1,9 +1,10 @@
 import { Context } from 'hono';
-import { extractListPage, ListPageResponse } from '../extractor/extractListpage';
+import { extractListPage } from '../extractor/extractListpage';
 import { axiosInstance } from '../services/axiosInstance';
 import { NotFoundError, validationError } from '../utils/errors';
 
-const searchController = async (c: Context): Promise<ListPageResponse> => {
+/** Shape search results like aniwatch-api so Discord bots keep working. */
+const searchController = async (c: Context) => {
   const keyword = c.req.query('keyword') || c.req.query('q') || c.req.query('query') || null;
   const page = c.req.query('page') || '1';
 
@@ -18,13 +19,34 @@ const searchController = async (c: Context): Promise<ListPageResponse> => {
     throw new validationError(result.message || 'make sure given endpoint is correct');
   }
 
-  const response = extractListPage(result.data);
+  const parsed = extractListPage(result.data);
 
-  if (response.response.length < 1) {
+  if (parsed.response.length < 1) {
     throw new NotFoundError('page not found');
   }
 
-  return response;
+  const animes = parsed.response.map((item) => ({
+    id: item.id,
+    name: item.title,
+    jname: item.alternativeTitle,
+    poster: item.poster,
+    duration: item.duration,
+    type: item.type,
+    rating: null as string | null,
+    episodes: item.episodes,
+  }));
+
+  return {
+    animes,
+    // Keep legacy field used by this repo's README / older clients
+    response: parsed.response,
+    pageInfo: parsed.pageInfo,
+    currentPage: parsed.pageInfo.currentPage,
+    hasNextPage: parsed.pageInfo.hasNextPage,
+    totalPages: parsed.pageInfo.totalPages,
+    top10: parsed.top10,
+    genres: parsed.genres,
+  };
 };
 
 export default searchController;

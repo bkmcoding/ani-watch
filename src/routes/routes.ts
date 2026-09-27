@@ -38,6 +38,8 @@ router.get('/suggestion', handler(suggestionController));
 router.get('/characters/:id', handler(charactersController));
 router.get('/character/:id', handler(characterDetailConroller));
 router.get('/episodes/:id', handler(episodesController));
+router.get('/hianime/anime/:id/episodes', handler(episodesController));
+router.get('/anime/:id/episodes', handler(episodesController));
 router.get('/genres', handler(allGenresController));
 router.get('/news', handler(newsController));
 router.get('/random', handler(randomController));
