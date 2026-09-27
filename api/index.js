@@ -1256,7 +1256,128 @@ var serversController = async (c) => {
 };
 var servers_controller_default = serversController;
 
+// src/controllers/hlsProxy.controller.ts
+var REFERRER = "https://megaplay.buzz/";
+var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+var ALLOWED_HOST_SUFFIXES = [
+  "megaplay.buzz",
+  "shiora.top",
+  "tiktokcdn.com",
+  "tiktokcdn-us.com",
+  "hiddenvertex.top"
+];
+function hostAllowed(hostname) {
+  const host = hostname.toLowerCase();
+  return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
+}
+function stripPngWrapper(buf) {
+  if (buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
+    const iend = buf.indexOf(Buffer.from("IEND"));
+    if (iend > 0 && iend + 8 < buf.length) {
+      const tail = buf.subarray(iend + 8);
+      if (tail[0] === 71) return Buffer.from(tail);
+    }
+  }
+  return buf;
+}
+function rewritePlaylist(body, playlistUrl, proxyBase) {
+  return body.split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      return line.replace(/URI="([^"]+)"/gi, (_, uri) => {
+        try {
+          const abs = new URL(uri, playlistUrl).href;
+          return `URI="${proxyBase}?url=${encodeURIComponent(abs)}"`;
+        } catch {
+          return `URI="${uri}"`;
+        }
+      });
+    }
+    try {
+      const abs = new URL(trimmed, playlistUrl).href;
+      return `${proxyBase}?url=${encodeURIComponent(abs)}`;
+    } catch {
+      return line;
+    }
+  }).join("\n");
+}
+var hlsProxyController = async (c) => {
+  const target = c.req.query("url");
+  if (!target) throw new validationError("url is required");
+  let parsed;
+  try {
+    parsed = new URL(target);
+  } catch {
+    throw new validationError("url must be absolute");
+  }
+  if (!/^https?:$/i.test(parsed.protocol) || !hostAllowed(parsed.hostname)) {
+    throw new validationError("url host not allowed");
+  }
+  const upstream = await fetch(parsed.href, {
+    headers: {
+      "User-Agent": UA,
+      Referer: REFERRER,
+      Origin: "https://megaplay.buzz",
+      Accept: "*/*"
+    },
+    redirect: "follow"
+  });
+  if (!upstream.ok) {
+    return c.text(`Upstream ${upstream.status}`, 502);
+  }
+  const ct = (upstream.headers.get("content-type") || "").toLowerCase();
+  const isPlaylist = ct.includes("mpegurl") || ct.includes("m3u8") || /\.m3u8(\?|$)/i.test(parsed.pathname);
+  const reqUrl = new URL(c.req.url);
+  const proxyBase = `${reqUrl.origin}/api/v2/hianime/hls`;
+  if (isPlaylist) {
+    const text = await upstream.text();
+    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
+    return new Response(rewritten, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.apple.mpegurl",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
+  }
+  const buf = Buffer.from(await upstream.arrayBuffer());
+  const media = stripPngWrapper(buf);
+  return new Response(media, {
+    status: 200,
+    headers: {
+      "Content-Type": "video/mp2t",
+      "Cache-Control": "public, max-age=300",
+      "Access-Control-Allow-Origin": "*"
+    }
+  });
+};
+var hlsProxy_controller_default = hlsProxyController;
+function proxiedHlsUrl(origin, m3u8) {
+  const base = origin.replace(/\/+$/, "");
+  return `${base}/api/v2/hianime/hls?url=${encodeURIComponent(m3u8)}`;
+}
+
 // src/controllers/sources.controller.ts
+function withPlayableProxy(c, stream, server, category) {
+  const origin = new URL(c.req.url).origin;
+  return {
+    ...stream,
+    // Direct CDN URLs need Referer + PNG unwrap — unusable in VLC/mpv as-is.
+    // Proxied URLs rewrite playlists and strip the PNG wrapper so normal players work.
+    sources: stream.sources.map((s) => ({
+      ...s,
+      url: proxiedHlsUrl(origin, s.url),
+      originalUrl: s.url
+    })),
+    headers: {
+      Referer: `${origin}/`,
+      "User-Agent": stream.headers["User-Agent"] || stream.headers["user-agent"] || ""
+    },
+    server,
+    category
+  };
+}
 var sourcesController = async (c) => {
   const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
   const server = (c.req.query("server") || "hd-1").toLowerCase();
@@ -1276,7 +1397,7 @@ var sourcesController = async (c) => {
     });
   }
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  const picked = pickServer(servers, server, category);
+  let picked = pickServer(servers, server, category);
   if (!picked) {
     throw new validationError(`No ${category} server matching "${server}"`, {
       available: servers.map((s) => ({ type: s.type, serverName: s.serverName }))
@@ -1294,19 +1415,15 @@ var sourcesController = async (c) => {
         { embedUrl: picked.embedUrl }
       );
     }
-    const stream2 = await resolveMegaPlaySources(megaplayFallback.embedUrl);
-    return {
-      ...stream2,
-      server: megaplayFallback.serverName.toLowerCase().replace(/\s+/g, "-"),
-      category
-    };
+    picked = megaplayFallback;
   }
   const stream = await resolveMegaPlaySources(picked.embedUrl);
-  return {
-    ...stream,
-    server: picked.serverName.toLowerCase().replace(/\s+/g, "-"),
+  return withPlayableProxy(
+    c,
+    stream,
+    picked.serverName.toLowerCase().replace(/\s+/g, "-"),
     category
-  };
+  );
 };
 var sources_controller_default = sourcesController;
 
@@ -1756,6 +1873,16 @@ router.get("/hianime/episode/servers", handler_default(servers_controller_defaul
 router.get("/episode/servers", handler_default(servers_controller_default));
 router.get("/hianime/episode/sources", handler_default(sources_controller_default));
 router.get("/episode/sources", handler_default(sources_controller_default));
+router.get("/hianime/hls", async (c) => {
+  try {
+    return await hlsProxy_controller_default(c);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
 router.get("/genres", handler_default(allGenres_controller_default));
 router.get("/news", handler_default(news_controller_default));
 router.get("/random", handler_default(random_controller_default));

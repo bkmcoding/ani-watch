@@ -17,6 +17,13 @@ export default function middleware(request: Request) {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
+  // HLS proxy must be public: VLC/mpv fetch playlists + segments without API keys.
+  // Host allowlisting inside the proxy prevents open-proxy abuse.
+  const path = new URL(request.url).pathname;
+  if (path === '/api/v2/hianime/hls' || path.startsWith('/api/v2/hianime/hls/')) {
+    return next();
+  }
+
   const apiKey = request.headers.get('x-api-key');
   const expected = process.env.BOT_SECRET_KEY;
 

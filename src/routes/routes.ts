@@ -11,7 +11,10 @@ import characterDetailConroller from '../controllers/characterDetail.controller'
 import episodesController from '../controllers/episodes.controller';
 import serversController from '../controllers/servers.controller';
 import sourcesController from '../controllers/sources.controller';
+import hlsProxyController from '../controllers/hlsProxy.controller';
 import allGenresController from '../controllers/allGenres.controller';
+import { AppError } from '../utils/errors';
+import { fail } from '../utils/response';
 import nextEpisodeScheduleController from '../controllers/nextEpisodeSchedule.controller';
 import filterController from '../controllers/filter.controller';
 import filterOptions from '../utils/filter';
@@ -46,6 +49,17 @@ router.get('/hianime/episode/servers', handler(serversController));
 router.get('/episode/servers', handler(serversController));
 router.get('/hianime/episode/sources', handler(sourcesController));
 router.get('/episode/sources', handler(sourcesController));
+// Raw HLS proxy (playlist rewrite + PNG unwrap) — not JSON-wrapped
+router.get('/hianime/hls', async (c) => {
+  try {
+    return await hlsProxyController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
 router.get('/genres', handler(allGenresController));
 router.get('/news', handler(newsController));
 router.get('/random', handler(randomController));

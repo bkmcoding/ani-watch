@@ -4,6 +4,7 @@ import {
   parseThemeServers,
   pickServer,
   resolveMegaPlaySources,
+  StreamResult,
 } from '../services/megaplay';
 import {
   animeSlugFromEpisodeId,
@@ -11,6 +12,27 @@ import {
   fetchTheme,
   htmlFromAjax,
 } from '../utils/themeAjax';
+import { proxiedHlsUrl } from './hlsProxy.controller';
+
+function withPlayableProxy(c: Context, stream: StreamResult, server: string, category: string) {
+  const origin = new URL(c.req.url).origin;
+  return {
+    ...stream,
+    // Direct CDN URLs need Referer + PNG unwrap — unusable in VLC/mpv as-is.
+    // Proxied URLs rewrite playlists and strip the PNG wrapper so normal players work.
+    sources: stream.sources.map((s) => ({
+      ...s,
+      url: proxiedHlsUrl(origin, s.url),
+      originalUrl: s.url,
+    })),
+    headers: {
+      Referer: `${origin}/`,
+      'User-Agent': stream.headers['User-Agent'] || stream.headers['user-agent'] || '',
+    },
+    server,
+    category,
+  };
+}
 
 const sourcesController = async (c: Context) => {
   const animeEpisodeId =
@@ -37,7 +59,7 @@ const sourcesController = async (c: Context) => {
   }
 
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  const picked = pickServer(servers, server, category);
+  let picked = pickServer(servers, server, category);
 
   if (!picked) {
     throw new validationError(`No ${category} server matching "${server}"`, {
@@ -58,20 +80,16 @@ const sourcesController = async (c: Context) => {
         { embedUrl: picked.embedUrl }
       );
     }
-    const stream = await resolveMegaPlaySources(megaplayFallback.embedUrl);
-    return {
-      ...stream,
-      server: megaplayFallback.serverName.toLowerCase().replace(/\s+/g, '-'),
-      category,
-    };
+    picked = megaplayFallback;
   }
 
   const stream = await resolveMegaPlaySources(picked.embedUrl);
-  return {
-    ...stream,
-    server: picked.serverName.toLowerCase().replace(/\s+/g, '-'),
-    category,
-  };
+  return withPlayableProxy(
+    c,
+    stream,
+    picked.serverName.toLowerCase().replace(/\s+/g, '-'),
+    category
+  );
 };
 
 export default sourcesController;
