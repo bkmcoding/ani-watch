@@ -543,6 +543,9 @@ const browseController = async (c: Context) => {
         statusEl.classList.toggle('is-err', !!isErr);
       }
 
+      var FETCH_MS = 20000;
+      var loadSeq = 0;
+
       function headers() {
         var h = { Accept: 'application/json' };
         var key = apiKey.value.trim();
@@ -550,22 +553,36 @@ const browseController = async (c: Context) => {
         return h;
       }
 
-      async function getJson(path) {
-        var res = await fetch(path, { headers: headers() });
-        var text = await res.text();
-        var json = null;
-        try { json = text ? JSON.parse(text) : null; } catch (e) {}
-        if (res.status === 401 || res.status === 403) {
-          keyPanel.classList.add('is-open');
-          throw new Error('Unauthorized — set your API key.');
+      async function getJson(path, ms) {
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = null;
+        try {
+          if (ctrl) {
+            timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, ms || FETCH_MS);
+          }
+          var res = await fetch(path, { headers: headers(), signal: ctrl ? ctrl.signal : undefined });
+          var text = await res.text();
+          var json = null;
+          try { json = text ? JSON.parse(text) : null; } catch (e) {}
+          if (res.status === 401 || res.status === 403) {
+            keyPanel.classList.add('is-open');
+            throw new Error('Unauthorized — set your API key.');
+          }
+          if (!res.ok) {
+            throw new Error((json && (json.message || json.error)) || ('Request failed (' + res.status + ')'));
+          }
+          if (json && json.success === false) {
+            throw new Error(json.message || 'Request failed');
+          }
+          return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
+        } catch (err) {
+          if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+            throw new Error('Request timed out — try again.');
+          }
+          throw err;
+        } finally {
+          if (timer) clearTimeout(timer);
         }
-        if (!res.ok) {
-          throw new Error((json && (json.message || json.error)) || ('Request failed (' + res.status + ')'));
-        }
-        if (json && json.success === false) {
-          throw new Error(json.message || 'Request failed');
-        }
-        return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
       }
 
       function esc(s) {
@@ -586,37 +603,56 @@ const browseController = async (c: Context) => {
         return null;
       }
 
-      /** Proxy first (CDN hotlink bypass), then direct URL as backup. */
+      function canHotlinkDirect(abs) {
+        return abs.indexOf('anipixcdn.co') !== -1;
+      }
+
+      /**
+       * Prefer direct CDN (fast) when hotlink-safe; proxy only as fallback.
+       * Dedupes so episode grids sharing one anime poster hit the network once.
+       */
       function posterCandidates(list) {
         var seen = {};
-        var out = [];
+        var direct = [];
+        var proxied = [];
         (list || []).forEach(function (url) {
           var abs = absUrl(url);
           if (!abs || seen['u:' + abs]) return;
           seen['u:' + abs] = 1;
-          var proxied = '/api/v2/hianime/poster?url=' + encodeURIComponent(abs);
-          if (!seen[proxied]) { seen[proxied] = 1; out.push(proxied); }
-          if (!seen[abs]) { seen[abs] = 1; out.push(abs); }
+          var viaProxy = '/api/v2/hianime/poster?url=' + encodeURIComponent(abs);
+          if (canHotlinkDirect(abs)) {
+            direct.push(abs);
+            proxied.push(viaProxy);
+          } else {
+            proxied.push(viaProxy);
+            direct.push(abs);
+          }
         });
-        return out;
+        return direct.concat(proxied).filter(function (u, i, arr) {
+          return arr.indexOf(u) === i;
+        });
       }
 
       window.__aniPosterFail = function (img) {
-        var list = [];
-        try { list = JSON.parse(img.getAttribute('data-fallbacks') || '[]'); } catch (e) {}
-        while (list.length) {
-          var next = list.shift();
-          img.setAttribute('data-fallbacks', JSON.stringify(list));
-          if (next && next !== img.getAttribute('src')) {
-            img.src = next;
-            return;
+        try {
+          var list = [];
+          try { list = JSON.parse(img.getAttribute('data-fallbacks') || '[]'); } catch (e) {}
+          while (list.length) {
+            var next = list.shift();
+            img.setAttribute('data-fallbacks', JSON.stringify(list));
+            if (next && next !== img.getAttribute('src')) {
+              img.src = next;
+              return;
+            }
           }
+          var ph = document.createElement('div');
+          ph.className = 'poster ph';
+          ph.setAttribute('aria-hidden', 'true');
+          ph.textContent = 'No art';
+          if (img.parentNode) img.parentNode.replaceChild(ph, img);
+        } catch (e) {
+          // never let image errors bubble
         }
-        var ph = document.createElement('div');
-        ph.className = 'poster ph';
-        ph.setAttribute('aria-hidden', 'true');
-        ph.textContent = 'No art';
-        if (img.parentNode) img.parentNode.replaceChild(ph, img);
       };
 
       function posterImg(urls, alt) {
@@ -839,7 +875,7 @@ const browseController = async (c: Context) => {
           var primary = generic ? epTag : raw;
           var secondary = generic ? null : epTag;
           btn.innerHTML =
-            posterImg([ep.poster, poster].concat(posterFallbacks), primary) +
+            posterImg(poster || posterFallbacks, primary) +
             '<div class="meta"><div class="title">' + esc(primary) +
             (ep.isFiller ? '<span class="badge">Filler</span>' : '') +
             '</div>' +
@@ -862,39 +898,61 @@ const browseController = async (c: Context) => {
           return;
         }
         persistKey();
+        var seq = ++loadSeq;
         searchBtn.disabled = true;
         setStatus('Searching…');
         showSkeleton(10);
         try {
           var data = await getJson('/api/v2/hianime/search?keyword=' + encodeURIComponent(keyword));
-          var animes = data.animes || data.response || [];
+          if (seq !== loadSeq) return;
+          var animes = (data && (data.animes || data.response)) || [];
           setStatus(animes.length + ' result' + (animes.length === 1 ? '' : 's'));
           renderSearch(animes);
         } catch (err) {
-          setStatus(err.message || 'Search failed', true);
-          main.innerHTML = '<div class="empty"><h2>Search failed</h2><p>' + esc(err.message || 'Try again shortly.') + '</p></div>';
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Search failed', true);
+          main.innerHTML = '<div class="empty"><h2>Search failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
         } finally {
-          searchBtn.disabled = false;
+          if (seq === loadSeq) searchBtn.disabled = false;
         }
       }
 
       async function loadEpisodes(anime) {
         if (!anime || !anime.id) return;
+        var seq = ++loadSeq;
         setStatus('Loading details…');
         showSkeleton(8);
         try {
           var id = encodeURIComponent(anime.id);
-          var results = await Promise.all([
-            getJson('/api/v2/hianime/anime/' + id + '/episodes'),
-            getJson('/api/v2/anime/' + id).catch(function () { return null; }),
-          ]);
-          var data = results[0];
-          var detail = results[1];
-          setStatus((data.totalEpisodes || (data.episodes || []).length) + ' episodes');
+          var epPromise = getJson('/api/v2/hianime/anime/' + id + '/episodes');
+          var detailPromise = getJson('/api/v2/anime/' + id).catch(function () { return null; });
+          var data = await epPromise;
+          if (seq !== loadSeq) return;
+          if (!data || !Array.isArray(data.episodes)) {
+            throw new Error('No episodes returned.');
+          }
+          // Don't block the episode list on slow detail metadata.
+          var detail = null;
+          try {
+            detail = await Promise.race([
+              detailPromise,
+              new Promise(function (resolve) { setTimeout(function () { resolve(null); }, 4000); }),
+            ]);
+          } catch (e) {
+            detail = null;
+          }
+          if (seq !== loadSeq) return;
+          setStatus((data.totalEpisodes || data.episodes.length) + ' episodes');
           renderEpisodes(anime, data, detail);
+          // If detail arrived late, quietly refresh metadata once.
+          detailPromise.then(function (late) {
+            if (seq !== loadSeq || !late || detail) return;
+            try { renderEpisodes(anime, data, late); } catch (e) {}
+          }).catch(function () {});
         } catch (err) {
-          setStatus(err.message || 'Could not load episodes', true);
-          main.innerHTML = '<div class="empty"><h2>Could not load episodes</h2><p>' + esc(err.message || '') + '</p></div>';
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Could not load episodes', true);
+          main.innerHTML = '<div class="empty"><h2>Could not load episodes</h2><p>' + esc((err && err.message) || '') + '</p></div>';
         }
       }
 
@@ -911,7 +969,7 @@ const browseController = async (c: Context) => {
             server: 'hd-1',
             category: 'sub',
           });
-          var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString());
+          var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString(), 25000);
           var link =
             data.link ||
             (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
@@ -920,9 +978,13 @@ const browseController = async (c: Context) => {
           setStatus('Opening player…');
           window.open(link, '_blank', 'noopener');
         } catch (err) {
-          setStatus(err.message || 'Could not resolve stream', true);
+          setStatus((err && err.message) || 'Could not resolve stream', true);
         }
       }
+
+      window.addEventListener('unhandledrejection', function (ev) {
+        try { ev.preventDefault(); } catch (e) {}
+      });
 
       searchBtn.addEventListener('click', doSearch);
       q.addEventListener('keydown', function (e) {

@@ -1802,6 +1802,28 @@ function isAllowedPosterHost(hostname) {
 
 // src/controllers/posterProxy.controller.ts
 var UA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+var CACHE_TTL_MS = 60 * 60 * 1e3;
+var CACHE_MAX = 200;
+var posterCache = /* @__PURE__ */ new Map();
+var inflight = /* @__PURE__ */ new Map();
+function cacheGet(key) {
+  const hit = posterCache.get(key);
+  if (!hit) return null;
+  if (hit.expires < Date.now()) {
+    posterCache.delete(key);
+    return null;
+  }
+  posterCache.delete(key);
+  posterCache.set(key, hit);
+  return hit;
+}
+function cacheSet(key, entry) {
+  if (posterCache.size >= CACHE_MAX) {
+    const oldest = posterCache.keys().next().value;
+    if (oldest) posterCache.delete(oldest);
+  }
+  posterCache.set(key, entry);
+}
 async function fetchPoster(url, referer, origin) {
   try {
     const headers = {
@@ -1813,7 +1835,7 @@ async function fetchPoster(url, referer, origin) {
     const upstream = await fetch(url, {
       headers,
       redirect: "follow",
-      signal: AbortSignal.timeout(12e3)
+      signal: AbortSignal.timeout(8e3)
     });
     if (!upstream.ok) return null;
     const contentType = upstream.headers.get("content-type") || "";
@@ -1822,6 +1844,40 @@ async function fetchPoster(url, referer, origin) {
   } catch {
     return null;
   }
+}
+async function loadPoster(href) {
+  const cached = cacheGet(href);
+  if (cached) return cached;
+  const pending = inflight.get(href);
+  if (pending) return pending;
+  const job = (async () => {
+    const site = String(config_default.baseurl || "https://hianime.lu").replace(/\/+$/, "");
+    const tries = [
+      ["", ""],
+      // no-referer first — anipixcdn allows it and is fastest
+      [`${site}/`, site],
+      ["https://hianime.lu/", "https://hianime.lu"]
+    ];
+    for (const [referer, origin] of tries) {
+      const upstream = await fetchPoster(href, referer, origin || new URL(href).origin);
+      if (!upstream) continue;
+      const type = upstream.headers.get("content-type") || "image/jpeg";
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      if (!buf.length) continue;
+      const entry = {
+        buf,
+        type: /^image\//i.test(type) ? type : "image/jpeg",
+        expires: Date.now() + CACHE_TTL_MS
+      };
+      cacheSet(href, entry);
+      return entry;
+    }
+    return null;
+  })().finally(() => {
+    inflight.delete(href);
+  });
+  inflight.set(href, job);
+  return job;
 }
 var posterProxyController = async (c) => {
   const target = c.req.query("url");
@@ -1835,28 +1891,29 @@ var posterProxyController = async (c) => {
   if (!/^https?:$/i.test(parsed.protocol) || !isAllowedPosterHost(parsed.hostname)) {
     throw new validationError("url host not allowed");
   }
-  const site = String(config_default.baseurl || "https://hianime.lu").replace(/\/+$/, "");
-  const tries = [
-    [`${site}/`, site],
-    ["https://hianime.lu/", "https://hianime.lu"],
-    ["", ""]
-  ];
-  let upstream = null;
-  for (const [referer, origin] of tries) {
-    upstream = await fetchPoster(parsed.href, referer, origin || parsed.origin);
-    if (upstream) break;
+  const fromCache = cacheGet(parsed.href);
+  if (fromCache) {
+    return new Response(fromCache.buf, {
+      status: 200,
+      headers: {
+        "Content-Type": fromCache.type,
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+        "Access-Control-Allow-Origin": "*",
+        "X-Poster-Cache": "HIT"
+      }
+    });
   }
-  if (!upstream) {
+  const entry = await loadPoster(parsed.href);
+  if (!entry) {
     return c.text("Upstream image unavailable", 502);
   }
-  const contentType = upstream.headers.get("content-type") || "image/jpeg";
-  const buf = Buffer.from(await upstream.arrayBuffer());
-  return new Response(buf, {
+  return new Response(entry.buf, {
     status: 200,
     headers: {
-      "Content-Type": /^image\//i.test(contentType) ? contentType : "image/jpeg",
+      "Content-Type": entry.type,
       "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "*",
+      "X-Poster-Cache": "MISS"
     }
   });
 };
@@ -4309,6 +4366,9 @@ var browseController = async (c) => {
         statusEl.classList.toggle('is-err', !!isErr);
       }
 
+      var FETCH_MS = 20000;
+      var loadSeq = 0;
+
       function headers() {
         var h = { Accept: 'application/json' };
         var key = apiKey.value.trim();
@@ -4316,22 +4376,36 @@ var browseController = async (c) => {
         return h;
       }
 
-      async function getJson(path) {
-        var res = await fetch(path, { headers: headers() });
-        var text = await res.text();
-        var json = null;
-        try { json = text ? JSON.parse(text) : null; } catch (e) {}
-        if (res.status === 401 || res.status === 403) {
-          keyPanel.classList.add('is-open');
-          throw new Error('Unauthorized \u2014 set your API key.');
+      async function getJson(path, ms) {
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = null;
+        try {
+          if (ctrl) {
+            timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, ms || FETCH_MS);
+          }
+          var res = await fetch(path, { headers: headers(), signal: ctrl ? ctrl.signal : undefined });
+          var text = await res.text();
+          var json = null;
+          try { json = text ? JSON.parse(text) : null; } catch (e) {}
+          if (res.status === 401 || res.status === 403) {
+            keyPanel.classList.add('is-open');
+            throw new Error('Unauthorized \u2014 set your API key.');
+          }
+          if (!res.ok) {
+            throw new Error((json && (json.message || json.error)) || ('Request failed (' + res.status + ')'));
+          }
+          if (json && json.success === false) {
+            throw new Error(json.message || 'Request failed');
+          }
+          return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
+        } catch (err) {
+          if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+            throw new Error('Request timed out \u2014 try again.');
+          }
+          throw err;
+        } finally {
+          if (timer) clearTimeout(timer);
         }
-        if (!res.ok) {
-          throw new Error((json && (json.message || json.error)) || ('Request failed (' + res.status + ')'));
-        }
-        if (json && json.success === false) {
-          throw new Error(json.message || 'Request failed');
-        }
-        return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
       }
 
       function esc(s) {
@@ -4352,37 +4426,56 @@ var browseController = async (c) => {
         return null;
       }
 
-      /** Proxy first (CDN hotlink bypass), then direct URL as backup. */
+      function canHotlinkDirect(abs) {
+        return abs.indexOf('anipixcdn.co') !== -1;
+      }
+
+      /**
+       * Prefer direct CDN (fast) when hotlink-safe; proxy only as fallback.
+       * Dedupes so episode grids sharing one anime poster hit the network once.
+       */
       function posterCandidates(list) {
         var seen = {};
-        var out = [];
+        var direct = [];
+        var proxied = [];
         (list || []).forEach(function (url) {
           var abs = absUrl(url);
           if (!abs || seen['u:' + abs]) return;
           seen['u:' + abs] = 1;
-          var proxied = '/api/v2/hianime/poster?url=' + encodeURIComponent(abs);
-          if (!seen[proxied]) { seen[proxied] = 1; out.push(proxied); }
-          if (!seen[abs]) { seen[abs] = 1; out.push(abs); }
+          var viaProxy = '/api/v2/hianime/poster?url=' + encodeURIComponent(abs);
+          if (canHotlinkDirect(abs)) {
+            direct.push(abs);
+            proxied.push(viaProxy);
+          } else {
+            proxied.push(viaProxy);
+            direct.push(abs);
+          }
         });
-        return out;
+        return direct.concat(proxied).filter(function (u, i, arr) {
+          return arr.indexOf(u) === i;
+        });
       }
 
       window.__aniPosterFail = function (img) {
-        var list = [];
-        try { list = JSON.parse(img.getAttribute('data-fallbacks') || '[]'); } catch (e) {}
-        while (list.length) {
-          var next = list.shift();
-          img.setAttribute('data-fallbacks', JSON.stringify(list));
-          if (next && next !== img.getAttribute('src')) {
-            img.src = next;
-            return;
+        try {
+          var list = [];
+          try { list = JSON.parse(img.getAttribute('data-fallbacks') || '[]'); } catch (e) {}
+          while (list.length) {
+            var next = list.shift();
+            img.setAttribute('data-fallbacks', JSON.stringify(list));
+            if (next && next !== img.getAttribute('src')) {
+              img.src = next;
+              return;
+            }
           }
+          var ph = document.createElement('div');
+          ph.className = 'poster ph';
+          ph.setAttribute('aria-hidden', 'true');
+          ph.textContent = 'No art';
+          if (img.parentNode) img.parentNode.replaceChild(ph, img);
+        } catch (e) {
+          // never let image errors bubble
         }
-        var ph = document.createElement('div');
-        ph.className = 'poster ph';
-        ph.setAttribute('aria-hidden', 'true');
-        ph.textContent = 'No art';
-        if (img.parentNode) img.parentNode.replaceChild(ph, img);
       };
 
       function posterImg(urls, alt) {
@@ -4605,7 +4698,7 @@ var browseController = async (c) => {
           var primary = generic ? epTag : raw;
           var secondary = generic ? null : epTag;
           btn.innerHTML =
-            posterImg([ep.poster, poster].concat(posterFallbacks), primary) +
+            posterImg(poster || posterFallbacks, primary) +
             '<div class="meta"><div class="title">' + esc(primary) +
             (ep.isFiller ? '<span class="badge">Filler</span>' : '') +
             '</div>' +
@@ -4628,39 +4721,61 @@ var browseController = async (c) => {
           return;
         }
         persistKey();
+        var seq = ++loadSeq;
         searchBtn.disabled = true;
         setStatus('Searching\u2026');
         showSkeleton(10);
         try {
           var data = await getJson('/api/v2/hianime/search?keyword=' + encodeURIComponent(keyword));
-          var animes = data.animes || data.response || [];
+          if (seq !== loadSeq) return;
+          var animes = (data && (data.animes || data.response)) || [];
           setStatus(animes.length + ' result' + (animes.length === 1 ? '' : 's'));
           renderSearch(animes);
         } catch (err) {
-          setStatus(err.message || 'Search failed', true);
-          main.innerHTML = '<div class="empty"><h2>Search failed</h2><p>' + esc(err.message || 'Try again shortly.') + '</p></div>';
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Search failed', true);
+          main.innerHTML = '<div class="empty"><h2>Search failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
         } finally {
-          searchBtn.disabled = false;
+          if (seq === loadSeq) searchBtn.disabled = false;
         }
       }
 
       async function loadEpisodes(anime) {
         if (!anime || !anime.id) return;
+        var seq = ++loadSeq;
         setStatus('Loading details\u2026');
         showSkeleton(8);
         try {
           var id = encodeURIComponent(anime.id);
-          var results = await Promise.all([
-            getJson('/api/v2/hianime/anime/' + id + '/episodes'),
-            getJson('/api/v2/anime/' + id).catch(function () { return null; }),
-          ]);
-          var data = results[0];
-          var detail = results[1];
-          setStatus((data.totalEpisodes || (data.episodes || []).length) + ' episodes');
+          var epPromise = getJson('/api/v2/hianime/anime/' + id + '/episodes');
+          var detailPromise = getJson('/api/v2/anime/' + id).catch(function () { return null; });
+          var data = await epPromise;
+          if (seq !== loadSeq) return;
+          if (!data || !Array.isArray(data.episodes)) {
+            throw new Error('No episodes returned.');
+          }
+          // Don't block the episode list on slow detail metadata.
+          var detail = null;
+          try {
+            detail = await Promise.race([
+              detailPromise,
+              new Promise(function (resolve) { setTimeout(function () { resolve(null); }, 4000); }),
+            ]);
+          } catch (e) {
+            detail = null;
+          }
+          if (seq !== loadSeq) return;
+          setStatus((data.totalEpisodes || data.episodes.length) + ' episodes');
           renderEpisodes(anime, data, detail);
+          // If detail arrived late, quietly refresh metadata once.
+          detailPromise.then(function (late) {
+            if (seq !== loadSeq || !late || detail) return;
+            try { renderEpisodes(anime, data, late); } catch (e) {}
+          }).catch(function () {});
         } catch (err) {
-          setStatus(err.message || 'Could not load episodes', true);
-          main.innerHTML = '<div class="empty"><h2>Could not load episodes</h2><p>' + esc(err.message || '') + '</p></div>';
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Could not load episodes', true);
+          main.innerHTML = '<div class="empty"><h2>Could not load episodes</h2><p>' + esc((err && err.message) || '') + '</p></div>';
         }
       }
 
@@ -4677,7 +4792,7 @@ var browseController = async (c) => {
             server: 'hd-1',
             category: 'sub',
           });
-          var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString());
+          var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString(), 25000);
           var link =
             data.link ||
             (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
@@ -4686,9 +4801,13 @@ var browseController = async (c) => {
           setStatus('Opening player\u2026');
           window.open(link, '_blank', 'noopener');
         } catch (err) {
-          setStatus(err.message || 'Could not resolve stream', true);
+          setStatus((err && err.message) || 'Could not resolve stream', true);
         }
       }
+
+      window.addEventListener('unhandledrejection', function (ev) {
+        try { ev.preventDefault(); } catch (e) {}
+      });
 
       searchBtn.addEventListener('click', doSearch);
       q.addEventListener('keydown', function (e) {
