@@ -162,15 +162,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   });
 }
 
+export type ProviderId = 'megaplay' | 'zoko';
+
+export type AvailableProvider = {
+  id: ProviderId;
+  label: string;
+  preferred: boolean;
+  categories: Array<'sub' | 'dub'>;
+  capabilities: {
+    introOutro: boolean;
+    softsubs: boolean;
+  };
+};
+
 export type EpisodePlayback = {
   link: string;
   tracks: Record<string, unknown>;
   availableCategories: Array<'sub' | 'dub'>;
+  availableProviders: AvailableProvider[];
   sources: Array<Record<string, unknown>>;
   headers: Record<string, string>;
   server: string;
   category: string;
   provider: string;
+  providerLabel: string;
   animeId: string | null;
   animeTitle: string;
   episodeId: string;
@@ -188,6 +203,70 @@ export type EpisodePlayback = {
   anilistID?: unknown;
   malID?: unknown;
 };
+
+const PROVIDER_META: Record<
+  ProviderId,
+  {
+    label: string;
+    preferred: boolean;
+    capabilities: { introOutro: boolean; softsubs: boolean };
+  }
+> = {
+  megaplay: {
+    label: 'MegaPlay',
+    preferred: true,
+    capabilities: { introOutro: true, softsubs: true },
+  },
+  zoko: {
+    label: 'Zoko',
+    preferred: false,
+    capabilities: { introOutro: false, softsubs: true },
+  },
+};
+
+function detectProvider(embedUrl: string): ProviderId | null {
+  if (/megaplay/i.test(embedUrl)) return 'megaplay';
+  if (/zoko/i.test(embedUrl)) return 'zoko';
+  return null;
+}
+
+/** Providers listed on the theme server panel (not necessarily resolved yet). */
+function buildAvailableProviders(
+  servers: ThemeServer[],
+  categories: Array<'sub' | 'dub'>
+): AvailableProvider[] {
+  const byId = new Map<ProviderId, { categories: Set<'sub' | 'dub'> }>();
+
+  for (const s of servers) {
+    const cat = s.type === 'dub' ? 'dub' : s.type === 'sub' ? 'sub' : null;
+    if (!cat || !categories.includes(cat)) continue;
+    const id = detectProvider(s.embedUrl);
+    if (!id) continue;
+    const entry = byId.get(id) || { categories: new Set() };
+    entry.categories.add(cat);
+    byId.set(id, entry);
+  }
+
+  const order: ProviderId[] = ['megaplay', 'zoko'];
+  return order
+    .filter((id) => byId.has(id))
+    .map((id) => {
+      const meta = PROVIDER_META[id];
+      return {
+        id,
+        label: meta.label,
+        preferred: meta.preferred,
+        categories: Array.from(byId.get(id)!.categories),
+        capabilities: { ...meta.capabilities },
+      };
+    });
+}
+
+function providerLabel(id: string | null | undefined): string {
+  if (id === 'megaplay') return PROVIDER_META.megaplay.label;
+  if (id === 'zoko') return PROVIDER_META.zoko.label;
+  return id || 'Unknown';
+}
 
 /** Resolve MegaPlay/Zoko streams + watch link (+ prev/next play URLs). */
 export async function resolveEpisodePlayback(
@@ -271,27 +350,54 @@ export async function resolveEpisodePlayback(
     nextEpisodeId: nextId,
     epIndex: neighbors?.index ?? null,
     epTotal: neighbors?.total ?? null,
+    // is/ie/os/oe = sub when present, else active (dub-only)
+    intro: subTrack?.stream.intro ?? (!subTrack ? dubTrack?.stream.intro : null) ?? null,
+    outro: subTrack?.stream.outro ?? (!subTrack ? dubTrack?.stream.outro : null) ?? null,
+    // dis/die/dos/doe only when both tracks exist
+    dubIntro: subTrack && dubTrack ? dubTrack.stream.intro ?? null : null,
+    dubOutro: subTrack && dubTrack ? dubTrack.stream.outro ?? null : null,
+    subProvider: subTrack?.provider ?? null,
+    dubProvider: dubTrack?.provider ?? null,
   };
+
+  const availableCategories: Array<'sub' | 'dub'> = [
+    ...(subTrack ? (['sub'] as const) : []),
+    ...(dubTrack ? (['dub'] as const) : []),
+  ];
+  const availableProviders = buildAvailableProviders(servers, availableCategories);
 
   const link = watchPageUrl(origin, {
     ...watchOpts,
     category: active.category,
+    provider: active.provider,
   });
 
   const tracks: Record<string, unknown> = {};
   for (const track of [subTrack, dubTrack]) {
     if (!track) continue;
     const enCc = pickEnglishSubtitle(track.stream.subtitles);
+    const caps = PROVIDER_META[track.provider].capabilities;
     tracks[track.category] = {
       link: watchPageUrl(origin, {
         ...watchOpts,
         category: track.category,
+        provider: track.provider,
       }),
       streamUrl: proxiedHlsUrl(origin, track.m3u8),
       originalUrl: track.m3u8,
       server: track.server,
       provider: track.provider,
+      providerLabel: providerLabel(track.provider),
+      capabilities: {
+        introOutro: caps.introOutro,
+        softsubs: caps.softsubs,
+        hasIntro: Boolean(track.stream.intro),
+        hasOutro: Boolean(track.stream.outro),
+        hasEnglishCc: Boolean(enCc),
+      },
       subtitles: track.stream.subtitles,
+      intro: track.stream.intro ?? null,
+      outro: track.stream.outro ?? null,
       englishCc: enCc
         ? {
             url: proxiedHlsUrl(origin, enCc),
@@ -305,10 +411,8 @@ export async function resolveEpisodePlayback(
     ...active.stream,
     link,
     tracks,
-    availableCategories: [
-      ...(subTrack ? (['sub'] as const) : []),
-      ...(dubTrack ? (['dub'] as const) : []),
-    ],
+    availableCategories,
+    availableProviders,
     sources: [
       {
         url: link,
@@ -326,6 +430,7 @@ export async function resolveEpisodePlayback(
     server: active.server,
     category: active.category,
     provider: active.provider,
+    providerLabel: providerLabel(active.provider),
     animeId: slug,
     animeTitle,
     episodeId,

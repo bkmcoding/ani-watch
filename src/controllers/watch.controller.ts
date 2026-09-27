@@ -35,6 +35,39 @@ function parseEpisodeIdParam(raw: string | undefined): string | null {
   return cleaned;
 }
 
+type SkipRange = { start: number; end: number } | null;
+
+function parseSkipSec(raw: string | undefined): number | null {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
+}
+
+function parseSkipRange(
+  startRaw: string | undefined,
+  endRaw: string | undefined
+): SkipRange {
+  const start = parseSkipSec(startRaw);
+  const end = parseSkipSec(endRaw);
+  if (start == null || end == null || end <= start) return null;
+  return { start, end };
+}
+
+function parseProviderId(raw: string | undefined): 'megaplay' | 'zoko' | null {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
+  if (v === 'megaplay' || v === 'mega' || v === 'hd-1' || v === 'hd1') return 'megaplay';
+  if (v === 'zoko') return 'zoko';
+  return null;
+}
+
+function providerDisplayName(id: string | null | undefined): string {
+  if (id === 'megaplay') return 'MegaPlay';
+  if (id === 'zoko') return 'Zoko';
+  return '';
+}
+
 const watchController = async (c: Context) => {
   const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
   const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
@@ -52,6 +85,15 @@ const watchController = async (c: Context) => {
   const nextEpisodeId = parseEpisodeIdParam(c.req.query('nextEp') || undefined);
   const legacyPrev = c.req.query('prev') || null;
   const legacyNext = c.req.query('next') || null;
+  const subIntro = parseSkipRange(c.req.query('is') || undefined, c.req.query('ie') || undefined);
+  const subOutro = parseSkipRange(c.req.query('os') || undefined, c.req.query('oe') || undefined);
+  const dubIntro =
+    parseSkipRange(c.req.query('dis') || undefined, c.req.query('die') || undefined) || subIntro;
+  const dubOutro =
+    parseSkipRange(c.req.query('dos') || undefined, c.req.query('doe') || undefined) || subOutro;
+  const activeProviderParam = parseProviderId(c.req.query('p') || undefined);
+  const subProviderParam = parseProviderId(c.req.query('sp') || undefined);
+  const dubProviderParam = parseProviderId(c.req.query('dp') || undefined);
 
   let resolvedSub = subCdn;
   let resolvedDub = dubCdn;
@@ -98,6 +140,24 @@ const watchController = async (c: Context) => {
     sub: subCcCdn ? proxiedHlsUrl(origin, subCcCdn) : null,
     dub: dubCcCdn ? proxiedHlsUrl(origin, dubCcCdn) : null,
   };
+  const skips = {
+    sub: { intro: subIntro, outro: subOutro },
+    dub: { intro: dubIntro, outro: dubOutro },
+  };
+  const providers = {
+    sub: subProviderParam || (initial === 'sub' ? activeProviderParam : null),
+    dub: dubProviderParam || (initial === 'dub' ? activeProviderParam : null),
+  };
+  if (!providers.sub && !providers.dub && activeProviderParam) {
+    providers.sub = activeProviderParam;
+    providers.dub = activeProviderParam;
+  }
+  const initialProvider =
+    (initial === 'dub' ? providers.dub : providers.sub) ||
+    providers.sub ||
+    providers.dub ||
+    activeProviderParam;
+  const initialProviderLabel = providerDisplayName(initialProvider);
   const hasBoth = Boolean(streams.sub && streams.dub);
   const hasAnyCc = Boolean(captions.sub || captions.dub);
 
@@ -211,6 +271,17 @@ const watchController = async (c: Context) => {
       min-width: 72px;
     }
     .pill.nav-pill:hover { background: rgba(61, 214, 198, 0.3); color: var(--ink); }
+    .pill.provider-pill {
+      cursor: default;
+      pointer-events: none;
+      text-transform: none;
+      letter-spacing: 0.02em;
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      font-weight: 500;
+    }
+    .pill.provider-pill[hidden] { display: none !important; }
     a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
     .stage-wrap { display: grid; place-items: center; width: 100%; min-height: 0; }
     .stage {
@@ -297,6 +368,37 @@ const watchController = async (c: Context) => {
     }
     .big-btn:hover { transform: scale(1.05); background: rgba(61, 214, 198, 0.2); }
     .big-btn svg { width: 28px; height: 28px; }
+    .skip-btn {
+      position: absolute;
+      right: 16px;
+      bottom: 88px;
+      z-index: 4;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(12, 16, 24, 0.78);
+      backdrop-filter: blur(10px);
+      color: var(--ink);
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.22s var(--ease), transform 0.22s var(--ease), background 0.2s ease;
+      pointer-events: none;
+    }
+    .skip-btn.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .skip-btn:hover { background: rgba(61, 214, 198, 0.28); }
+    .stage:hover .skip-btn.is-visible, .stage.is-paused .skip-btn.is-visible,
+    .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
+      opacity: 1;
+    }
     .spinner {
       width: 42px; height: 42px; border-radius: 50%;
       border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent);
@@ -452,6 +554,7 @@ const watchController = async (c: Context) => {
           <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${streams.sub ? '' : 'hidden'}>Sub</button>
           <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${streams.dub ? '' : 'hidden'}>Dub</button>
         </div>
+        <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? '' : 'hidden'}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? '' : 'hidden'} aria-pressed="false">CC</button>
         <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
       </div>
@@ -469,6 +572,7 @@ const watchController = async (c: Context) => {
           </button>
           <div class="spinner" aria-hidden="true"></div>
         </div>
+        <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
 
         <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
           <div class="menu-section">
@@ -579,6 +683,9 @@ const watchController = async (c: Context) => {
     (function () {
       var streams = ${JSON.stringify(streams)};
       var captions = ${JSON.stringify(captions)};
+      var skips = ${JSON.stringify(skips)};
+      var providers = ${JSON.stringify(providers)};
+      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
       var track = ${JSON.stringify(initial)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
@@ -610,9 +717,12 @@ const watchController = async (c: Context) => {
       var ccSize = document.getElementById('ccSize');
       var ccSizeLabel = document.getElementById('ccSizeLabel');
       var pipBtn = document.getElementById('pipBtn');
+      var skipBtn = document.getElementById('skipBtn');
+      var providerBadge = document.getElementById('providerBadge');
       var hideTimer = null;
       var hls = null;
       var switching = false;
+      var skipMode = null;
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
@@ -670,6 +780,48 @@ const watchController = async (c: Context) => {
         if (!seek.matches(':active')) seek.value = String(d ? (t / d) * 1000 : 0);
         seek.style.setProperty('--progress', (d ? (t / d) * 100 : 0) + '%');
         timeEl.textContent = fmt(t) + ' / ' + fmt(d);
+      }
+
+      function currentSkip() {
+        var pack = skips[track] || skips.sub || skips.dub || {};
+        return pack;
+      }
+
+      function inRange(t, range) {
+        return range && isFinite(range.start) && isFinite(range.end) && t >= range.start && t < range.end;
+      }
+
+      function updateSkip() {
+        if (!skipBtn) return;
+        var pack = currentSkip();
+        var t = video.currentTime || 0;
+        var mode = null;
+        if (inRange(t, pack.intro)) mode = 'intro';
+        else if (inRange(t, pack.outro)) mode = 'outro';
+        skipMode = mode;
+        if (!mode) {
+          skipBtn.hidden = true;
+          skipBtn.classList.remove('is-visible');
+          skipBtn.setAttribute('aria-hidden', 'true');
+          return;
+        }
+        skipBtn.hidden = false;
+        skipBtn.classList.add('is-visible');
+        skipBtn.setAttribute('aria-hidden', 'false');
+        skipBtn.textContent = mode === 'intro' ? 'Skip Intro' : 'Skip Outro';
+      }
+
+      function doSkip() {
+        var pack = currentSkip();
+        var range = skipMode === 'outro' ? pack.outro : pack.intro;
+        if (!range || !isFinite(range.end)) return;
+        var target = range.end;
+        var d = video.duration;
+        if (isFinite(d) && d > 0) target = Math.min(target, Math.max(0, d - 0.25));
+        video.currentTime = Math.max(0, target);
+        updateProgress();
+        updateSkip();
+        pokeControls();
       }
 
       function pokeControls() {
@@ -925,6 +1077,20 @@ const watchController = async (c: Context) => {
           btn.classList.toggle('is-active', t === track);
           btn.disabled = !streams[t];
         });
+        updateProviderBadge();
+      }
+
+      function updateProviderBadge() {
+        if (!providerBadge) return;
+        var id = providers[track] || providers.sub || providers.dub || null;
+        var label = id ? (PROVIDER_LABELS[id] || id) : '';
+        if (!label) {
+          providerBadge.hidden = true;
+          providerBadge.textContent = '';
+          return;
+        }
+        providerBadge.hidden = false;
+        providerBadge.textContent = label;
       }
 
       function fillQuality() {
@@ -967,6 +1133,7 @@ const watchController = async (c: Context) => {
         var wasPlaying = !video.paused || keepTime;
         track = next;
         syncAudioButtons();
+        updateSkip();
 
         try {
           var u = new URL(location.href);
@@ -1168,6 +1335,7 @@ const watchController = async (c: Context) => {
         if (!video.duration) return;
         video.currentTime = (Number(seek.value) / 1000) * video.duration;
         updateProgress();
+        updateSkip();
       });
       vol.addEventListener('input', function () {
         video.volume = Number(vol.value);
@@ -1176,14 +1344,27 @@ const watchController = async (c: Context) => {
         setMuted(video.muted);
       });
 
+      if (skipBtn) {
+        skipBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          doSkip();
+        });
+      }
+
       video.addEventListener('timeupdate', function () {
         updateProgress();
+        updateSkip();
         renderCcAt(video.currentTime || 0);
       });
       video.addEventListener('seeked', function () {
+        updateSkip();
         renderCcAt(video.currentTime || 0);
       });
-      video.addEventListener('loadedmetadata', updateProgress);
+      video.addEventListener('loadedmetadata', function () {
+        updateProgress();
+        updateSkip();
+      });
       video.addEventListener('ratechange', function () {
         if (Math.abs(video.playbackRate - rate) > 0.01) setRate(video.playbackRate);
       });

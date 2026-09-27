@@ -68,6 +68,19 @@ export function pickEnglishSubtitle(
   return scored[0]?.url || null;
 }
 
+type SkipRange = { start: number; end: number } | null | undefined;
+
+function setSkipParams(
+  params: URLSearchParams,
+  prefix: string,
+  range: SkipRange
+): void {
+  if (!range || !Number.isFinite(range.start) || !Number.isFinite(range.end)) return;
+  if (range.end <= range.start) return;
+  params.set(`${prefix}s`, String(Math.round(range.start)));
+  params.set(`${prefix}e`, String(Math.round(range.end)));
+}
+
 /** Browser player URL. Pass CDN m3u8(s); optional English CC + short episode-nav ids. */
 export function watchPageUrl(
   origin: string,
@@ -87,6 +100,16 @@ export function watchPageUrl(
     nextEpisodeId?: string | null;
     epIndex?: number | null;
     epTotal?: number | null;
+    /** Sub (or shared) intro/outro seconds from MegaPlay. */
+    intro?: SkipRange;
+    outro?: SkipRange;
+    /** Dub-specific intro/outro when both tracks exist. */
+    dubIntro?: SkipRange;
+    dubOutro?: SkipRange;
+    /** Active / per-track provider ids (megaplay | zoko). */
+    provider?: string | null;
+    subProvider?: string | null;
+    dubProvider?: string | null;
   }
 ): string {
   const base = origin.replace(/\/+$/, '');
@@ -104,6 +127,12 @@ export function watchPageUrl(
   if (opts.nextEpisodeId) params.set('nextEp', opts.nextEpisodeId);
   if (opts.epIndex != null) params.set('i', String(opts.epIndex));
   if (opts.epTotal != null) params.set('total', String(opts.epTotal));
+  setSkipParams(params, 'i', opts.intro);
+  setSkipParams(params, 'o', opts.outro);
+  setSkipParams(params, 'di', opts.dubIntro);
+  setSkipParams(params, 'do', opts.dubOutro);
+  if (opts.subProvider) params.set('sp', opts.subProvider);
+  if (opts.dubProvider) params.set('dp', opts.dubProvider);
   const preferred =
     opts.category === 'dub' && opts.dub
       ? 'dub'
@@ -115,6 +144,12 @@ export function watchPageUrl(
             ? 'dub'
             : 'sub';
   params.set('t', preferred);
+  const activeProvider =
+    opts.provider ||
+    (preferred === 'dub' ? opts.dubProvider : opts.subProvider) ||
+    opts.subProvider ||
+    opts.dubProvider;
+  if (activeProvider) params.set('p', activeProvider);
   const primary = preferred === 'dub' ? opts.dub : opts.sub || opts.dub;
   if (primary) params.set('url', primary);
   return `${base}/api/v2/hianime/watch?${params.toString()}`;

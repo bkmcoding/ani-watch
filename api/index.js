@@ -1450,6 +1450,12 @@ function pickEnglishSubtitle(subs) {
   }).filter((s) => s.score >= 10).sort((a, b) => b.score - a.score);
   return scored[0]?.url || null;
 }
+function setSkipParams(params, prefix, range) {
+  if (!range || !Number.isFinite(range.start) || !Number.isFinite(range.end)) return;
+  if (range.end <= range.start) return;
+  params.set(`${prefix}s`, String(Math.round(range.start)));
+  params.set(`${prefix}e`, String(Math.round(range.end)));
+}
 function watchPageUrl(origin, opts) {
   const base = origin.replace(/\/+$/, "");
   const params = new URLSearchParams();
@@ -1466,8 +1472,16 @@ function watchPageUrl(origin, opts) {
   if (opts.nextEpisodeId) params.set("nextEp", opts.nextEpisodeId);
   if (opts.epIndex != null) params.set("i", String(opts.epIndex));
   if (opts.epTotal != null) params.set("total", String(opts.epTotal));
+  setSkipParams(params, "i", opts.intro);
+  setSkipParams(params, "o", opts.outro);
+  setSkipParams(params, "di", opts.dubIntro);
+  setSkipParams(params, "do", opts.dubOutro);
+  if (opts.subProvider) params.set("sp", opts.subProvider);
+  if (opts.dubProvider) params.set("dp", opts.dubProvider);
   const preferred = opts.category === "dub" && opts.dub ? "dub" : opts.category === "sub" && opts.sub ? "sub" : opts.sub ? "sub" : opts.dub ? "dub" : "sub";
   params.set("t", preferred);
+  const activeProvider = opts.provider || (preferred === "dub" ? opts.dubProvider : opts.subProvider) || opts.subProvider || opts.dubProvider;
+  if (activeProvider) params.set("p", activeProvider);
   const primary = preferred === "dub" ? opts.dub : opts.sub || opts.dub;
   if (primary) params.set("url", primary);
   return `${base}/api/v2/hianime/watch?${params.toString()}`;
@@ -1629,6 +1643,51 @@ function withTimeout(promise, ms) {
     });
   });
 }
+var PROVIDER_META = {
+  megaplay: {
+    label: "MegaPlay",
+    preferred: true,
+    capabilities: { introOutro: true, softsubs: true }
+  },
+  zoko: {
+    label: "Zoko",
+    preferred: false,
+    capabilities: { introOutro: false, softsubs: true }
+  }
+};
+function detectProvider(embedUrl) {
+  if (/megaplay/i.test(embedUrl)) return "megaplay";
+  if (/zoko/i.test(embedUrl)) return "zoko";
+  return null;
+}
+function buildAvailableProviders(servers, categories) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const s of servers) {
+    const cat = s.type === "dub" ? "dub" : s.type === "sub" ? "sub" : null;
+    if (!cat || !categories.includes(cat)) continue;
+    const id = detectProvider(s.embedUrl);
+    if (!id) continue;
+    const entry = byId.get(id) || { categories: /* @__PURE__ */ new Set() };
+    entry.categories.add(cat);
+    byId.set(id, entry);
+  }
+  const order = ["megaplay", "zoko"];
+  return order.filter((id) => byId.has(id)).map((id) => {
+    const meta = PROVIDER_META[id];
+    return {
+      id,
+      label: meta.label,
+      preferred: meta.preferred,
+      categories: Array.from(byId.get(id).categories),
+      capabilities: { ...meta.capabilities }
+    };
+  });
+}
+function providerLabel(id) {
+  if (id === "megaplay") return PROVIDER_META.megaplay.label;
+  if (id === "zoko") return PROVIDER_META.zoko.label;
+  return id || "Unknown";
+}
 async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
   const server = (opts?.server || "hd-1").toLowerCase();
   const preferred = (opts?.category || "sub").toLowerCase() === "dub" ? "dub" : "sub";
@@ -1680,26 +1739,52 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
     prevEpisodeId: prevId,
     nextEpisodeId: nextId,
     epIndex: neighbors?.index ?? null,
-    epTotal: neighbors?.total ?? null
+    epTotal: neighbors?.total ?? null,
+    // is/ie/os/oe = sub when present, else active (dub-only)
+    intro: subTrack?.stream.intro ?? (!subTrack ? dubTrack?.stream.intro : null) ?? null,
+    outro: subTrack?.stream.outro ?? (!subTrack ? dubTrack?.stream.outro : null) ?? null,
+    // dis/die/dos/doe only when both tracks exist
+    dubIntro: subTrack && dubTrack ? dubTrack.stream.intro ?? null : null,
+    dubOutro: subTrack && dubTrack ? dubTrack.stream.outro ?? null : null,
+    subProvider: subTrack?.provider ?? null,
+    dubProvider: dubTrack?.provider ?? null
   };
+  const availableCategories = [
+    ...subTrack ? ["sub"] : [],
+    ...dubTrack ? ["dub"] : []
+  ];
+  const availableProviders = buildAvailableProviders(servers, availableCategories);
   const link = watchPageUrl(origin, {
     ...watchOpts,
-    category: active.category
+    category: active.category,
+    provider: active.provider
   });
   const tracks = {};
   for (const track of [subTrack, dubTrack]) {
     if (!track) continue;
     const enCc = pickEnglishSubtitle(track.stream.subtitles);
+    const caps = PROVIDER_META[track.provider].capabilities;
     tracks[track.category] = {
       link: watchPageUrl(origin, {
         ...watchOpts,
-        category: track.category
+        category: track.category,
+        provider: track.provider
       }),
       streamUrl: proxiedHlsUrl(origin, track.m3u8),
       originalUrl: track.m3u8,
       server: track.server,
       provider: track.provider,
+      providerLabel: providerLabel(track.provider),
+      capabilities: {
+        introOutro: caps.introOutro,
+        softsubs: caps.softsubs,
+        hasIntro: Boolean(track.stream.intro),
+        hasOutro: Boolean(track.stream.outro),
+        hasEnglishCc: Boolean(enCc)
+      },
       subtitles: track.stream.subtitles,
+      intro: track.stream.intro ?? null,
+      outro: track.stream.outro ?? null,
       englishCc: enCc ? {
         url: proxiedHlsUrl(origin, enCc),
         originalUrl: enCc
@@ -1710,10 +1795,8 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
     ...active.stream,
     link,
     tracks,
-    availableCategories: [
-      ...subTrack ? ["sub"] : [],
-      ...dubTrack ? ["dub"] : []
-    ],
+    availableCategories,
+    availableProviders,
     sources: [
       {
         url: link,
@@ -1731,6 +1814,7 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
     server: active.server,
     category: active.category,
     provider: active.provider,
+    providerLabel: providerLabel(active.provider),
     animeId: slug,
     animeTitle,
     episodeId,
@@ -2029,6 +2113,30 @@ function parseEpisodeIdParam(raw) {
   if (/[\s<>"']/.test(cleaned)) return null;
   return cleaned;
 }
+function parseSkipSec(raw) {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
+}
+function parseSkipRange(startRaw, endRaw) {
+  const start = parseSkipSec(startRaw);
+  const end = parseSkipSec(endRaw);
+  if (start == null || end == null || end <= start) return null;
+  return { start, end };
+}
+function parseProviderId(raw) {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
+  if (v === "megaplay" || v === "mega" || v === "hd-1" || v === "hd1") return "megaplay";
+  if (v === "zoko") return "zoko";
+  return null;
+}
+function providerDisplayName(id) {
+  if (id === "megaplay") return "MegaPlay";
+  if (id === "zoko") return "Zoko";
+  return "";
+}
 var watchController = async (c) => {
   const subCdn = parseAllowedUrl(c.req.query("sub") || void 0);
   const dubCdn = parseAllowedUrl(c.req.query("dub") || void 0);
@@ -2045,6 +2153,13 @@ var watchController = async (c) => {
   const nextEpisodeId = parseEpisodeIdParam(c.req.query("nextEp") || void 0);
   const legacyPrev = c.req.query("prev") || null;
   const legacyNext = c.req.query("next") || null;
+  const subIntro = parseSkipRange(c.req.query("is") || void 0, c.req.query("ie") || void 0);
+  const subOutro = parseSkipRange(c.req.query("os") || void 0, c.req.query("oe") || void 0);
+  const dubIntro = parseSkipRange(c.req.query("dis") || void 0, c.req.query("die") || void 0) || subIntro;
+  const dubOutro = parseSkipRange(c.req.query("dos") || void 0, c.req.query("doe") || void 0) || subOutro;
+  const activeProviderParam = parseProviderId(c.req.query("p") || void 0);
+  const subProviderParam = parseProviderId(c.req.query("sp") || void 0);
+  const dubProviderParam = parseProviderId(c.req.query("dp") || void 0);
   let resolvedSub = subCdn;
   let resolvedDub = dubCdn;
   if (!resolvedSub && !resolvedDub && legacy) {
@@ -2079,6 +2194,20 @@ var watchController = async (c) => {
     sub: subCcCdn ? proxiedHlsUrl(origin, subCcCdn) : null,
     dub: dubCcCdn ? proxiedHlsUrl(origin, dubCcCdn) : null
   };
+  const skips = {
+    sub: { intro: subIntro, outro: subOutro },
+    dub: { intro: dubIntro, outro: dubOutro }
+  };
+  const providers = {
+    sub: subProviderParam || (initial === "sub" ? activeProviderParam : null),
+    dub: dubProviderParam || (initial === "dub" ? activeProviderParam : null)
+  };
+  if (!providers.sub && !providers.dub && activeProviderParam) {
+    providers.sub = activeProviderParam;
+    providers.dub = activeProviderParam;
+  }
+  const initialProvider = (initial === "dub" ? providers.dub : providers.sub) || providers.sub || providers.dub || activeProviderParam;
+  const initialProviderLabel = providerDisplayName(initialProvider);
   const hasBoth = Boolean(streams.sub && streams.dub);
   const hasAnyCc = Boolean(captions.sub || captions.dub);
   const pageTitleParts = [SITE_NAME];
@@ -2190,6 +2319,17 @@ var watchController = async (c) => {
       min-width: 72px;
     }
     .pill.nav-pill:hover { background: rgba(61, 214, 198, 0.3); color: var(--ink); }
+    .pill.provider-pill {
+      cursor: default;
+      pointer-events: none;
+      text-transform: none;
+      letter-spacing: 0.02em;
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      font-weight: 500;
+    }
+    .pill.provider-pill[hidden] { display: none !important; }
     a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
     .stage-wrap { display: grid; place-items: center; width: 100%; min-height: 0; }
     .stage {
@@ -2276,6 +2416,37 @@ var watchController = async (c) => {
     }
     .big-btn:hover { transform: scale(1.05); background: rgba(61, 214, 198, 0.2); }
     .big-btn svg { width: 28px; height: 28px; }
+    .skip-btn {
+      position: absolute;
+      right: 16px;
+      bottom: 88px;
+      z-index: 4;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(12, 16, 24, 0.78);
+      backdrop-filter: blur(10px);
+      color: var(--ink);
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.22s var(--ease), transform 0.22s var(--ease), background 0.2s ease;
+      pointer-events: none;
+    }
+    .skip-btn.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .skip-btn:hover { background: rgba(61, 214, 198, 0.28); }
+    .stage:hover .skip-btn.is-visible, .stage.is-paused .skip-btn.is-visible,
+    .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
+      opacity: 1;
+    }
     .spinner {
       width: 42px; height: 42px; border-radius: 50%;
       border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent);
@@ -2431,6 +2602,7 @@ var watchController = async (c) => {
           <button type="button" class="pill ${initial === "sub" ? "is-active" : ""}" data-track="sub" ${streams.sub ? "" : "hidden"}>Sub</button>
           <button type="button" class="pill ${initial === "dub" ? "is-active" : ""}" data-track="dub" ${streams.dub ? "" : "hidden"}>Dub</button>
         </div>
+        <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? "" : "hidden"}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? "" : "hidden"} aria-pressed="false">CC</button>
         <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
       </div>
@@ -2448,6 +2620,7 @@ var watchController = async (c) => {
           </button>
           <div class="spinner" aria-hidden="true"></div>
         </div>
+        <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
 
         <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
           <div class="menu-section">
@@ -2558,6 +2731,9 @@ var watchController = async (c) => {
     (function () {
       var streams = ${JSON.stringify(streams)};
       var captions = ${JSON.stringify(captions)};
+      var skips = ${JSON.stringify(skips)};
+      var providers = ${JSON.stringify(providers)};
+      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
       var track = ${JSON.stringify(initial)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
@@ -2589,9 +2765,12 @@ var watchController = async (c) => {
       var ccSize = document.getElementById('ccSize');
       var ccSizeLabel = document.getElementById('ccSizeLabel');
       var pipBtn = document.getElementById('pipBtn');
+      var skipBtn = document.getElementById('skipBtn');
+      var providerBadge = document.getElementById('providerBadge');
       var hideTimer = null;
       var hls = null;
       var switching = false;
+      var skipMode = null;
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
@@ -2649,6 +2828,48 @@ var watchController = async (c) => {
         if (!seek.matches(':active')) seek.value = String(d ? (t / d) * 1000 : 0);
         seek.style.setProperty('--progress', (d ? (t / d) * 100 : 0) + '%');
         timeEl.textContent = fmt(t) + ' / ' + fmt(d);
+      }
+
+      function currentSkip() {
+        var pack = skips[track] || skips.sub || skips.dub || {};
+        return pack;
+      }
+
+      function inRange(t, range) {
+        return range && isFinite(range.start) && isFinite(range.end) && t >= range.start && t < range.end;
+      }
+
+      function updateSkip() {
+        if (!skipBtn) return;
+        var pack = currentSkip();
+        var t = video.currentTime || 0;
+        var mode = null;
+        if (inRange(t, pack.intro)) mode = 'intro';
+        else if (inRange(t, pack.outro)) mode = 'outro';
+        skipMode = mode;
+        if (!mode) {
+          skipBtn.hidden = true;
+          skipBtn.classList.remove('is-visible');
+          skipBtn.setAttribute('aria-hidden', 'true');
+          return;
+        }
+        skipBtn.hidden = false;
+        skipBtn.classList.add('is-visible');
+        skipBtn.setAttribute('aria-hidden', 'false');
+        skipBtn.textContent = mode === 'intro' ? 'Skip Intro' : 'Skip Outro';
+      }
+
+      function doSkip() {
+        var pack = currentSkip();
+        var range = skipMode === 'outro' ? pack.outro : pack.intro;
+        if (!range || !isFinite(range.end)) return;
+        var target = range.end;
+        var d = video.duration;
+        if (isFinite(d) && d > 0) target = Math.min(target, Math.max(0, d - 0.25));
+        video.currentTime = Math.max(0, target);
+        updateProgress();
+        updateSkip();
+        pokeControls();
       }
 
       function pokeControls() {
@@ -2904,6 +3125,20 @@ var watchController = async (c) => {
           btn.classList.toggle('is-active', t === track);
           btn.disabled = !streams[t];
         });
+        updateProviderBadge();
+      }
+
+      function updateProviderBadge() {
+        if (!providerBadge) return;
+        var id = providers[track] || providers.sub || providers.dub || null;
+        var label = id ? (PROVIDER_LABELS[id] || id) : '';
+        if (!label) {
+          providerBadge.hidden = true;
+          providerBadge.textContent = '';
+          return;
+        }
+        providerBadge.hidden = false;
+        providerBadge.textContent = label;
       }
 
       function fillQuality() {
@@ -2946,6 +3181,7 @@ var watchController = async (c) => {
         var wasPlaying = !video.paused || keepTime;
         track = next;
         syncAudioButtons();
+        updateSkip();
 
         try {
           var u = new URL(location.href);
@@ -3147,6 +3383,7 @@ var watchController = async (c) => {
         if (!video.duration) return;
         video.currentTime = (Number(seek.value) / 1000) * video.duration;
         updateProgress();
+        updateSkip();
       });
       vol.addEventListener('input', function () {
         video.volume = Number(vol.value);
@@ -3155,14 +3392,27 @@ var watchController = async (c) => {
         setMuted(video.muted);
       });
 
+      if (skipBtn) {
+        skipBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          doSkip();
+        });
+      }
+
       video.addEventListener('timeupdate', function () {
         updateProgress();
+        updateSkip();
         renderCcAt(video.currentTime || 0);
       });
       video.addEventListener('seeked', function () {
+        updateSkip();
         renderCcAt(video.currentTime || 0);
       });
-      video.addEventListener('loadedmetadata', updateProgress);
+      video.addEventListener('loadedmetadata', function () {
+        updateProgress();
+        updateSkip();
+      });
       video.addEventListener('ratechange', function () {
         if (Math.abs(video.playbackRate - rate) > 0.01) setRate(video.playbackRate);
       });
