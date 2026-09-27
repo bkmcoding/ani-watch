@@ -19,19 +19,27 @@ const watchController = async (c: Context) => {
   const legacy = parseAllowedUrl(c.req.query('url') || undefined);
   const preferredRaw = (c.req.query('t') || 'sub').toLowerCase();
 
-  const sub = subCdn || (preferredRaw !== 'dub' ? legacy : null) || legacy;
-  const dub = dubCdn || (preferredRaw === 'dub' && !dubCdn ? legacy : null);
+  let resolvedSub = subCdn;
+  let resolvedDub = dubCdn;
 
-  if (!sub && !dub) {
+  // Lone `url=` (older links): map it to the preferred track.
+  if (!resolvedSub && !resolvedDub && legacy) {
+    if (preferredRaw === 'dub') resolvedDub = legacy;
+    else resolvedSub = legacy;
+  }
+
+  if (!resolvedSub && !resolvedDub) {
     throw new validationError('sub, dub, or url query param required (allowed CDN hosts only)');
   }
 
-  const initial = preferredRaw === 'dub' && dub ? 'dub' : sub ? 'sub' : 'dub';
+  const initial =
+    preferredRaw === 'dub' && resolvedDub ? 'dub' : resolvedSub ? 'sub' : 'dub';
   const origin = requestOrigin(c);
   const streams = {
-    sub: sub ? proxiedHlsUrl(origin, sub) : null,
-    dub: dub ? proxiedHlsUrl(origin, dub) : null,
+    sub: resolvedSub ? proxiedHlsUrl(origin, resolvedSub) : null,
+    dub: resolvedDub ? proxiedHlsUrl(origin, resolvedDub) : null,
   };
+  const hasBoth = Boolean(streams.sub && streams.dub);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -52,9 +60,11 @@ const watchController = async (c: Context) => {
       --accent: #3dd6c6;
       --accent-dim: rgba(61, 214, 198, 0.18);
       --danger: #ff7b72;
-      --line: rgba(255, 255, 255, 0.1);
+      --line: rgba(255, 255, 255, 0.12);
+      --panel: rgba(14, 18, 26, 0.94);
       --radius: 18px;
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --stage-max: 1120px;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; background: var(--bg0); color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; }
@@ -71,94 +81,61 @@ const watchController = async (c: Context) => {
       grid-template-rows: auto 1fr auto;
       padding: clamp(16px, 3vw, 28px);
       gap: 18px;
+      transition: padding 0.35s var(--ease);
     }
     header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      max-width: 1120px;
-      width: 100%;
-      margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      max-width: var(--stage-max); width: 100%; margin: 0 auto;
+      transition: opacity 0.3s ease, transform 0.3s ease;
     }
     .brand {
-      font-family: Syne, sans-serif;
-      font-weight: 700;
-      font-size: clamp(1.35rem, 2.4vw, 1.75rem);
-      letter-spacing: -0.03em;
-      margin: 0;
+      font-family: Syne, sans-serif; font-weight: 700;
+      font-size: clamp(1.35rem, 2.4vw, 1.75rem); letter-spacing: -0.03em; margin: 0;
     }
     .brand span { color: var(--accent); }
-    .header-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
-    .audio-toggle {
-      display: inline-flex;
-      padding: 4px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid var(--line);
-      gap: 2px;
+    .pill-toggle {
+      display: inline-flex; padding: 4px; border-radius: 999px;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--line); gap: 2px;
     }
-    .audio-toggle[hidden] { display: none !important; }
-    .audio-btn {
-      appearance: none;
-      border: 0;
-      background: transparent;
-      color: var(--muted);
-      font: inherit;
-      font-size: 0.82rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      padding: 8px 14px;
-      border-radius: 999px;
-      cursor: pointer;
+    .pill-toggle[hidden] { display: none !important; }
+    .pill {
+      appearance: none; border: 0; background: transparent; color: var(--muted);
+      font: inherit; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase; padding: 8px 14px; border-radius: 999px; cursor: pointer;
       transition: background 0.2s ease, color 0.2s ease;
     }
-    .audio-btn:hover { color: var(--ink); }
-    .audio-btn.is-active {
-      background: var(--accent-dim);
-      color: var(--accent);
-    }
-    .stage-wrap { display: grid; place-items: center; width: 100%; }
+    .pill:hover { color: var(--ink); }
+    .pill.is-active { background: var(--accent-dim); color: var(--accent); }
+    .stage-wrap { display: grid; place-items: center; width: 100%; min-height: 0; }
     .stage {
       position: relative;
-      width: min(100%, 1120px);
+      width: min(100%, var(--stage-max));
       aspect-ratio: 16 / 9;
       background: #000;
       border-radius: var(--radius);
       overflow: hidden;
       box-shadow: 0 0 0 1px var(--line), 0 30px 80px rgba(0, 0, 0, 0.55);
       isolation: isolate;
+      transition: width 0.35s var(--ease), height 0.35s var(--ease), border-radius 0.35s var(--ease), aspect-ratio 0.35s var(--ease);
     }
     video {
-      width: 100%;
-      height: 100%;
-      display: block;
-      background: #000;
-      object-fit: contain;
-      cursor: pointer;
+      width: 100%; height: 100%; display: block; background: #000;
+      object-fit: contain; cursor: pointer;
     }
     .overlay {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
+      position: absolute; inset: 0; display: grid; place-items: center;
       pointer-events: none;
       background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.25) 100%);
-      opacity: 0;
-      transition: opacity 0.35s var(--ease);
+      opacity: 0; transition: opacity 0.35s var(--ease);
     }
-    .stage.is-paused .overlay,
-    .stage.is-loading .overlay { opacity: 1; }
+    .stage.is-paused .overlay, .stage.is-loading .overlay { opacity: 1; }
     .big-btn {
       width: 76px; height: 76px; border-radius: 999px;
       border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(12, 16, 24, 0.55);
-      backdrop-filter: blur(10px);
-      color: var(--ink);
-      display: grid; place-items: center;
+      background: rgba(12, 16, 24, 0.55); backdrop-filter: blur(10px);
+      color: var(--ink); display: grid; place-items: center;
       pointer-events: auto; cursor: pointer;
       transition: transform 0.25s var(--ease), background 0.25s ease;
     }
@@ -166,30 +143,27 @@ const watchController = async (c: Context) => {
     .big-btn svg { width: 28px; height: 28px; }
     .spinner {
       width: 42px; height: 42px; border-radius: 50%;
-      border: 3px solid rgba(255,255,255,0.15);
-      border-top-color: var(--accent);
-      animation: spin 0.8s linear infinite;
-      display: none;
+      border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite; display: none;
     }
     .stage.is-loading .big-btn { display: none; }
     .stage.is-loading .spinner { display: block; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .controls {
       position: absolute; left: 0; right: 0; bottom: 0;
-      padding: 48px 14px 12px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.85) 55%);
+      padding: 56px 14px 12px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.88) 50%);
       opacity: 0; transform: translateY(6px);
       transition: opacity 0.28s var(--ease), transform 0.28s var(--ease);
+      z-index: 3;
     }
-    .stage:hover .controls,
-    .stage.is-paused .controls,
-    .stage.show-controls .controls,
-    .stage:focus-within .controls {
+    .stage:hover .controls, .stage.is-paused .controls,
+    .stage.show-controls .controls, .stage:focus-within .controls,
+    .stage.settings-open .controls {
       opacity: 1; transform: translateY(0);
     }
     .seek {
-      width: 100%; height: 6px; appearance: none;
-      background: transparent; cursor: pointer; margin: 0 0 10px;
+      width: 100%; height: 6px; appearance: none; background: transparent; cursor: pointer; margin: 0 0 10px;
     }
     .seek::-webkit-slider-runnable-track {
       height: 6px; border-radius: 999px;
@@ -202,15 +176,15 @@ const watchController = async (c: Context) => {
     .seek::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); }
     .seek::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--accent); }
     .seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink); }
-    .row { display: flex; align-items: center; gap: 6px; }
-    .row .spacer { flex: 1; }
+    .row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .row .spacer { flex: 1; min-width: 8px; }
     .ctrl {
       appearance: none; border: 0; background: transparent; color: var(--ink);
       width: 40px; height: 40px; border-radius: 10px;
-      display: grid; place-items: center; cursor: pointer;
+      display: grid; place-items: center; cursor: pointer; position: relative;
       transition: background 0.2s ease;
     }
-    .ctrl:hover { background: rgba(255,255,255,0.08); }
+    .ctrl:hover, .ctrl.is-on { background: rgba(255,255,255,0.08); }
     .ctrl svg { width: 20px; height: 20px; }
     .time {
       font-variant-numeric: tabular-nums; font-size: 0.82rem;
@@ -228,16 +202,78 @@ const watchController = async (c: Context) => {
     .vol::-moz-range-track { height: 5px; border-radius: 999px; background: rgba(255,255,255,0.18); }
     .vol::-moz-range-progress { height: 5px; border-radius: 999px; background: var(--accent); }
     .vol::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--ink); }
+    .speed-chip {
+      appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.04);
+      color: var(--muted); font: inherit; font-size: 0.75rem; font-weight: 600;
+      padding: 6px 8px; border-radius: 8px; cursor: pointer; min-width: 42px;
+    }
+    .speed-chip:hover, .speed-chip.is-active { color: var(--accent); border-color: rgba(61,214,198,0.4); background: var(--accent-dim); }
+    .menu {
+      position: absolute; right: 12px; bottom: 58px;
+      width: min(280px, calc(100% - 24px));
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 14px; padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      display: none; z-index: 5; backdrop-filter: blur(16px);
+    }
+    .menu.is-open { display: block; }
+    .menu h3 {
+      margin: 0 0 10px; font-size: 0.72rem; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); font-weight: 600;
+    }
+    .menu-section { margin-bottom: 14px; }
+    .menu-section:last-child { margin-bottom: 0; }
+    .menu-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 8px 4px; font-size: 0.9rem;
+    }
+    .menu-row label { color: var(--ink); }
+    .menu select, .menu .speed-row {
+      width: 100%;
+    }
+    .menu select {
+      appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.04);
+      color: var(--ink); border-radius: 10px; padding: 8px 10px; font: inherit;
+    }
+    .speed-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .switch {
+      position: relative; width: 42px; height: 24px; border-radius: 999px;
+      background: rgba(255,255,255,0.12); border: 0; cursor: pointer; padding: 0;
+    }
+    .switch::after {
+      content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+      border-radius: 50%; background: #fff; transition: transform 0.2s var(--ease);
+    }
+    .switch.is-on { background: rgba(61, 214, 198, 0.55); }
+    .switch.is-on::after { transform: translateX(18px); }
     .err {
-      max-width: 1120px; width: 100%; margin: 0 auto; color: var(--danger);
+      max-width: var(--stage-max); width: 100%; margin: 0 auto; color: var(--danger);
       background: rgba(255, 123, 114, 0.08); border: 1px solid rgba(255, 123, 114, 0.25);
       border-radius: 12px; padding: 12px 14px; font-size: 0.92rem;
     }
     footer {
-      max-width: 1120px; width: 100%; margin: 0 auto;
+      max-width: var(--stage-max); width: 100%; margin: 0 auto;
       color: var(--muted); font-size: 0.8rem;
+      transition: opacity 0.3s ease;
     }
-    @media (max-width: 640px) {
+
+    /* Theater mode */
+    body.theater {
+      background: #000;
+    }
+    body.theater .page { padding: 0; gap: 0; }
+    body.theater header,
+    body.theater footer { opacity: 0; pointer-events: none; height: 0; overflow: hidden; margin: 0; padding: 0; }
+    body.theater .stage-wrap { min-height: 100dvh; }
+    body.theater .stage {
+      width: 100vw; max-width: none; height: 100dvh;
+      aspect-ratio: auto; border-radius: 0; box-shadow: none;
+    }
+    body.theater .err {
+      position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%);
+      z-index: 6; max-width: min(520px, 92vw); margin: 0;
+    }
+
+    @media (max-width: 720px) {
       .vol, .hint { display: none; }
       .time { min-width: auto; }
       .stage { aspect-ratio: 16 / 10; border-radius: 14px; }
@@ -250,11 +286,12 @@ const watchController = async (c: Context) => {
     <header>
       <h1 class="brand">ani<span>.</span>watch</h1>
       <div class="header-right">
-        <div class="audio-toggle" id="audioToggle" ${sub && dub ? '' : 'hidden'}>
-          <button type="button" class="audio-btn ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${sub ? '' : 'hidden'}>Sub</button>
-          <button type="button" class="audio-btn ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${dub ? '' : 'hidden'}>Dub</button>
+        <div class="pill-toggle" id="audioToggle" ${hasBoth ? '' : 'hidden'}>
+          <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${streams.sub ? '' : 'hidden'}>Sub</button>
+          <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${streams.dub ? '' : 'hidden'}>Dub</button>
         </div>
-        <p class="hint">Space play/pause · F fullscreen · S/D audio · ← → seek</p>
+        <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
+        <p class="hint">Space · F full · T theater · S/D audio · &lt; &gt; speed</p>
       </div>
     </header>
 
@@ -263,10 +300,46 @@ const watchController = async (c: Context) => {
         <video id="v" playsinline preload="auto"></video>
         <div class="overlay">
           <button type="button" class="big-btn" id="bigPlay" aria-label="Play">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </button>
           <div class="spinner" aria-hidden="true"></div>
         </div>
+
+        <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
+          <div class="menu-section">
+            <h3>Audio</h3>
+            <div class="pill-toggle" id="audioToggleMenu" ${hasBoth ? '' : 'hidden'} style="width:100%;justify-content:stretch">
+              <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" style="flex:1" ${streams.sub ? '' : 'hidden'}>Sub</button>
+              <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${streams.dub ? '' : 'hidden'}>Dub</button>
+            </div>
+            <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">Only one audio track is available for this episode.</p>
+          </div>
+          <div class="menu-section">
+            <h3>Speed</h3>
+            <div class="speed-row" id="speedRow"></div>
+          </div>
+          <div class="menu-section">
+            <h3>Quality</h3>
+            <select id="quality" aria-label="Quality">
+              <option value="-1">Auto</option>
+            </select>
+          </div>
+          <div class="menu-section">
+            <div class="menu-row">
+              <label for="loopToggle">Loop</label>
+              <button type="button" class="switch" id="loopToggle" aria-pressed="false"></button>
+            </div>
+            <div class="menu-row">
+              <label for="theaterToggle">Theater mode</label>
+              <button type="button" class="switch" id="theaterToggle" aria-pressed="false"></button>
+            </div>
+            <div class="menu-row">
+              <label>Picture in picture</label>
+              <button type="button" class="pill" id="pipBtn" style="padding:6px 10px">Pop out</button>
+            </div>
+          </div>
+        </div>
+
         <div class="controls" id="controls">
           <input class="seek" id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
           <div class="row">
@@ -278,7 +351,14 @@ const watchController = async (c: Context) => {
             </button>
             <input class="vol" id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
             <span class="time" id="time">0:00 / 0:00</span>
+            <button type="button" class="speed-chip" id="speedBtn" title="Playback speed">1x</button>
             <span class="spacer"></span>
+            <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.89 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+            </button>
+            <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v10H4V6zm0 12h16v2H4v-2z"/></svg>
+            </button>
             <button type="button" class="ctrl" id="fs" aria-label="Fullscreen">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
             </button>
@@ -288,13 +368,14 @@ const watchController = async (c: Context) => {
     </div>
 
     <p class="err" id="err" hidden></p>
-    <footer>Use Sub / Dub above when both exist · refresh if the video stalls</footer>
+    <footer>Sub/Dub · speed · theater · settings — press T for theater view</footer>
   </div>
 
   <script>
     (function () {
       var streams = ${JSON.stringify(streams)};
       var track = ${JSON.stringify(initial)};
+      var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
       var stage = document.getElementById('stage');
       var err = document.getElementById('err');
@@ -307,9 +388,21 @@ const watchController = async (c: Context) => {
       var fsBtn = document.getElementById('fs');
       var playIcon = document.getElementById('playIcon');
       var muteIcon = document.getElementById('muteIcon');
+      var settingsBtn = document.getElementById('settingsBtn');
+      var settingsMenu = document.getElementById('settingsMenu');
+      var speedBtn = document.getElementById('speedBtn');
+      var speedRow = document.getElementById('speedRow');
+      var quality = document.getElementById('quality');
+      var loopToggle = document.getElementById('loopToggle');
+      var theaterToggle = document.getElementById('theaterToggle');
+      var theaterBtn = document.getElementById('theaterBtn');
+      var theaterTop = document.getElementById('theaterTop');
+      var pipBtn = document.getElementById('pipBtn');
       var hideTimer = null;
       var hls = null;
-      var resumeAt = 0;
+      var switching = false;
+      var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
+      var theater = localStorage.getItem('ani.theater') === '1';
 
       var ICONS = {
         play: '<path d="M8 5v14l11-7z"/>',
@@ -322,8 +415,8 @@ const watchController = async (c: Context) => {
         err.hidden = false;
         err.textContent = msg;
         stage.classList.remove('is-loading');
+        switching = false;
       }
-
       function clearErr() { err.hidden = true; err.textContent = ''; }
 
       function fmt(sec) {
@@ -360,38 +453,118 @@ const watchController = async (c: Context) => {
         stage.classList.add('show-controls');
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
-          if (!video.paused) stage.classList.remove('show-controls');
-        }, 2500);
+          if (!video.paused && !settingsMenu.classList.contains('is-open')) {
+            stage.classList.remove('show-controls');
+          }
+        }, 2800);
       }
 
       function togglePlay() {
         if (video.paused) video.play().catch(function () {});
         else video.pause();
       }
-
       function toggleMute() {
         video.muted = !video.muted;
         setMuted(video.muted);
       }
-
       function toggleFs() {
-        if (!document.fullscreenElement) stage.requestFullscreen?.() || stage.webkitRequestFullscreen?.();
-        else document.exitFullscreen?.();
+        if (!document.fullscreenElement) (stage.requestFullscreen && stage.requestFullscreen()) || (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen());
+        else document.exitFullscreen && document.exitFullscreen();
+      }
+
+      function setTheater(on) {
+        theater = !!on;
+        document.body.classList.toggle('theater', theater);
+        theaterToggle.classList.toggle('is-on', theater);
+        theaterToggle.setAttribute('aria-pressed', theater ? 'true' : 'false');
+        theaterBtn.classList.toggle('is-on', theater);
+        localStorage.setItem('ani.theater', theater ? '1' : '0');
+        pokeControls();
+      }
+
+      function setRate(next) {
+        rate = next;
+        video.playbackRate = rate;
+        speedBtn.textContent = (rate % 1 === 0 ? rate.toFixed(0) : String(rate)) + 'x';
+        localStorage.setItem('ani.rate', String(rate));
+        speedRow.querySelectorAll('.speed-chip').forEach(function (btn) {
+          btn.classList.toggle('is-active', Number(btn.dataset.rate) === rate);
+        });
+      }
+
+      function cycleRate(dir) {
+        var i = SPEEDS.indexOf(rate);
+        if (i < 0) i = SPEEDS.indexOf(1);
+        i = Math.max(0, Math.min(SPEEDS.length - 1, i + dir));
+        setRate(SPEEDS[i]);
+      }
+
+      function fillSpeeds() {
+        speedRow.innerHTML = '';
+        SPEEDS.forEach(function (s) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'speed-chip' + (s === rate ? ' is-active' : '');
+          b.dataset.rate = String(s);
+          b.textContent = (s % 1 === 0 ? s.toFixed(0) : String(s)) + 'x';
+          b.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setRate(s);
+          });
+          speedRow.appendChild(b);
+        });
+      }
+
+      function syncAudioButtons() {
+        document.querySelectorAll('[data-track]').forEach(function (btn) {
+          var t = btn.getAttribute('data-track');
+          btn.classList.toggle('is-active', t === track);
+          btn.disabled = !streams[t];
+        });
+      }
+
+      function fillQuality() {
+        quality.innerHTML = '<option value="-1">Auto</option>';
+        if (!hls || !hls.levels || !hls.levels.length) return;
+        hls.levels.forEach(function (lvl, i) {
+          var opt = document.createElement('option');
+          opt.value = String(i);
+          var h = lvl.height || 0;
+          opt.textContent = h ? h + 'p' : (lvl.bitrate ? Math.round(lvl.bitrate / 1000) + ' kbps' : 'Level ' + i);
+          quality.appendChild(opt);
+        });
+        quality.value = String(hls.autoLevelEnabled ? -1 : hls.currentLevel);
       }
 
       function destroyHls() {
-        if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+        if (hls) {
+          try { hls.stopLoad(); } catch (e) {}
+          try { hls.detachMedia(); } catch (e) {}
+          try { hls.destroy(); } catch (e) {}
+          hls = null;
+        }
       }
 
       function loadTrack(next, keepTime) {
         var src = streams[next];
-        if (!src) return;
+        if (!src) {
+          fail('That audio track is not available.');
+          return;
+        }
+        if (switching) return;
+        if (next === track && hls) {
+          syncAudioButtons();
+          return;
+        }
+
+        switching = true;
         clearErr();
+        var resumeAt = keepTime ? (video.currentTime || 0) : 0;
+        var wasPlaying = !video.paused || keepTime;
         track = next;
-        resumeAt = keepTime ? (video.currentTime || 0) : 0;
-        document.querySelectorAll('.audio-btn').forEach(function (btn) {
-          btn.classList.toggle('is-active', btn.getAttribute('data-track') === next);
-        });
+        syncAudioButtons();
+
         try {
           var u = new URL(location.href);
           u.searchParams.set('t', next);
@@ -399,46 +572,139 @@ const watchController = async (c: Context) => {
         } catch (e) {}
 
         stage.classList.add('is-loading');
+        try { video.pause(); } catch (e) {}
         destroyHls();
         video.removeAttribute('src');
-        video.load();
+        try { video.load(); } catch (e) {}
 
-        function afterReady() {
-          stage.classList.remove('is-loading');
-          if (resumeAt > 0) {
-            try { video.currentTime = resumeAt; } catch (e) {}
+        function finishReady() {
+          video.playbackRate = rate;
+          var finished = false;
+          var start = function () {
+            if (finished) return;
+            finished = true;
+            stage.classList.remove('is-loading');
+            switching = false;
+            if (wasPlaying) video.play().catch(function () { setPlaying(false); });
+            else setPlaying(false);
+          };
+          if (resumeAt > 0.5 && isFinite(resumeAt)) {
+            var onMeta = function () {
+              try { video.currentTime = resumeAt; } catch (e) {}
+              video.addEventListener('seeked', start, { once: true });
+              setTimeout(start, 1200);
+            };
+            if (video.readyState >= 1) onMeta();
+            else video.addEventListener('loadedmetadata', onMeta, { once: true });
+          } else {
+            start();
           }
-          video.play().catch(function () { setPlaying(false); });
+          fillQuality();
         }
 
         if (window.Hls && Hls.isSupported()) {
-          hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            startLevel: -1,
+          });
           hls.loadSource(src);
           hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, afterReady);
+          hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            finishReady();
+          });
           hls.on(Hls.Events.ERROR, function (_e, data) {
-            if (data && data.fatal) fail('Playback failed (' + data.type + '). Try the other audio track or refresh.');
+            if (!data || !data.fatal) return;
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              try { hls.startLoad(); return; } catch (e) {}
+            }
+            fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try the other track.');
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
-          video.addEventListener('loadedmetadata', afterReady, { once: true });
+          video.addEventListener('loadedmetadata', finishReady, { once: true });
         } else {
           fail('This browser cannot play HLS. Try Chrome, Firefox, or Safari.');
         }
       }
 
-      playBtn.addEventListener('click', togglePlay);
-      bigPlay.addEventListener('click', togglePlay);
-      video.addEventListener('click', togglePlay);
-      muteBtn.addEventListener('click', toggleMute);
-      fsBtn.addEventListener('click', toggleFs);
+      function toggleSettings(force) {
+        var open = typeof force === 'boolean' ? force : !settingsMenu.classList.contains('is-open');
+        settingsMenu.classList.toggle('is-open', open);
+        stage.classList.toggle('settings-open', open);
+        settingsBtn.classList.toggle('is-on', open);
+        if (open) pokeControls();
+      }
+
+      // Wire UI
+      fillSpeeds();
+      setRate(rate);
+      setTheater(theater);
+      syncAudioButtons();
+
+      playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+      bigPlay.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+      video.addEventListener('click', function () {
+        if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
+        else togglePlay();
+      });
+      muteBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMute(); });
+      fsBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleFs(); });
+      settingsBtn.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        toggleSettings();
+      });
+      theaterBtn.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        setTheater(!theater);
+      });
+      theaterTop.addEventListener('click', function (e) {
+        e.preventDefault();
+        setTheater(!theater);
+      });
+      theaterToggle.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        setTheater(!theater);
+      });
+      loopToggle.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        video.loop = !video.loop;
+        loopToggle.classList.toggle('is-on', video.loop);
+        loopToggle.setAttribute('aria-pressed', video.loop ? 'true' : 'false');
+      });
+      speedBtn.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        toggleSettings(true);
+      });
+      pipBtn.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (document.pictureInPictureElement) document.exitPictureInPicture();
+        else if (video.requestPictureInPicture) video.requestPictureInPicture().catch(function () {});
+      });
+      quality.addEventListener('change', function () {
+        if (!hls) return;
+        var v = Number(quality.value);
+        hls.currentLevel = v;
+      });
+
+      document.querySelectorAll('[data-track]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var next = btn.getAttribute('data-track');
+          if (!next || !streams[next]) {
+            fail('That audio track is not available.');
+            return;
+          }
+          loadTrack(next, true);
+        });
+      });
 
       seek.addEventListener('input', function () {
         if (!video.duration) return;
         video.currentTime = (Number(seek.value) / 1000) * video.duration;
         updateProgress();
       });
-
       vol.addEventListener('input', function () {
         video.volume = Number(vol.value);
         video.muted = video.volume === 0;
@@ -448,6 +714,9 @@ const watchController = async (c: Context) => {
 
       video.addEventListener('timeupdate', updateProgress);
       video.addEventListener('loadedmetadata', updateProgress);
+      video.addEventListener('ratechange', function () {
+        if (Math.abs(video.playbackRate - rate) > 0.01) setRate(video.playbackRate);
+      });
       video.addEventListener('play', function () { setPlaying(true); stage.classList.remove('is-loading'); });
       video.addEventListener('pause', function () { setPlaying(false); });
       video.addEventListener('waiting', function () { stage.classList.add('is-loading'); });
@@ -456,23 +725,25 @@ const watchController = async (c: Context) => {
 
       stage.addEventListener('mousemove', pokeControls);
       stage.addEventListener('touchstart', pokeControls, { passive: true });
-
-      document.querySelectorAll('.audio-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var next = btn.getAttribute('data-track');
-          if (next && next !== track && streams[next]) loadTrack(next, true);
-        });
+      document.addEventListener('click', function (e) {
+        if (!settingsMenu.classList.contains('is-open')) return;
+        if (settingsMenu.contains(e.target) || settingsBtn.contains(e.target) || speedBtn.contains(e.target)) return;
+        toggleSettings(false);
       });
 
       document.addEventListener('keydown', function (e) {
-        if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+        if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
         if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
+        else if (e.key === 't' || e.key === 'T') setTheater(!theater);
         else if (e.key === 'm' || e.key === 'M') toggleMute();
         else if (e.key === 's' || e.key === 'S') { if (streams.sub) loadTrack('sub', true); }
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
+        else if (e.key === ',' || e.key === '<') cycleRate(-1);
+        else if (e.key === '.' || e.key === '>') cycleRate(1);
         else if (e.key === 'ArrowRight') video.currentTime = Math.min((video.duration || 0), video.currentTime + 10);
         else if (e.key === 'ArrowLeft') video.currentTime = Math.max(0, video.currentTime - 10);
+        else if (e.key === 'Escape' && theater && !document.fullscreenElement) setTheater(false);
         pokeControls();
       });
 
