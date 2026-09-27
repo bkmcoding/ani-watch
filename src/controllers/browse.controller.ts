@@ -338,6 +338,36 @@ const browseController = async (c: Context) => {
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
+    .ep-toolbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .ep-toolbar .section-label { margin: 0; }
+    .season-field { min-width: min(100%, 280px); flex: 1; }
+    .season-field select {
+      width: 100%;
+      appearance: none;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(45deg, transparent 50%, var(--muted) 50%) calc(100% - 18px) calc(50% - 3px) / 6px 6px no-repeat,
+        linear-gradient(135deg, var(--muted) 50%, transparent 50%) calc(100% - 12px) calc(50% - 3px) / 6px 6px no-repeat,
+        rgba(0,0,0,0.32);
+      color: var(--ink);
+      font: inherit;
+      font-weight: 600;
+      padding: 10px 36px 10px 12px;
+      border-radius: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+    .season-field select:focus {
+      border-color: rgba(61,214,198,0.45);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
     @media (max-width: 640px) {
       .detail { grid-template-columns: 96px 1fr; gap: 12px; padding: 12px; }
       .detail-stats { grid-template-columns: repeat(2, 1fr); }
@@ -708,6 +738,35 @@ const browseController = async (c: Context) => {
               : '');
         }
 
+        var seasons = (d.moreSeasons || []).filter(function (s) { return s && s.id; });
+        if (seasons.length) {
+          var hasCurrent = seasons.some(function (s) { return s.id === anime.id; });
+          if (!hasCurrent && anime.id) {
+            seasons = [{
+              id: anime.id,
+              title: title,
+              alternativeTitle: 'Current',
+              poster: poster,
+              isActive: true,
+            }].concat(seasons);
+          }
+        }
+
+        var seasonBar = '';
+        if (seasons.length > 1) {
+          seasonBar =
+            '<div class="season-field">' +
+              '<label class="field-label" for="seasonSelect">Season</label>' +
+              '<select id="seasonSelect">' +
+              seasons.map(function (s) {
+                var label = (s.alternativeTitle || s.title || s.id || '').trim();
+                var selected = s.id === anime.id || s.isActive ? ' selected' : '';
+                return '<option value="' + esc(s.id) + '"' + selected + '>' + esc(label) + '</option>';
+              }).join('') +
+              '</select>' +
+            '</div>';
+        }
+
         var detailHtml =
           '<section class="detail">' +
             posterImg(posterFallbacks, title) +
@@ -729,10 +788,31 @@ const browseController = async (c: Context) => {
               synHtml +
             '</div>' +
           '</section>' +
-          '<p class="section-label">Episodes</p>' +
+          '<div class="ep-toolbar">' +
+            '<p class="section-label">Episodes</p>' +
+            seasonBar +
+          '</div>' +
           '<div class="ep-grid" id="epGrid"></div>';
 
         main.innerHTML = detailHtml;
+
+        var seasonSelect = document.getElementById('seasonSelect');
+        if (seasonSelect) {
+          seasonSelect.addEventListener('change', function () {
+            var nextId = seasonSelect.value;
+            if (!nextId || nextId === anime.id) return;
+            var s = null;
+            for (var i = 0; i < seasons.length; i++) {
+              if (seasons[i].id === nextId) { s = seasons[i]; break; }
+            }
+            loadEpisodes({
+              id: nextId,
+              name: (s && (s.title || s.alternativeTitle)) || nextId,
+              jname: s && s.alternativeTitle,
+              poster: (s && s.poster) || poster || anime.poster || null,
+            });
+          });
+        }
 
         var synToggle = document.getElementById('synToggle');
         var synEl = document.getElementById('synopsis');
