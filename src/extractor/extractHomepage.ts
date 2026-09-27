@@ -1,6 +1,7 @@
 import { load } from 'cheerio';
 import { Element } from 'domhandler';
 import { HomePage, SpotlightAnime, TrendingAnime, AnimeFeatured } from '../types/anime';
+import { pickPosterUrl } from '../utils/pickPoster';
 
 export const extractHomepage = (html: string): HomePage => {
   const $ = load(html);
@@ -49,7 +50,8 @@ export const extractHomepage = (html: string): HomePage => {
       },
     };
     obj.id = $(el).find('.desi-buttons a').first().attr('href')?.split('/').at(-1) || null;
-    obj.poster = $(el).find('.deslide-cover .film-poster-img').attr('data-src') || null;
+    const spotImg = $(el).find('.deslide-cover .film-poster-img');
+    obj.poster = pickPosterUrl(spotImg.attr('data-src'), spotImg.attr('src'));
 
     const titles = $(el).find('.desi-head-title');
     obj.title = titles.text();
@@ -88,7 +90,7 @@ export const extractHomepage = (html: string): HomePage => {
 
     const imageEl = $(el).find('.film-poster');
 
-    obj.poster = imageEl.find('img').attr('data-src') || null;
+    obj.poster = pickPosterUrl(imageEl.find('img').attr('data-src'), imageEl.find('img').attr('src'));
     obj.id = imageEl.attr('href')?.split('/').at(-1) || null;
 
     response.trending.push(obj);
@@ -116,7 +118,8 @@ export const extractHomepage = (html: string): HomePage => {
         obj.alternativeTitle = titleEl.attr('data-jname') || null;
         obj.id = titleEl.attr('href')?.split('/').at(-1) || null;
 
-        obj.poster = $(item).find('.film-poster .film-poster-img').attr('data-src') || null;
+        const featImg = $(item).find('.film-poster .film-poster-img');
+        obj.poster = pickPosterUrl(featImg.attr('data-src'), featImg.attr('src'));
 
         // Extract type (first fdi-item) and duration (second fdi-item if exists)
         const infoItems = $(item).find('.fd-infor .fdi-item');
@@ -164,7 +167,8 @@ export const extractHomepage = (html: string): HomePage => {
         obj.alternativeTitle = titleEl.attr('data-jname') || null;
         obj.id = titleEl.attr('href')?.split('/').at(-1) || null;
 
-        obj.poster = $(item).find('.film-poster img').attr('data-src') || null;
+        const sideImg = $(item).find('.film-poster img');
+        obj.poster = pickPosterUrl(sideImg.attr('data-src'), sideImg.attr('src'));
 
         const episodesEl = $(item).find('.film-poster .tick');
         obj.episodes.sub = Number($(episodesEl).find('.tick-sub').text()) || null;
@@ -200,7 +204,10 @@ export const extractHomepage = (html: string): HomePage => {
           rank: i + 1,
           alternativeTitle: $(el).find('.film-name a').attr('data-jname') || null,
           id: $(el).find('.film-name a').attr('href')?.split('/').pop() || null,
-          poster: $(el).find('.film-poster img').attr('data-src') || null,
+          poster: pickPosterUrl(
+            $(el).find('.film-poster img').attr('data-src'),
+            $(el).find('.film-poster img').attr('src')
+          ),
         };
         return obj;
       })

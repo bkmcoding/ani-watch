@@ -1,5 +1,6 @@
 /** HiAnime / Zoro thumbnail hosts (BunnyCDN hotlink-protected). */
 const POSTER_HOST_SUFFIXES = [
+  'anipixcdn.co',
   'noitatnemucod.net',
   'bunnycdn.ru',
   'b-cdn.net',

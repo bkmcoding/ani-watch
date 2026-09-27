@@ -6,7 +6,28 @@ import { isAllowedPosterHost } from '../utils/posterUrls';
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
-/** Proxies HiAnime poster CDNs with a valid Referer (Bunny hotlink protection). */
+async function fetchPoster(url: string, referer: string, origin: string): Promise<Response | null> {
+  try {
+    const upstream = await fetch(url, {
+      headers: {
+        'User-Agent': UA,
+        Referer: referer,
+        Origin: origin,
+        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!upstream.ok) return null;
+    const contentType = upstream.headers.get('content-type') || '';
+    if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) return null;
+    return upstream;
+  } catch {
+    return null;
+  }
+}
+
+/** Proxies HiAnime poster CDNs (allowlisted). Tries site referer, then no-referer. */
 const posterProxyController = async (c: Context) => {
   const target = c.req.query('url');
   if (!target) throw new validationError('url is required');
@@ -23,27 +44,23 @@ const posterProxyController = async (c: Context) => {
   }
 
   const site = String(config.baseurl || 'https://hianime.lu').replace(/\/+$/, '');
-  const referer = `${site}/`;
+  const tries: Array<[string, string]> = [
+    [`${site}/`, site],
+    ['https://hianime.lu/', 'https://hianime.lu'],
+    ['', ''],
+  ];
 
-  const upstream = await fetch(parsed.href, {
-    headers: {
-      'User-Agent': UA,
-      Referer: referer,
-      Origin: site,
-      Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-    },
-    redirect: 'follow',
-  });
+  let upstream: Response | null = null;
+  for (const [referer, origin] of tries) {
+    upstream = await fetchPoster(parsed.href, referer, origin || parsed.origin);
+    if (upstream) break;
+  }
 
-  if (!upstream.ok) {
-    return c.text(`Upstream ${upstream.status}`, 502);
+  if (!upstream) {
+    return c.text('Upstream image unavailable', 502);
   }
 
   const contentType = upstream.headers.get('content-type') || 'image/jpeg';
-  if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) {
-    return c.text('Upstream was not an image', 502);
-  }
-
   const buf = Buffer.from(await upstream.arrayBuffer());
   return new Response(buf, {
     status: 200,

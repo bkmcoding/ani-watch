@@ -159,6 +159,22 @@ var axiosInstance = async (endpoint, options = {}) => {
 
 // src/extractor/extractHomepage.ts
 import { load } from "cheerio";
+
+// src/utils/pickPoster.ts
+function pickPosterUrl(...candidates) {
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const s = String(raw).trim();
+    if (!s) continue;
+    if (s.startsWith("data:")) continue;
+    if (/placeholder|loading\.gif|no_poster|default\.jpg/i.test(s)) continue;
+    if (s.startsWith("//")) return `https:${s}`;
+    return s;
+  }
+  return null;
+}
+
+// src/extractor/extractHomepage.ts
 var extractHomepage = (html) => {
   const $ = load(html);
   const response = {
@@ -203,7 +219,8 @@ var extractHomepage = (html) => {
       }
     };
     obj.id = $(el).find(".desi-buttons a").first().attr("href")?.split("/").at(-1) || null;
-    obj.poster = $(el).find(".deslide-cover .film-poster-img").attr("data-src") || null;
+    const spotImg = $(el).find(".deslide-cover .film-poster-img");
+    obj.poster = pickPosterUrl(spotImg.attr("data-src"), spotImg.attr("src"));
     const titles = $(el).find(".desi-head-title");
     obj.title = titles.text();
     obj.alternativeTitle = titles.attr("data-jname") || null;
@@ -231,7 +248,7 @@ var extractHomepage = (html) => {
     obj.title = titleEl.text();
     obj.alternativeTitle = titleEl.attr("data-jname") || null;
     const imageEl = $(el).find(".film-poster");
-    obj.poster = imageEl.find("img").attr("data-src") || null;
+    obj.poster = pickPosterUrl(imageEl.find("img").attr("data-src"), imageEl.find("img").attr("src"));
     obj.id = imageEl.attr("href")?.split("/").at(-1) || null;
     response.trending.push(obj);
   });
@@ -254,7 +271,8 @@ var extractHomepage = (html) => {
       obj.title = titleEl.attr("title") || null;
       obj.alternativeTitle = titleEl.attr("data-jname") || null;
       obj.id = titleEl.attr("href")?.split("/").at(-1) || null;
-      obj.poster = $(item).find(".film-poster .film-poster-img").attr("data-src") || null;
+      const featImg = $(item).find(".film-poster .film-poster-img");
+      obj.poster = pickPosterUrl(featImg.attr("data-src"), featImg.attr("src"));
       const infoItems = $(item).find(".fd-infor .fdi-item");
       obj.type = infoItems.eq(0).text().trim() || null;
       obj.duration = infoItems.eq(1).text().trim() || null;
@@ -287,7 +305,8 @@ var extractHomepage = (html) => {
       obj.title = titleEl.attr("title") || null;
       obj.alternativeTitle = titleEl.attr("data-jname") || null;
       obj.id = titleEl.attr("href")?.split("/").at(-1) || null;
-      obj.poster = $(item).find(".film-poster img").attr("data-src") || null;
+      const sideImg = $(item).find(".film-poster img");
+      obj.poster = pickPosterUrl(sideImg.attr("data-src"), sideImg.attr("src"));
       const episodesEl = $(item).find(".film-poster .tick");
       obj.episodes.sub = Number($(episodesEl).find(".tick-sub").text()) || null;
       obj.episodes.dub = Number($(episodesEl).find(".tick-dub").text()) || null;
@@ -310,7 +329,10 @@ var extractHomepage = (html) => {
         rank: i + 1,
         alternativeTitle: $(el).find(".film-name a").attr("data-jname") || null,
         id: $(el).find(".film-name a").attr("href")?.split("/").pop() || null,
-        poster: $(el).find(".film-poster img").attr("data-src") || null
+        poster: pickPosterUrl(
+          $(el).find(".film-poster img").attr("data-src"),
+          $(el).find(".film-poster img").attr("src")
+        )
       };
       return obj;
     }).get();
@@ -380,7 +402,8 @@ var extractDetailpage = (html) => {
   const recommended = $(
     ".block_area.block_area_category .tab-content .block_area-content .film_list-wrap .flw-item"
   );
-  obj.poster = main.find(".film-poster .film-poster-img").attr("src") || null;
+  const mainPoster = main.find(".film-poster .film-poster-img");
+  obj.poster = pickPosterUrl(mainPoster.attr("src"), mainPoster.attr("data-src"));
   obj.is18Plus = Boolean(main.find(".film-poster .tick-rate").length > 0);
   const titleEl = main.find(".anisc-detail .film-name");
   obj.title = titleEl.text();
@@ -489,7 +512,10 @@ var extractDetailpage = (html) => {
       innerObj.episodes.dub = Number(infor.find(".tick-dub").text()) || null;
       const epsEl = infor.find(".tick-eps").length ? infor.find(".tick-eps").text() : infor.find(".tick-sub").text();
       innerObj.episodes.eps = Number(epsEl) || null;
-      innerObj.poster = $(el).find(".film-poster .film-poster-img").attr("data-src") || null;
+      innerObj.poster = pickPosterUrl(
+        $(el).find(".film-poster .film-poster-img").attr("data-src"),
+        $(el).find(".film-poster .film-poster-img").attr("src")
+      );
       array.push(innerObj);
     });
   };
@@ -520,7 +546,10 @@ var extractDetailpage = (html) => {
     innerObj.id = titleEl2.attr("href")?.split("/").pop() || null;
     innerObj.type = $(el).find(".fd-infor .fdi-item").first().text();
     innerObj.duration = $(el).find(".fd-infor .fdi-duration").text();
-    innerObj.poster = $(el).find(".film-poster .film-poster-img").attr("data-src") || null;
+    innerObj.poster = pickPosterUrl(
+      $(el).find(".film-poster .film-poster-img").attr("data-src"),
+      $(el).find(".film-poster .film-poster-img").attr("src")
+    );
     innerObj.is18Plus = $(el).find(".film-poster").has(".tick-rate").length > 0;
     innerObj.episodes.sub = Number($(el).find(".film-poster .tick .tick-sub").text()) || null;
     innerObj.episodes.dub = Number($(el).find(".film-poster .tick .tick-dub").text()) || null;
@@ -582,7 +611,8 @@ var extractListPage = (html) => {
         type: null,
         duration: null
       };
-      obj.poster = $(el).find(".film-poster .film-poster-img").attr("data-src") || null;
+      const posterEl = $(el).find(".film-poster .film-poster-img");
+      obj.poster = pickPosterUrl(posterEl.attr("data-src"), posterEl.attr("src"));
       obj.episodes.sub = Number($(el).find(".film-poster .tick .tick-sub").text()) || null;
       obj.episodes.dub = Number($(el).find(".film-poster .tick .tick-dub").text()) || null;
       const epsText = $(el).find(".film-poster .tick .tick-eps").length ? $(el).find(".film-poster .tick .tick-eps").text() : $(el).find(".film-poster .tick .tick-sub").text();
@@ -623,7 +653,10 @@ var extractListPage = (html) => {
         rank: i + 1,
         alternativeTitle: $(el).find(".film-name a").attr("data-jname") || null,
         id: $(el).find(".film-name a").attr("href")?.split("/").pop() || null,
-        poster: $(el).find(".film-poster img").attr("data-src") || null
+        poster: pickPosterUrl(
+          $(el).find(".film-poster img").attr("data-src"),
+          $(el).find(".film-poster img").attr("src")
+        )
       };
       return obj;
     }).get();
@@ -745,7 +778,8 @@ var extractSuggestions = (html) => {
       duration: null
     };
     obj.id = $(el).attr("href")?.split("/").pop()?.split("?").at(0) || null;
-    obj.poster = $(el).find(".film-poster-img").attr("data-src") || null;
+    const posterEl = $(el).find(".film-poster-img");
+    obj.poster = pickPosterUrl(posterEl.attr("data-src"), posterEl.attr("src"));
     const titleEL = $(el).find(".film-name");
     obj.title = titleEL.text() || null;
     obj.alternativeTitle = titleEL.attr("data-jname") || null;
@@ -1752,6 +1786,7 @@ var hlsProxy_controller_default = hlsProxyController;
 
 // src/utils/posterUrls.ts
 var POSTER_HOST_SUFFIXES = [
+  "anipixcdn.co",
   "noitatnemucod.net",
   "bunnycdn.ru",
   "b-cdn.net"
@@ -1763,6 +1798,26 @@ function isAllowedPosterHost(hostname) {
 
 // src/controllers/posterProxy.controller.ts
 var UA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+async function fetchPoster(url, referer, origin) {
+  try {
+    const upstream = await fetch(url, {
+      headers: {
+        "User-Agent": UA2,
+        Referer: referer,
+        Origin: origin,
+        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(12e3)
+    });
+    if (!upstream.ok) return null;
+    const contentType = upstream.headers.get("content-type") || "";
+    if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) return null;
+    return upstream;
+  } catch {
+    return null;
+  }
+}
 var posterProxyController = async (c) => {
   const target = c.req.query("url");
   if (!target) throw new validationError("url is required");
@@ -1776,23 +1831,20 @@ var posterProxyController = async (c) => {
     throw new validationError("url host not allowed");
   }
   const site = String(config_default.baseurl || "https://hianime.lu").replace(/\/+$/, "");
-  const referer = `${site}/`;
-  const upstream = await fetch(parsed.href, {
-    headers: {
-      "User-Agent": UA2,
-      Referer: referer,
-      Origin: site,
-      Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
-    },
-    redirect: "follow"
-  });
-  if (!upstream.ok) {
-    return c.text(`Upstream ${upstream.status}`, 502);
+  const tries = [
+    [`${site}/`, site],
+    ["https://hianime.lu/", "https://hianime.lu"],
+    ["", ""]
+  ];
+  let upstream = null;
+  for (const [referer, origin] of tries) {
+    upstream = await fetchPoster(parsed.href, referer, origin || parsed.origin);
+    if (upstream) break;
+  }
+  if (!upstream) {
+    return c.text("Upstream image unavailable", 502);
   }
   const contentType = upstream.headers.get("content-type") || "image/jpeg";
-  if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) {
-    return c.text("Upstream was not an image", 502);
-  }
   const buf = Buffer.from(await upstream.arrayBuffer());
   return new Response(buf, {
     status: 200,
@@ -4171,10 +4223,17 @@ var browseController = async (c) => {
           .replace(/"/g, '&quot;');
       }
 
-      /** Route posters through our allowlisted proxy (CDN hotlink protection). */
+      /** Prefer direct CDN URLs when they allow embeds; otherwise our proxy. */
       function posterSrc(url) {
-        if (!url || !/^https?:\\/\\//i.test(url)) return null;
-        return '/api/v2/hianime/poster?url=' + encodeURIComponent(url);
+        if (!url) return null;
+        var s = String(url).trim();
+        if (s.indexOf('https://') !== 0 && s.indexOf('http://') !== 0) {
+          if (s.indexOf('//') === 0) s = 'https:' + s;
+          else return null;
+        }
+        // anipixcdn allows hotlinking; older Bunny hosts need the proxy
+        if (s.indexOf('anipixcdn.co') !== -1) return s;
+        return '/api/v2/hianime/poster?url=' + encodeURIComponent(s);
       }
 
       function posterImg(url, alt) {

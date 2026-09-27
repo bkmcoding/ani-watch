@@ -1,6 +1,7 @@
 import { load } from 'cheerio';
 import { Element } from 'domhandler';
 import { DetailAnime, AnimeFeatured, Season } from '../types/anime';
+import { pickPosterUrl } from '../utils/pickPoster';
 
 export const extractDetailpage = (html: string): DetailAnime => {
   const $ = load(html);
@@ -45,7 +46,8 @@ export const extractDetailpage = (html: string): DetailAnime => {
     '.block_area.block_area_category .tab-content .block_area-content .film_list-wrap .flw-item'
   );
 
-  obj.poster = main.find('.film-poster .film-poster-img').attr('src') || null;
+  const mainPoster = main.find('.film-poster .film-poster-img');
+  obj.poster = pickPosterUrl(mainPoster.attr('src'), mainPoster.attr('data-src'));
   obj.is18Plus = Boolean(main.find('.film-poster .tick-rate').length > 0);
 
   const titleEl = main.find('.anisc-detail .film-name');
@@ -199,7 +201,10 @@ export const extractDetailpage = (html: string): DetailAnime => {
 
         innerObj.episodes.eps = Number(epsEl) || null;
 
-        innerObj.poster = $(el).find('.film-poster .film-poster-img').attr('data-src') || null;
+        innerObj.poster = pickPosterUrl(
+          $(el).find('.film-poster .film-poster-img').attr('data-src'),
+          $(el).find('.film-poster .film-poster-img').attr('src')
+        );
 
         array.push(innerObj);
       });
@@ -233,7 +238,10 @@ export const extractDetailpage = (html: string): DetailAnime => {
     innerObj.type = $(el).find('.fd-infor .fdi-item').first().text();
     innerObj.duration = $(el).find('.fd-infor .fdi-duration').text();
 
-    innerObj.poster = $(el).find('.film-poster .film-poster-img').attr('data-src') || null;
+    innerObj.poster = pickPosterUrl(
+      $(el).find('.film-poster .film-poster-img').attr('data-src'),
+      $(el).find('.film-poster .film-poster-img').attr('src')
+    );
     innerObj.is18Plus = $(el).find('.film-poster').has('.tick-rate').length > 0;
 
     innerObj.episodes.sub = Number($(el).find('.film-poster .tick .tick-sub').text()) || null;

@@ -1,6 +1,7 @@
 import { load } from 'cheerio';
 import { Element } from 'domhandler';
 import { AnimeFeatured, TrendingAnime } from '../types/anime';
+import { pickPosterUrl } from '../utils/pickPoster';
 
 export interface ListPageResponse {
   pageInfo: {
@@ -58,7 +59,8 @@ export const extractListPage = (html: string): ListPageResponse => {
         duration: null,
       };
 
-      obj.poster = $(el).find('.film-poster .film-poster-img').attr('data-src') || null;
+      const posterEl = $(el).find('.film-poster .film-poster-img');
+      obj.poster = pickPosterUrl(posterEl.attr('data-src'), posterEl.attr('src'));
       obj.episodes.sub = Number($(el).find('.film-poster .tick .tick-sub').text()) || null;
       obj.episodes.dub = Number($(el).find('.film-poster .tick .tick-dub').text()) || null;
 
@@ -115,7 +117,10 @@ export const extractListPage = (html: string): ListPageResponse => {
           rank: i + 1,
           alternativeTitle: $(el).find('.film-name a').attr('data-jname') || null,
           id: $(el).find('.film-name a').attr('href')?.split('/').pop() || null,
-          poster: $(el).find('.film-poster img').attr('data-src') || null,
+          poster: pickPosterUrl(
+            $(el).find('.film-poster img').attr('data-src'),
+            $(el).find('.film-poster img').attr('src')
+          ),
         };
         return obj;
       })

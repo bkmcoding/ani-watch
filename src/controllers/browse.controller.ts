@@ -462,10 +462,17 @@ const browseController = async (c: Context) => {
           .replace(/"/g, '&quot;');
       }
 
-      /** Route posters through our allowlisted proxy (CDN hotlink protection). */
+      /** Prefer direct CDN URLs when they allow embeds; otherwise our proxy. */
       function posterSrc(url) {
-        if (!url || !/^https?:\\/\\//i.test(url)) return null;
-        return '/api/v2/hianime/poster?url=' + encodeURIComponent(url);
+        if (!url) return null;
+        var s = String(url).trim();
+        if (s.indexOf('https://') !== 0 && s.indexOf('http://') !== 0) {
+          if (s.indexOf('//') === 0) s = 'https:' + s;
+          else return null;
+        }
+        // anipixcdn allows hotlinking; older Bunny hosts need the proxy
+        if (s.indexOf('anipixcdn.co') !== -1) return s;
+        return '/api/v2/hianime/poster?url=' + encodeURIComponent(s);
       }
 
       function posterImg(url, alt) {

@@ -1,5 +1,6 @@
 import { load } from 'cheerio';
 import { Element } from 'domhandler';
+import { pickPosterUrl } from '../utils/pickPoster';
 
 export interface Suggestion {
   title: string | null;
@@ -28,7 +29,8 @@ export const extractSuggestions = (html: string): Suggestion[] => {
       duration: null,
     };
     obj.id = $(el).attr('href')?.split('/').pop()?.split('?').at(0) || null;
-    obj.poster = $(el).find('.film-poster-img').attr('data-src') || null;
+    const posterEl = $(el).find('.film-poster-img');
+    obj.poster = pickPosterUrl(posterEl.attr('data-src'), posterEl.attr('src'));
     const titleEL = $(el).find('.film-name');
     obj.title = titleEL.text() || null;
     obj.alternativeTitle = titleEL.attr('data-jname') || null;
