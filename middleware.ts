@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { next } from '@vercel/edge';
 
 export const config = {
   matcher: '/api/:path*',
@@ -6,16 +6,16 @@ export const config = {
 
 export default function middleware(request: Request) {
   if (request.method === 'OPTIONS') {
-    return new NextResponse(null, { status: 200 });
+    return new Response(null, { status: 200 });
   }
 
   const authHeader = request.headers.get('x-api-key');
   if (authHeader !== process.env.BOT_SECRET_KEY) {
-    return NextResponse.json(
-      { error: 'Unauthorized: Invalid or Missing API Key' },
-      { status: 401 },
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized: Invalid or Missing API Key' }),
+      { status: 401, headers: { 'content-type': 'application/json' } },
     );
   }
 
-  return NextResponse.next(); // required — without this the route never runs
+  return next(); // continues to the API route
 }
