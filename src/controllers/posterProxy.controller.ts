@@ -8,13 +8,15 @@ const UA =
 
 async function fetchPoster(url: string, referer: string, origin: string): Promise<Response | null> {
   try {
+    const headers: Record<string, string> = {
+      'User-Agent': UA,
+      Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+    };
+    if (referer) headers.Referer = referer;
+    if (origin) headers.Origin = origin;
+
     const upstream = await fetch(url, {
-      headers: {
-        'User-Agent': UA,
-        Referer: referer,
-        Origin: origin,
-        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-      },
+      headers,
       redirect: 'follow',
       signal: AbortSignal.timeout(12_000),
     });

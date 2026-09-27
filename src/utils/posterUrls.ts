@@ -4,11 +4,16 @@ const POSTER_HOST_SUFFIXES = [
   'noitatnemucod.net',
   'bunnycdn.ru',
   'b-cdn.net',
+  'wsrv.nl',
+  'weserv.nl',
 ];
 
 export function isAllowedPosterHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
-  return POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s));
+  if (POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s))) return true;
+  // Common HiAnime / Zoro thumbnail CDNs
+  if (host.includes('anipix') || host.includes('noitatnemucod')) return true;
+  return false;
 }
 
 /** Same-origin proxy so browse can show posters despite CDN hotlink rules. */

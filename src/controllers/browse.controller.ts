@@ -546,25 +546,62 @@ const browseController = async (c: Context) => {
           .replace(/"/g, '&quot;');
       }
 
-      /** Prefer direct CDN URLs when they allow embeds; otherwise our proxy. */
-      function posterSrc(url) {
+      /** Normalize to absolute http(s) URL. */
+      function absUrl(url) {
         if (!url) return null;
         var s = String(url).trim();
-        if (s.indexOf('https://') !== 0 && s.indexOf('http://') !== 0) {
-          if (s.indexOf('//') === 0) s = 'https:' + s;
-          else return null;
-        }
-        // anipixcdn allows hotlinking; older Bunny hosts need the proxy
-        if (s.indexOf('anipixcdn.co') !== -1) return s;
-        return '/api/v2/hianime/poster?url=' + encodeURIComponent(s);
+        if (!s || s.indexOf('data:') === 0) return null;
+        if (s.indexOf('https://') === 0 || s.indexOf('http://') === 0) return s;
+        if (s.indexOf('//') === 0) return 'https:' + s;
+        return null;
       }
 
-      function posterImg(url, alt) {
-        var src = posterSrc(url);
-        if (src) {
-          return '<img class="poster" src="' + esc(src) + '" alt="' + esc(alt || '') + '" loading="lazy" decoding="async" />';
+      /** Proxy first (CDN hotlink bypass), then direct URL as backup. */
+      function posterCandidates(list) {
+        var seen = {};
+        var out = [];
+        (list || []).forEach(function (url) {
+          var abs = absUrl(url);
+          if (!abs || seen['u:' + abs]) return;
+          seen['u:' + abs] = 1;
+          var proxied = '/api/v2/hianime/poster?url=' + encodeURIComponent(abs);
+          if (!seen[proxied]) { seen[proxied] = 1; out.push(proxied); }
+          if (!seen[abs]) { seen[abs] = 1; out.push(abs); }
+        });
+        return out;
+      }
+
+      window.__aniPosterFail = function (img) {
+        var list = [];
+        try { list = JSON.parse(img.getAttribute('data-fallbacks') || '[]'); } catch (e) {}
+        while (list.length) {
+          var next = list.shift();
+          img.setAttribute('data-fallbacks', JSON.stringify(list));
+          if (next && next !== img.getAttribute('src')) {
+            img.src = next;
+            return;
+          }
         }
-        return '<div class="poster ph" aria-hidden="true">No art</div>';
+        var ph = document.createElement('div');
+        ph.className = 'poster ph';
+        ph.setAttribute('aria-hidden', 'true');
+        ph.textContent = 'No art';
+        if (img.parentNode) img.parentNode.replaceChild(ph, img);
+      };
+
+      function posterImg(urls, alt) {
+        var unique = posterCandidates(Array.isArray(urls) ? urls : [urls]);
+        if (!unique.length) {
+          return '<div class="poster ph" aria-hidden="true">No art</div>';
+        }
+        var first = unique[0];
+        var rest = unique.slice(1);
+        return (
+          '<img class="poster" src="' + esc(first) + '" alt="' + esc(alt || '') +
+          '" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-fallbacks="' +
+          esc(JSON.stringify(rest)) +
+          '" onerror="window.__aniPosterFail&&window.__aniPosterFail(this)" />'
+        );
       }
 
       function setCrumbs(parts) {
@@ -623,7 +660,13 @@ const browseController = async (c: Context) => {
         state.anime = anime;
         var episodes = payload.episodes || [];
         var d = detail || {};
-        var poster = d.poster || payload.poster || anime.poster || null;
+        // Prefer search poster (already shown on cards) over detail/episode fields.
+        var poster =
+          anime.poster ||
+          payload.poster ||
+          d.poster ||
+          null;
+        var posterFallbacks = [anime.poster, payload.poster, d.poster].filter(Boolean);
         var title = d.title || anime.name || anime.id;
         setCrumbs([
           { label: 'Results', action: 'search' },
@@ -667,7 +710,7 @@ const browseController = async (c: Context) => {
 
         var detailHtml =
           '<section class="detail">' +
-            posterImg(poster, title) +
+            posterImg(posterFallbacks, title) +
             '<div class="detail-body">' +
               '<h2>' + esc(title) + '</h2>' +
               (d.alternativeTitle || anime.jname
@@ -716,7 +759,7 @@ const browseController = async (c: Context) => {
           var primary = generic ? epTag : raw;
           var secondary = generic ? null : epTag;
           btn.innerHTML =
-            posterImg(ep.poster || poster, primary) +
+            posterImg([ep.poster, poster].concat(posterFallbacks), primary) +
             '<div class="meta"><div class="title">' + esc(primary) +
             (ep.isFiller ? '<span class="badge">Filler</span>' : '') +
             '</div>' +
