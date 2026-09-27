@@ -24,7 +24,7 @@
     "test:jest": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:all": "bun run test && bun run test:jest",
     "clean": "rm -rf dist node_modules/.cache",
-    "vercel-build": "ncc build api/index.ts -o api"
+    "vercel-build": "echo skip"
   },
   "dependencies": {
     "@hono/node-server": "^1.8.2",
