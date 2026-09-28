@@ -15,7 +15,7 @@ const browseController = async (c: Context) => {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <title>Browse — ${SITE_NAME}</title>
-  <meta name="description" content="Browse and watch anime on ${SITE_NAME}" />
+  <meta name="description" content="Discover trending anime, browse categories, and watch on ${SITE_NAME}" />
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -169,6 +169,72 @@ const browseController = async (c: Context) => {
       justify-content: space-between;
       gap: 10px;
       flex-wrap: wrap;
+    }
+    .cat-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .cat-row .pill.is-active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: rgba(61,214,198,0.35);
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .pager .page-label {
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      min-width: 7rem;
+      text-align: center;
+    }
+    .rail-block { display: grid; gap: 10px; margin-bottom: 22px; }
+    .rail-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .rail-head h2 {
+      margin: 0;
+      font-family: Syne, sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .rail-head .hint-inline {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .rail {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 2px 2px 10px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .rail::-webkit-scrollbar { height: 6px; }
+    .rail::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.12);
+      border-radius: 999px;
+    }
+    .rail .card {
+      flex: 0 0 138px;
+      scroll-snap-align: start;
+      width: 138px;
+    }
+    @media (max-width: 560px) {
+      .rail .card { flex-basis: 120px; width: 120px; }
     }
     .crumbs {
       display: flex;
@@ -492,16 +558,31 @@ const browseController = async (c: Context) => {
         </div>
         <p class="hint">Kept in sessionStorage — cleared when you close the tab. Only sent as <code>x-api-key</code> to this site.</p>
       </div>
+      <div>
+        <label class="field-label">Browse</label>
+        <div class="cat-row" id="catRow" role="tablist" aria-label="Browse categories">
+          <button type="button" class="pill is-active" data-cat="discover" data-label="Discover">Discover</button>
+          <button type="button" class="pill" data-cat="recently-updated" data-label="Recently updated">Updated</button>
+          <button type="button" class="pill" data-cat="recently-added" data-label="Recently added">New</button>
+          <button type="button" class="pill" data-cat="top-airing" data-label="Top airing">Airing</button>
+          <button type="button" class="pill" data-cat="most-popular" data-label="Most popular">Popular</button>
+          <button type="button" class="pill" data-cat="most-favorite" data-label="Most favorite">Favorite</button>
+          <button type="button" class="pill" data-cat="top-upcoming" data-label="Top upcoming">Upcoming</button>
+          <button type="button" class="pill" data-cat="movie" data-label="Movies">Movies</button>
+          <button type="button" class="pill" data-cat="tv" data-label="TV series">TV</button>
+          <button type="button" class="pill" data-cat="completed" data-label="Completed">Completed</button>
+        </div>
+      </div>
       <div class="meta-row">
-        <div class="crumbs" id="crumbs"><span>Search a title to begin</span></div>
+        <div class="crumbs" id="crumbs"><span>Discover loads with your API key</span></div>
         <p class="status" id="status"></p>
       </div>
     </div>
 
     <main id="main">
       <div class="empty">
-        <h2>Find something to watch</h2>
-        <p>Enter your API key once, then search. Posters load through our proxy — open an episode to launch the player.</p>
+        <h2>Discover &amp; browse</h2>
+        <p>Enter your API key once to load Trending, Latest episodes, and category pages — or search any title. Open an episode to launch the player.</p>
       </div>
     </main>
 
@@ -511,16 +592,28 @@ const browseController = async (c: Context) => {
   <script>
     (function () {
       var KEY = 'ani.apiKey';
+      var RAIL_CAP = 18;
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
       var searchBtn = document.getElementById('searchBtn');
       var saveKey = document.getElementById('saveKey');
       var keyToggle = document.getElementById('keyToggle');
       var keyPanel = document.getElementById('keyPanel');
+      var catRow = document.getElementById('catRow');
       var main = document.getElementById('main');
       var statusEl = document.getElementById('status');
       var crumbs = document.getElementById('crumbs');
-      var state = { view: 'home', anime: null, lastAnimes: [] };
+      var state = {
+        view: 'discover',
+        anime: null,
+        lastAnimes: [],
+        source: 'discover',
+        listQuery: null,
+        listLabel: 'Discover',
+        listPage: 1,
+        pageInfo: null,
+        home: null,
+      };
       var POSTER_PROXY_BASE = ${JSON.stringify(posterProxy)};
       var POSTER_PROXY_KEY = ${JSON.stringify(posterKey)};
 
@@ -539,6 +632,7 @@ const browseController = async (c: Context) => {
         persistKey();
         setStatus(apiKey.value.trim() ? 'API key saved for this tab' : 'API key cleared');
         keyPanel.classList.remove('is-open');
+        if (apiKey.value.trim()) loadDiscover();
       });
       keyToggle.addEventListener('click', function () {
         keyPanel.classList.toggle('is-open');
@@ -547,6 +641,19 @@ const browseController = async (c: Context) => {
       function setStatus(msg, isErr) {
         statusEl.textContent = msg || '';
         statusEl.classList.toggle('is-err', !!isErr);
+      }
+
+      function requireKey(action) {
+        if (apiKey.value.trim()) return true;
+        keyPanel.classList.add('is-open');
+        setStatus('API key required' + (action ? ' for ' + action : '') + '.', true);
+        return false;
+      }
+
+      function setActiveCat(query) {
+        catRow.querySelectorAll('[data-cat]').forEach(function (btn) {
+          btn.classList.toggle('is-active', btn.getAttribute('data-cat') === query);
+        });
       }
 
       var FETCH_MS = 20000;
@@ -597,6 +704,24 @@ const browseController = async (c: Context) => {
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;');
+      }
+
+      function normalizeAnime(a) {
+        if (!a) return null;
+        return {
+          id: a.id,
+          name: a.name || a.title || a.id,
+          jname: a.jname || a.alternativeTitle || null,
+          poster: a.poster || null,
+          duration: a.duration || null,
+          type: a.type || null,
+          episodes: a.episodes || {},
+          rank: a.rank || null,
+        };
+      }
+
+      function takeList(arr, cap) {
+        return (arr || []).map(normalizeAnime).filter(function (a) { return a && a.id; }).slice(0, cap || RAIL_CAP);
       }
 
       /** Normalize to absolute http(s) URL. */
@@ -682,6 +807,16 @@ const browseController = async (c: Context) => {
         );
       }
 
+      function backCrumb() {
+        if (state.source === 'list') {
+          return { label: state.listLabel || 'Browse', action: 'list' };
+        }
+        if (state.source === 'search') {
+          return { label: 'Results', action: 'search' };
+        }
+        return { label: 'Discover', action: 'discover' };
+      }
+
       function setCrumbs(parts) {
         crumbs.innerHTML = parts.map(function (p) {
           if (p.action) {
@@ -691,7 +826,14 @@ const browseController = async (c: Context) => {
         }).join('<span aria-hidden="true">/</span>');
         crumbs.querySelectorAll('[data-crumb]').forEach(function (btn) {
           btn.addEventListener('click', function () {
-            if (btn.getAttribute('data-crumb') === 'search') renderSearch(state.lastAnimes || []);
+            var action = btn.getAttribute('data-crumb');
+            if (action === 'search') renderSearch(state.lastAnimes || []);
+            else if (action === 'list') renderList(state.lastAnimes || [], state.pageInfo);
+            else if (action === 'discover') {
+              setActiveCat('discover');
+              if (state.home) renderDiscover(state.home);
+              else loadDiscover();
+            }
           });
         });
       }
@@ -704,33 +846,123 @@ const browseController = async (c: Context) => {
         main.innerHTML = html + '</div>';
       }
 
-      function renderSearch(animes) {
-        state.view = 'search';
+      function animeCard(a) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'card';
+        var eps = a.episodes || {};
+        var ticks = '';
+        if (a.rank != null) ticks += '<span>#' + esc(a.rank) + '</span>';
+        if (a.type) ticks += '<span>' + esc(a.type) + '</span>';
+        if (eps.sub != null) ticks += '<span class="sub">SUB ' + esc(eps.sub) + '</span>';
+        if (eps.dub != null) ticks += '<span>DUB ' + esc(eps.dub) + '</span>';
+        if (eps.eps != null && eps.sub == null && eps.dub == null) {
+          ticks += '<span>EP ' + esc(eps.eps) + '</span>';
+        }
+        btn.innerHTML =
+          posterImg(a.poster, a.name) +
+          '<div class="meta"><div class="title">' + esc(a.name || a.id) + '</div>' +
+          '<div class="tick">' + ticks + '</div></div>';
+        btn.addEventListener('click', function () { loadEpisodes(a); });
+        return btn;
+      }
+
+      function fillGrid(grid, animes) {
+        animes.forEach(function (a) { grid.appendChild(animeCard(a)); });
+      }
+
+      function renderRail(title, items, hint) {
+        if (!items || !items.length) return '';
+        var wrap = document.createElement('section');
+        wrap.className = 'rail-block';
+        wrap.innerHTML =
+          '<div class="rail-head"><h2>' + esc(title) + '</h2>' +
+          (hint ? '<span class="hint-inline">' + esc(hint) + '</span>' : '') +
+          '</div><div class="rail"></div>';
+        var rail = wrap.querySelector('.rail');
+        fillGrid(rail, items);
+        return wrap;
+      }
+
+      function renderDiscover(home) {
+        state.view = 'discover';
+        state.source = 'discover';
+        state.anime = null;
+        state.home = home;
+        state.listQuery = null;
+        setActiveCat('discover');
+        setCrumbs([{ label: 'Discover' }]);
+        main.innerHTML = '';
+        var rails = [
+          renderRail('Trending', takeList(home.trending), 'Hot now'),
+          renderRail('Latest episodes', takeList(home.latestEpisode), 'Just dropped'),
+          renderRail('Newly added', takeList(home.newAdded), 'Fresh titles'),
+          renderRail('Top airing', takeList(home.topAiring)),
+          renderRail('Most popular', takeList(home.mostPopular)),
+        ].filter(Boolean);
+        if (!rails.length) {
+          main.innerHTML = '<div class="empty"><h2>Nothing to show</h2><p>Home catalog came back empty. Try a category or search.</p></div>';
+          return;
+        }
+        rails.forEach(function (el) { main.appendChild(el); });
+      }
+
+      function renderList(animes, pageInfo) {
+        state.view = 'list';
+        state.source = 'list';
         state.anime = null;
         state.lastAnimes = animes;
-        setCrumbs([{ label: animes.length + ' result' + (animes.length === 1 ? '' : 's') }]);
+        state.pageInfo = pageInfo || null;
+        setActiveCat(state.listQuery || 'discover');
+        var page = (pageInfo && pageInfo.currentPage) || state.listPage || 1;
+        var total = (pageInfo && pageInfo.totalPages) || null;
+        setCrumbs([
+          { label: 'Discover', action: 'discover' },
+          { label: (state.listLabel || 'Browse') + (total ? ' · p.' + page : '') },
+        ]);
+        if (!animes.length) {
+          main.innerHTML = '<div class="empty"><h2>No titles</h2><p>This category has nothing on this page.</p></div>';
+          return;
+        }
+        main.innerHTML = '<div class="grid" id="animeGrid"></div><div class="pager" id="pager"></div>';
+        fillGrid(document.getElementById('animeGrid'), animes);
+        var pager = document.getElementById('pager');
+        var hasPrev = page > 1;
+        var hasNext = pageInfo ? !!pageInfo.hasNextPage : false;
+        if (!hasPrev && !hasNext) {
+          pager.innerHTML = '<span class="page-label">Page ' + page + (total ? ' / ' + total : '') + '</span>';
+          return;
+        }
+        pager.innerHTML =
+          '<button type="button" class="btn ghost" id="prevPage"' + (hasPrev ? '' : ' disabled') + '>Previous</button>' +
+          '<span class="page-label">Page ' + page + (total ? ' / ' + total : '') + '</span>' +
+          '<button type="button" class="btn ghost" id="nextPage"' + (hasNext ? '' : ' disabled') + '>Next</button>';
+        var prev = document.getElementById('prevPage');
+        var next = document.getElementById('nextPage');
+        if (prev) prev.addEventListener('click', function () {
+          if (page > 1) loadList(state.listQuery, state.listLabel, page - 1);
+        });
+        if (next) next.addEventListener('click', function () {
+          if (hasNext) loadList(state.listQuery, state.listLabel, page + 1);
+        });
+      }
+
+      function renderSearch(animes) {
+        state.view = 'search';
+        state.source = 'search';
+        state.anime = null;
+        state.lastAnimes = animes;
+        setActiveCat(null);
+        setCrumbs([
+          { label: 'Discover', action: 'discover' },
+          { label: animes.length + ' result' + (animes.length === 1 ? '' : 's') },
+        ]);
         if (!animes.length) {
           main.innerHTML = '<div class="empty"><h2>No matches</h2><p>Try another spelling or a shorter keyword.</p></div>';
           return;
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div>';
-        var grid = document.getElementById('animeGrid');
-        animes.forEach(function (a) {
-          var btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'card';
-          var eps = a.episodes || {};
-          var ticks = '';
-          if (a.type) ticks += '<span>' + esc(a.type) + '</span>';
-          if (eps.sub != null) ticks += '<span class="sub">SUB ' + esc(eps.sub) + '</span>';
-          if (eps.dub != null) ticks += '<span>DUB ' + esc(eps.dub) + '</span>';
-          btn.innerHTML =
-            posterImg(a.poster, a.name) +
-            '<div class="meta"><div class="title">' + esc(a.name || a.id) + '</div>' +
-            '<div class="tick">' + ticks + '</div></div>';
-          btn.addEventListener('click', function () { loadEpisodes(a); });
-          grid.appendChild(btn);
-        });
+        fillGrid(document.getElementById('animeGrid'), animes.map(normalizeAnime).filter(Boolean));
       }
 
       function renderEpisodes(anime, payload, detail) {
@@ -747,7 +979,7 @@ const browseController = async (c: Context) => {
         var posterFallbacks = [anime.poster, payload.poster, d.poster].filter(Boolean);
         var title = d.title || anime.name || anime.id;
         setCrumbs([
-          { label: 'Results', action: 'search' },
+          backCrumb(),
           { label: title },
         ]);
         if (!episodes.length) {
@@ -898,17 +1130,64 @@ const browseController = async (c: Context) => {
         });
       }
 
+      async function loadDiscover() {
+        if (!requireKey('discover')) return;
+        persistKey();
+        var seq = ++loadSeq;
+        setStatus('Loading discover…');
+        showSkeleton(8);
+        try {
+          var data = await getJson('/api/v2/home');
+          if (seq !== loadSeq) return;
+          setStatus('Discover ready');
+          renderDiscover(data || {});
+        } catch (err) {
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Discover failed', true);
+          main.innerHTML = '<div class="empty"><h2>Discover failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
+        }
+      }
+
+      async function loadList(query, label, page) {
+        if (!query || query === 'discover') {
+          loadDiscover();
+          return;
+        }
+        if (!requireKey('browse')) return;
+        persistKey();
+        var seq = ++loadSeq;
+        state.listQuery = query;
+        state.listLabel = label || query;
+        state.listPage = page || 1;
+        setActiveCat(query);
+        setStatus('Loading ' + (label || query) + '…');
+        showSkeleton(10);
+        try {
+          var path = '/api/v2/animes/' + encodeURIComponent(query) + '?page=' + encodeURIComponent(String(page || 1));
+          var data = await getJson(path);
+          if (seq !== loadSeq) return;
+          var animes = takeList((data && data.response) || [], 48);
+          var pageInfo = (data && data.pageInfo) || {
+            currentPage: page || 1,
+            hasNextPage: false,
+            totalPages: 1,
+          };
+          setStatus((animes.length || 0) + ' titles · page ' + (pageInfo.currentPage || page || 1));
+          renderList(animes, pageInfo);
+        } catch (err) {
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Browse failed', true);
+          main.innerHTML = '<div class="empty"><h2>Browse failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
+        }
+      }
+
       async function doSearch() {
         var keyword = q.value.trim();
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
-        if (!apiKey.value.trim()) {
-          keyPanel.classList.add('is-open');
-          setStatus('API key required for search.', true);
-          return;
-        }
+        if (!requireKey('search')) return;
         persistKey();
         var seq = ++loadSeq;
         searchBtn.disabled = true;
@@ -998,11 +1277,22 @@ const browseController = async (c: Context) => {
         try { ev.preventDefault(); } catch (e) {}
       });
 
+      catRow.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest('[data-cat]') : null;
+        if (!btn) return;
+        var query = btn.getAttribute('data-cat');
+        var label = btn.getAttribute('data-label') || query;
+        if (query === 'discover') loadDiscover();
+        else loadList(query, label, 1);
+      });
+
       searchBtn.addEventListener('click', doSearch);
       q.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') doSearch();
       });
-      q.focus();
+
+      if (apiKey.value.trim()) loadDiscover();
+      else q.focus();
     })();
   </script>
   ${vercelObservabilityScriptTags()}
@@ -1019,3 +1309,4 @@ const browseController = async (c: Context) => {
 };
 
 export default browseController;
+

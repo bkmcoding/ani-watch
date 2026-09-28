@@ -38,7 +38,7 @@ Unofficial educational project for demonstrating scrape-backed APIs and a simple
 ## Features
 
 - JSON API under `/api/v2` (catalog, episodes, sources)
-- Public HTML: `/` · `/browse` · `/api/v2/hianime/watch`
+- Public HTML: `/` · `/browse` (Discover + categories + search) · `/api/v2/hianime/watch`
 - Episode Prev/Next + in-player episode list
 - Optional Cloudflare Worker for HLS/poster proxy
 
@@ -101,7 +101,7 @@ Machine-readable catalog: [`GET /api`](/api).
 | Path | Notes |
 | --- | --- |
 | `GET /` | Landing |
-| `GET /browse` | Search UI (API key in tab) |
+| `GET /browse` | Discover rails, category pages, search UI (API key in tab) |
 | `GET /api` | Endpoint index |
 | `GET /ping` | Health |
 | `GET /api/v2/hianime/search?keyword=` | Search |

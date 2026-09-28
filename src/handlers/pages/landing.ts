@@ -13,7 +13,7 @@ const landingController = async (c: Context) => {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <title>${SITE_NAME}</title>
-  <meta name="description" content="Search anime and watch Sub/Dub streams — ${SITE_TAGLINE}" />
+  <meta name="description" content="Discover trending and new anime, then watch Sub/Dub streams — ${SITE_TAGLINE}" />
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -159,14 +159,15 @@ const landingController = async (c: Context) => {
     <main class="hero">
       <h1 class="brand">ani<span>.</span>watch</h1>
       <p class="byline">by <em>wab</em></p>
-      <p class="lede">Search titles, pick an episode, and play Sub/Dub with captions — the same flow as the API, in the browser.</p>
+      <p class="lede">Browse trending and latest episodes, pick a title, and play Sub/Dub with captions — the same flow as the API, in the browser.</p>
       <div class="cta">
-        <a class="btn" href="/browse">Browse anime</a>
+        <a class="btn" href="/browse">Trending &amp; new</a>
+        <a class="btn ghost" href="/browse">Search titles</a>
         <a class="btn ghost" href="/api">API index</a>
       </div>
       <section class="panel">
         <h2>API access</h2>
-        <p>JSON routes under <code>/api/v2</code> need header <code>x-api-key</code>. Browse uses that key once (saved locally). Watch, play, and HLS stay public.</p>
+        <p>JSON routes under <code>/api/v2</code> need header <code>x-api-key</code>. Browse uses that key once (saved locally) to load Discover rails and category pages. Watch, play, and HLS stay public.</p>
       </section>
       <p class="lede-note">${NOTICE_SHORT}</p>
     </main>
