@@ -1,5 +1,5 @@
 import { Context, Next } from 'hono';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError } from '../lib/errors';
 
 const protect = async (c: Context, next: Next) => {
   try {

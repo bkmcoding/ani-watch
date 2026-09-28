@@ -1,14 +1,15 @@
 import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
 import { compress } from 'hono/compress';
-import hiAnimeRoutes from './routes/routes';
-import { AppError } from './utils/errors';
-import { fail, success } from './utils/response';
+import hiAnimeRoutes from './routes/v2';
+import { AppError } from './lib/errors';
+import { fail, success } from './lib/response';
 import { logger } from 'hono/logger';
 import config from './config/config';
-import { faviconResponse, SITE_NAME, SITE_TAGLINE } from './utils/brand';
-import landingController from './controllers/landing.controller';
-import browseController from './controllers/browse.controller';
+import { faviconResponse, SITE_NAME, SITE_TAGLINE } from './lib/brand';
+import { NOTICE_API } from './lib/notices';
+import landingController from './handlers/pages/landing';
+import browseController from './handlers/pages/browse';
 
 const app = new Hono();
 const origins = config.origin.includes(',')
@@ -75,6 +76,7 @@ app.get('/api', (c: Context) => {
     name: SITE_NAME,
     by: 'wab',
     tagline: SITE_TAGLINE,
+    disclaimer: NOTICE_API,
     pages: {
       home: '/',
       browse: '/browse',

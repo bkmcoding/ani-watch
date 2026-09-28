@@ -5,22 +5,22 @@ import {
   ThemeServer,
 } from './megaplay';
 import { resolveZokoSources } from './zoko';
-import { extractEpisodes } from '../extractor/extractEpisodes';
+import { extractEpisodes } from '../extractors/extractEpisodes';
 import {
   animeNumericId,
   animeSlugFromEpisodeId,
   episodeNumericId,
   fetchTheme,
   htmlFromAjax,
-} from '../utils/themeAjax';
+} from '../lib/themeAjax';
 import {
   pickEnglishSubtitle,
   proxiedHlsUrl,
   watchPageUrl,
   watchPlayUrl,
-} from '../utils/streamUrls';
-import { titleFromAnimeSlug } from '../utils/brand';
-import { scrapeCache } from '../utils/ttlCache';
+} from '../lib/streamUrls';
+import { titleFromAnimeSlug } from '../lib/brand';
+import { scrapeCache } from '../lib/ttlCache';
 
 const STREAM_TTL_MS = 180_000; // 3 minutes
 const OTHER_CATEGORY_BUDGET_MS = 3_500;

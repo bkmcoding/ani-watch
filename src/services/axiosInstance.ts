@@ -1,5 +1,5 @@
 import config from '../config/config';
-import { cached } from '../utils/ttlCache';
+import { cached } from '../lib/ttlCache';
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;

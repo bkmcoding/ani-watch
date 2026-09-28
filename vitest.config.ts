@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['scripts/tests/vitest/**/*.test.ts'],
+    include: ['tests/**/*.test.ts'],
     reporters: ['verbose'],
   },
 });

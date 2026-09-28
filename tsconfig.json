@@ -1,10 +1,6 @@
 {
   "compilerOptions": {
-    "lib": [
-      "ESNext",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "esnext",
     "target": "esnext",
     "moduleResolution": "bundler",
@@ -14,13 +10,12 @@
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "allowJs": true,
-    "types": [
-      "bun-types"
-    ],
+    "types": ["bun-types"],
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": false,
-    "outDir": "./src/assets/js",
+    "noEmit": true,
     "esModuleInterop": true
-  }
+  },
+  "include": ["src/**/*.ts", "index.ts", "middleware.ts"],
+  "exclude": ["node_modules", "dist", "api", "workers", "tests"]
 }
