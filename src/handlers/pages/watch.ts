@@ -3,6 +3,7 @@ import { validationError } from '../../lib/errors';
 import {
   isAllowedStreamHost,
   proxiedHlsUrl,
+  proxiedVttUrl,
   requestOrigin,
   watchPlayUrl,
 } from '../../lib/streamUrls';
@@ -15,6 +16,20 @@ function parseAllowedUrl(raw: string | undefined): string | null {
   try {
     const u = new URL(raw);
     if (!/^https?:$/i.test(u.protocol) || !isAllowedStreamHost(u.hostname)) return null;
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+/** Accepts any https:// URL for subtitle/CC tracks — the HLS proxy enforces CORS
+ *  and the VTT payload itself is harmless text. Stream URLs remain strictly gated. */
+function parseCcUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:') return null;
+    if (!u.hostname || u.hostname.length < 3) return null;
     return u.href;
   } catch {
     return null;
@@ -74,8 +89,8 @@ const watchController = async (c: Context) => {
   const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
   const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
   const legacy = parseAllowedUrl(c.req.query('url') || undefined);
-  const subCcCdn = parseAllowedUrl(c.req.query('subCc') || undefined);
-  const dubCcCdn = parseAllowedUrl(c.req.query('dubCc') || undefined);
+  const subCcCdn = parseCcUrl(c.req.query('subCc') || undefined);
+  const dubCcCdn = parseCcUrl(c.req.query('dubCc') || undefined);
   const preferredRaw = (c.req.query('t') || 'sub').toLowerCase();
   const animeTitle =
     c.req.query('title')?.trim() || titleFromAnimeSlug(c.req.query('anime') || undefined);
@@ -141,8 +156,8 @@ const watchController = async (c: Context) => {
     dub: resolvedDub ? proxiedHlsUrl(origin, resolvedDub) : null,
   };
   const captions = {
-    sub: subCcCdn ? proxiedHlsUrl(origin, subCcCdn) : null,
-    dub: dubCcCdn ? proxiedHlsUrl(origin, dubCcCdn) : null,
+    sub: subCcCdn ? proxiedVttUrl(origin, subCcCdn) : null,
+    dub: dubCcCdn ? proxiedVttUrl(origin, dubCcCdn) : null,
   };
   const skips = {
     sub: { intro: subIntro, outro: subOutro },

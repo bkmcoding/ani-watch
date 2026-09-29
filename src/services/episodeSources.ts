@@ -16,6 +16,7 @@ import {
 import {
   pickEnglishSubtitle,
   proxiedHlsUrl,
+  proxiedVttUrl,
   watchPageUrl,
   watchPlayUrl,
 } from '../lib/streamUrls';
@@ -400,7 +401,7 @@ export async function resolveEpisodePlayback(
       outro: track.stream.outro ?? null,
       englishCc: enCc
         ? {
-            url: proxiedHlsUrl(origin, enCc),
+            url: proxiedVttUrl(origin, enCc),
             originalUrl: enCc,
           }
         : null,

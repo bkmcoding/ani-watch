@@ -103,6 +103,11 @@ export function posterProxyBase(siteOrigin: string): string {
   return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/poster`;
 }
 
+/** Base URL for subtitle/VTT proxy — always same-origin (accepts any https:// CDN). */
+export function vttProxyBase(siteOrigin: string): string {
+  return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/vtt`;
+}
+
 /** Build an authenticated proxy URL for an upstream media/poster URL. */
 export function buildMediaProxyUrl(proxyBase: string, upstreamUrl: string): string {
   return withMediaProxyAuth(`${proxyBase}?url=${encodeURIComponent(upstreamUrl)}`);
@@ -112,17 +117,24 @@ export function proxiedHlsUrl(origin: string, m3u8: string): string {
   return buildMediaProxyUrl(hlsProxyBase(origin), m3u8);
 }
 
+/** Proxy a subtitle/VTT URL through the open-CDN VTT proxy (adds CORS + forced text/vtt). */
+export function proxiedVttUrl(origin: string, vttUrl: string): string {
+  return buildMediaProxyUrl(vttProxyBase(origin), vttUrl);
+}
+
 /** Prefer English softsub VTT from provider track lists (HTML5 <track> needs VTT). */
 export function pickEnglishSubtitle(
   subs: Array<{ lang?: string; url?: string }> | undefined | null
 ): string | null {
   if (!subs?.length) return null;
   const scored = subs
-    .filter((s) => s.url && /^https?:\/\//i.test(s.url) && /\.vtt(\?|$)/i.test(s.url))
+    .filter((s) => s.url && /^https?:\/\//i.test(s.url))
     .map((s) => {
       const lang = (s.lang || '').trim();
       let score = 0;
       if (/^(en|eng|english)([-_]|$)/i.test(lang) || /\benglish\b/i.test(lang)) score += 10;
+      // Prefer explicit VTT URLs, but don't exclude non-.vtt CDN paths
+      if (/\.vtt(\?|$)/i.test(s.url as string)) score += 2;
       return { url: s.url as string, score };
     })
     .filter((s) => s.score >= 10)

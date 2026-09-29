@@ -13,6 +13,7 @@ import serversController from '../handlers/playback/servers';
 import sourcesController from '../handlers/playback/sources';
 import hlsProxyController from '../handlers/media/hlsProxy';
 import posterProxyController from '../handlers/media/posterProxy';
+import vttProxyController from '../handlers/media/vttProxy';
 import watchController from '../handlers/pages/watch';
 import watchPlayController from '../handlers/pages/watchPlay';
 import watchEpisodesController from '../handlers/pages/watchEpisodes';
@@ -57,6 +58,17 @@ router.get('/episode/sources', handler(sourcesController));
 router.get('/hianime/hls', async (c) => {
   try {
     return await hlsProxyController(c);
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
+// Subtitle proxy (VTT/ASS) — accepts any https:// CDN, forced text/vtt response
+router.get('/hianime/vtt', async (c) => {
+  try {
+    return await vttProxyController(c);
   } catch (error: unknown) {
     if (error instanceof AppError) {
       return fail(c, error.message, error.statusCode, error.details);
