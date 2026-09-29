@@ -12,7 +12,7 @@ const browseController = async (c: Context) => {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <title>Browse — ${SITE_NAME}</title>
   <meta name="description" content="Discover trending anime, browse categories, and watch on ${SITE_NAME}" />
@@ -529,30 +529,34 @@ const browseController = async (c: Context) => {
       to { background-position: -200% 0; }
     }
     footer { color: var(--muted); font-size: 0.8rem; }
-    @media (max-width: 560px) {
-      .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-      .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-    }
-    /* Small phone fixes */
-    @media (max-width: 420px) {
-      .page { padding: 10px 10px 16px; gap: 10px; }
-      .brand { font-size: 1.35rem; }
-      .grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      .skeleton-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      .meta .title { font-size: 0.8rem; }
-      .meta { padding: 8px 8px 10px; gap: 3px; }
-      .search-dock { padding: 10px; gap: 8px; }
-      .detail { grid-template-columns: 80px 1fr; gap: 10px; padding: 10px; }
-      .detail-body h2 { font-size: 1.1rem; }
-      .ep-grid { grid-template-columns: 1fr; }
-      .ep-card { grid-template-columns: 60px 1fr; }
-      .cat-row { gap: 6px; }
-      .pill { padding: 7px 10px; font-size: 0.78rem; }
-      header { gap: 8px; }
-    }
-    /* Rail scrolling on all phones */
+    /* Tablet / large phone */
     @media (max-width: 640px) {
-      .rail .card { flex-basis: 106px; width: 106px; }
+      .page { padding: clamp(12px, 3vw, 20px); gap: 14px; }
+      .pill { padding: 9px 14px; font-size: 0.84rem; min-height: 40px; }
+      .btn { padding: 12px 16px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+      .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+      .rail .card { flex-basis: 116px; width: 116px; }
+      input[type="search"], input[type="password"], input[type="text"] { padding: 13px 14px; font-size: 1rem; }
+    }
+    /* Small phone: 375–480px */
+    @media (max-width: 480px) {
+      .grid { grid-template-columns: repeat(3, 1fr); gap: 9px; }
+      .skeleton-grid { grid-template-columns: repeat(3, 1fr); gap: 9px; }
+      .meta .title { font-size: 0.83rem; }
+      .meta { padding: 8px 9px 10px; gap: 4px; }
+      .search-dock { padding: 12px; gap: 10px; }
+      .detail { grid-template-columns: 88px 1fr; gap: 12px; padding: 12px; }
+      .detail-body h2 { font-size: 1.15rem; }
+      .ep-grid { grid-template-columns: 1fr; }
+      .ep-card { grid-template-columns: 64px 1fr; }
+      .rail .card { flex-basis: 104px; width: 104px; }
+    }
+    /* Very small: 320px phones */
+    @media (max-width: 360px) {
+      .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .skeleton-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .detail { grid-template-columns: 72px 1fr; gap: 8px; padding: 10px; }
     }
   </style>
 </head>
