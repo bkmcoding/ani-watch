@@ -1484,6 +1484,8 @@ function posterProxyBase(siteOrigin) {
   return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/poster`;
 }
 function vttProxyBase(siteOrigin) {
+  const media = mediaProxyOrigin();
+  if (media) return `${media}/vtt`;
   return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/vtt`;
 }
 function buildMediaProxyUrl(proxyBase, upstreamUrl) {

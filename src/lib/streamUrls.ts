@@ -115,8 +115,10 @@ export function posterProxyBase(siteOrigin: string): string {
   return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/poster`;
 }
 
-/** Base URL for subtitle/VTT proxy — always same-origin (accepts any https:// CDN). */
+/** Base URL for subtitle/VTT proxy (Worker `/vtt` or same-origin API path). */
 export function vttProxyBase(siteOrigin: string): string {
+  const media = mediaProxyOrigin();
+  if (media) return `${media}/vtt`;
   return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/vtt`;
 }
 

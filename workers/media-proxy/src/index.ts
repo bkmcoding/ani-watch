@@ -155,6 +155,55 @@ function rewritePlaylist(
     .join('\n');
 }
 
+async function handleVtt(request: Request): Promise<Response> {
+  const target = new URL(request.url).searchParams.get('url');
+  if (!target) {
+    return new Response('url is required', { status: 400, headers: corsHeaders() });
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(target);
+  } catch {
+    return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return new Response('only https:// subtitle URLs are allowed', { status: 400, headers: corsHeaders() });
+  }
+
+  // CDN hosts enforce hotlink protection — send trusted Referer
+  const referer = parsed.hostname.includes('aniwatchtv') || parsed.hostname.includes('zoko')
+    ? 'https://zokoanime.video/'
+    : 'https://megaplay.buzz/';
+
+  const upstream = await fetch(parsed.href, {
+    headers: {
+      'User-Agent': UA,
+      Accept: 'text/vtt, text/plain, */*',
+      Referer: referer,
+      Origin: new URL(referer).origin,
+    },
+    redirect: 'follow',
+  });
+
+  if (!upstream.ok) {
+    return new Response(`Upstream ${upstream.status}`, { status: 502, headers: corsHeaders() });
+  }
+
+  const text = await upstream.text();
+  const isAss = /\.ass(\?|$)/i.test(parsed.pathname);
+  const contentType = isAss ? 'text/plain; charset=utf-8' : 'text/vtt; charset=utf-8';
+
+  return new Response(text, {
+    status: 200,
+    headers: corsHeaders({
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=600',
+    }),
+  });
+}
+
 async function handleHls(request: Request, workerOrigin: string, env: Env): Promise<Response> {
   const target = new URL(request.url).searchParams.get('url');
   if (!target) {
@@ -320,7 +369,7 @@ export default {
         JSON.stringify({
           ok: true,
           service: 'hianime-media-proxy',
-          routes: ['/hls?url=&k=', '/poster?url=&k='],
+          routes: ['/hls?url=&k=', '/vtt?url=', '/poster?url=&k='],
           auth: Boolean((env.MEDIA_PROXY_SECRET || '').trim()),
         }),
         {
@@ -340,6 +389,7 @@ export default {
     }
 
     if (path === '/hls') return handleHls(request, workerOrigin, env);
+    if (path === '/vtt') return handleVtt(request);
     if (path === '/poster') return handlePoster(request);
 
     return new Response('Not found', { status: 404, headers: corsHeaders() });
