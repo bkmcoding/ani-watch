@@ -350,16 +350,18 @@ const watchController = async (c: Context) => {
       cursor: grab;
       user-select: none;
       touch-action: none;
-      padding: 0.35em 0.7em;
+      padding: var(--cc-pad, 0.3em 0.65em);
       border-radius: 10px;
-      background: rgba(0, 0, 0, 0.62);
-      color: #fff;
+      /* bg/color set dynamically via --cc-bg and --cc-color */
+      background: var(--cc-bg, rgba(0,0,0,0.72));
+      color: var(--cc-color, #fff);
       font-family: "DM Sans", system-ui, sans-serif;
-      font-size: var(--cc-size, 32px);
-      font-weight: 700;
-      line-height: 1.35;
+      font-size: var(--cc-size, 28px);
+      font-weight: var(--cc-weight, 600);
+      line-height: 1.4;
       letter-spacing: 0.01em;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.85);
+      text-shadow: var(--cc-shadow, 0 1px 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7));
+      -webkit-text-stroke: var(--cc-stroke, 0px transparent);
       white-space: pre-wrap;
       word-break: break-word;
       opacity: 0;
@@ -368,6 +370,29 @@ const watchController = async (c: Context) => {
     .cc-box.is-visible { opacity: 1; }
     .cc-box.is-dragging { cursor: grabbing; transition: none; }
     .cc-box:empty { display: none; }
+    /* Caption style presets */
+    .cc-box[data-style="outline"] {
+      background: transparent;
+      -webkit-text-stroke: 1.5px rgba(0,0,0,0.9);
+      text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.8);
+      padding: 0.2em 0.5em;
+    }
+    .cc-box[data-style="raised"] {
+      background: transparent;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.9), -1px -1px 0 rgba(0,0,0,0.5);
+      padding: 0.2em 0.5em;
+    }
+    .cc-box[data-style="drop"] {
+      background: transparent;
+      text-shadow: 0 3px 8px rgba(0,0,0,1), 0 1px 3px rgba(0,0,0,0.9);
+      padding: 0.2em 0.5em;
+    }
+    .cc-box[data-style="box"] {
+      background: rgba(0,0,0,0.82);
+      text-shadow: none;
+      padding: 0.3em 0.7em;
+      border-radius: 6px;
+    }
     .menu-slider {
       width: 100%;
       appearance: none; height: 6px; border-radius: 999px;
@@ -610,6 +635,34 @@ const watchController = async (c: Context) => {
       .stage { aspect-ratio: 16 / 10; border-radius: 14px; }
       .big-btn { width: 64px; height: 64px; }
     }
+    /* Small phone: tighten further */
+    @media (max-width: 480px) {
+      .page { padding: 10px 10px 14px; gap: 10px; }
+      .brand { font-size: 1.2rem; }
+      .ep-line { max-width: calc(100vw - 140px); font-size: 0.72rem; }
+      .header-right { gap: 5px; }
+      .pill { padding: 7px 10px; font-size: 0.78rem; }
+      .stage { aspect-ratio: 16 / 9; border-radius: 10px; }
+      /* Controls bar: stack time and show only essential buttons */
+      .ctrl { width: 36px; height: 36px; border-radius: 8px; }
+      .ctrl svg { width: 18px; height: 18px; }
+      .time { font-size: 0.74rem; padding: 0 4px; min-width: 0; }
+      .speed-chip { display: none; }
+      .menu { right: 6px; bottom: 54px; width: calc(100% - 12px); }
+      .ep-panel { left: 6px; bottom: 54px; width: calc(100% - 12px); }
+      .skip-btn { right: 10px; bottom: 74px; font-size: 13px; padding: 8px 12px; }
+      .big-btn { width: 56px; height: 56px; }
+      .big-btn svg { width: 24px; height: 24px; }
+      footer { font-size: 0.72rem; flex-direction: column; gap: 4px; }
+    }
+    /* Landscape phone: use full width, hide header to save space */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .page { padding: 6px; gap: 6px; }
+      header { display: none; }
+      .stage { aspect-ratio: auto; height: calc(100dvh - 80px); max-height: calc(100dvh - 60px); }
+      .stage-wrap { min-height: 0; }
+      footer { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -682,9 +735,34 @@ const watchController = async (c: Context) => {
               <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                   <label for="ccSize">Size</label>
-                  <span class="hint" id="ccSizeLabel">32px</span>
+                  <span class="hint" id="ccSizeLabel">28px</span>
                 </div>
-                <input class="menu-slider" id="ccSize" type="range" min="20" max="56" step="1" value="32" aria-label="Caption size" />
+                <input class="menu-slider" id="ccSize" type="range" min="16" max="56" step="1" value="28" aria-label="Caption size" />
+              </div>
+              <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
+                <label>Style</label>
+                <div class="pos-row" id="ccStyleRow">
+                  <button type="button" class="pill is-active" data-cc-style="box">Box</button>
+                  <button type="button" class="pill" data-cc-style="outline">Outline</button>
+                  <button type="button" class="pill" data-cc-style="raised">Raised</button>
+                  <button type="button" class="pill" data-cc-style="drop">Drop</button>
+                </div>
+              </div>
+              <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
+                <label>Color</label>
+                <div class="pos-row" id="ccColorRow">
+                  <button type="button" class="pill is-active" data-cc-color="white" style="color:#fff">White</button>
+                  <button type="button" class="pill" data-cc-color="yellow" style="color:#ffe066">Yellow</button>
+                  <button type="button" class="pill" data-cc-color="cyan" style="color:#3dd6c6">Cyan</button>
+                  <button type="button" class="pill" data-cc-color="lime" style="color:#86efac">Lime</button>
+                </div>
+              </div>
+              <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <label for="ccOpacity">Opacity</label>
+                  <span class="hint" id="ccOpacityLabel">100%</span>
+                </div>
+                <input class="menu-slider" id="ccOpacity" type="range" min="30" max="100" step="5" value="100" aria-label="Caption opacity" />
               </div>
               <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
                 <label>Position</label>
@@ -802,6 +880,8 @@ const watchController = async (c: Context) => {
       var ccBox = document.getElementById('ccBox');
       var ccSize = document.getElementById('ccSize');
       var ccSizeLabel = document.getElementById('ccSizeLabel');
+      var ccOpacityEl = document.getElementById('ccOpacity');
+      var ccOpacityLabel = document.getElementById('ccOpacityLabel');
       var pipBtn = document.getElementById('pipBtn');
       var skipBtn = document.getElementById('skipBtn');
       var providerBadge = document.getElementById('providerBadge');
@@ -818,9 +898,14 @@ const watchController = async (c: Context) => {
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
-      var ccSizePx = Math.min(56, Math.max(20, Number(localStorage.getItem('ani.ccSize') || '32') || 32));
+      var ccSizePx = Math.min(56, Math.max(16, Number(localStorage.getItem('ani.ccSize') || '28') || 28));
       var ccX = Number(localStorage.getItem('ani.ccX'));
       var ccY = Number(localStorage.getItem('ani.ccY'));
+      var CC_STYLES = ['box', 'outline', 'raised', 'drop'];
+      var CC_COLORS = { white: '#fff', yellow: '#ffe066', cyan: '#3dd6c6', lime: '#86efac' };
+      var ccStyle = CC_STYLES.indexOf(localStorage.getItem('ani.ccStyle') || '') >= 0 ? localStorage.getItem('ani.ccStyle') : 'box';
+      var ccColorKey = CC_COLORS[localStorage.getItem('ani.ccColor')] ? localStorage.getItem('ani.ccColor') : 'white';
+      var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 12;
       var ccCues = [];
@@ -1015,8 +1100,22 @@ const watchController = async (c: Context) => {
         ccBox.style.setProperty('--cc-size', ccSizePx + 'px');
         ccBox.style.setProperty('--cc-x', ccX + '%');
         ccBox.style.setProperty('--cc-y', ccY + '%');
-        if (ccSize) ccSize.value = String(ccSizePx);
+        // Style preset
+        ccBox.setAttribute('data-style', ccStyle);
+        // Color
+        var color = CC_COLORS[ccColorKey] || '#fff';
+        ccBox.style.setProperty('--cc-color', color);
+        // Weight: slightly lighter than before — 600 reads well without feeling heavy
+        ccBox.style.setProperty('--cc-weight', '600');
+        // Opacity on the box background and text
+        ccBox.style.opacity = String(ccOpacity / 100);
+        // Sync size slider
+        if (ccSize) { ccSize.value = String(ccSizePx); }
         if (ccSizeLabel) ccSizeLabel.textContent = ccSizePx + 'px';
+        // Sync opacity slider
+        if (ccOpacityEl) ccOpacityEl.value = String(ccOpacity);
+        if (ccOpacityLabel) ccOpacityLabel.textContent = ccOpacity + '%';
+        // Sync pos buttons
         document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
           var pos = btn.getAttribute('data-cc-pos');
           var active =
@@ -1025,12 +1124,23 @@ const watchController = async (c: Context) => {
             (pos === 'bottom' && ccY < 40);
           btn.classList.toggle('is-active', active);
         });
+        // Sync style buttons
+        document.querySelectorAll('[data-cc-style]').forEach(function (btn) {
+          btn.classList.toggle('is-active', btn.getAttribute('data-cc-style') === ccStyle);
+        });
+        // Sync color buttons
+        document.querySelectorAll('[data-cc-color]').forEach(function (btn) {
+          btn.classList.toggle('is-active', btn.getAttribute('data-cc-color') === ccColorKey);
+        });
       }
 
       function persistCcLayout() {
         localStorage.setItem('ani.ccSize', String(ccSizePx));
         localStorage.setItem('ani.ccX', String(Math.round(ccX * 10) / 10));
         localStorage.setItem('ani.ccY', String(Math.round(ccY * 10) / 10));
+        localStorage.setItem('ani.ccStyle', ccStyle);
+        localStorage.setItem('ani.ccColor', ccColorKey);
+        localStorage.setItem('ani.ccOpacity', String(ccOpacity));
       }
 
       function setCcPos(preset) {
@@ -1503,12 +1613,39 @@ const watchController = async (c: Context) => {
       if (ccSize) {
         ccSize.addEventListener('input', function (e) {
           e.stopPropagation();
-          ccSizePx = Number(ccSize.value) || 32;
+          ccSizePx = Number(ccSize.value) || 28;
           applyCcStyle();
           persistCcLayout();
         });
         ccSize.addEventListener('click', function (e) { e.stopPropagation(); });
       }
+      if (ccOpacityEl) {
+        ccOpacityEl.addEventListener('input', function (e) {
+          e.stopPropagation();
+          ccOpacity = Number(ccOpacityEl.value) || 100;
+          applyCcStyle();
+          persistCcLayout();
+        });
+        ccOpacityEl.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+      document.querySelectorAll('[data-cc-style]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          ccStyle = btn.getAttribute('data-cc-style') || 'box';
+          applyCcStyle();
+          persistCcLayout();
+        });
+      });
+      document.querySelectorAll('[data-cc-color]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          ccColorKey = btn.getAttribute('data-cc-color') || 'white';
+          applyCcStyle();
+          persistCcLayout();
+        });
+      });
       document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();

@@ -531,6 +531,28 @@ const browseController = async (c: Context) => {
     footer { color: var(--muted); font-size: 0.8rem; }
     @media (max-width: 560px) {
       .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+      .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+    }
+    /* Small phone fixes */
+    @media (max-width: 420px) {
+      .page { padding: 10px 10px 16px; gap: 10px; }
+      .brand { font-size: 1.35rem; }
+      .grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .skeleton-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .meta .title { font-size: 0.8rem; }
+      .meta { padding: 8px 8px 10px; gap: 3px; }
+      .search-dock { padding: 10px; gap: 8px; }
+      .detail { grid-template-columns: 80px 1fr; gap: 10px; padding: 10px; }
+      .detail-body h2 { font-size: 1.1rem; }
+      .ep-grid { grid-template-columns: 1fr; }
+      .ep-card { grid-template-columns: 60px 1fr; }
+      .cat-row { gap: 6px; }
+      .pill { padding: 7px 10px; font-size: 0.78rem; }
+      header { gap: 8px; }
+    }
+    /* Rail scrolling on all phones */
+    @media (max-width: 640px) {
+      .rail .card { flex-basis: 106px; width: 106px; }
     }
   </style>
 </head>
