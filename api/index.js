@@ -1493,7 +1493,7 @@ function proxiedHlsUrl(origin, m3u8) {
   return buildMediaProxyUrl(hlsProxyBase(origin), m3u8);
 }
 function proxiedVttUrl(origin, vttUrl) {
-  return buildMediaProxyUrl(vttProxyBase(origin), vttUrl);
+  return `${vttProxyBase(origin)}?url=${encodeURIComponent(vttUrl)}`;
 }
 function pickEnglishSubtitle(subs) {
   if (!subs?.length) return null;
@@ -2157,9 +2157,6 @@ var posterProxy_default = posterProxyController;
 // src/handlers/media/vttProxy.ts
 var UA3 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
 var vttProxyController = async (c) => {
-  if (!mediaProxyAuthOk(c.req.query("k") || void 0)) {
-    throw new validationError("invalid or missing media proxy key");
-  }
   const target = c.req.query("url");
   if (!target) throw new validationError("url is required");
   let parsed;

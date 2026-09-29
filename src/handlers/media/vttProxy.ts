@@ -1,31 +1,25 @@
 import { Context } from 'hono';
 import { validationError } from '../../lib/errors';
-import { mediaProxyAuthOk } from '../../lib/streamUrls';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
 /**
- * Subtitle (VTT/ASS) proxy — accepts any https:// URL.
+ * Subtitle (VTT/ASS) proxy — accepts any https:// URL, no auth required.
  *
- * Unlike the HLS proxy, this endpoint is intentionally open to any CDN host
- * because subtitle URLs come from provider APIs (MegaPlay, Zoko) and may be
- * served from arbitrary CDNs that are not in the stream allowlist.  The
- * response is always text (VTT or ASS), so there is no risk of binary
- * payload or script execution.
+ * Unlike the HLS proxy, this endpoint does not require MEDIA_PROXY_SECRET.
+ * Subtitles are plain text (VTT/ASS), not video bytes, so there is no
+ * bandwidth-abuse vector worth guarding with a shared secret.  Requiring
+ * auth caused spurious 401s when the secret was set on Vercel but the
+ * watch-page URL was built before the secret existed (or vice-versa).
  *
  * Security posture:
  *  - HTTPS only (no plain-HTTP fetches).
- *  - Optional shared secret (same MEDIA_PROXY_SECRET as /hls).
  *  - Response Content-Type is always forced to text/vtt or text/plain —
  *    the upstream Content-Type is never forwarded as-is.
  *  - No response headers from the upstream are forwarded.
  */
 const vttProxyController = async (c: Context) => {
-  if (!mediaProxyAuthOk(c.req.query('k') || undefined)) {
-    throw new validationError('invalid or missing media proxy key');
-  }
-
   const target = c.req.query('url');
   if (!target) throw new validationError('url is required');
 

@@ -131,7 +131,8 @@ export function proxiedHlsUrl(origin: string, m3u8: string): string {
 
 /** Proxy a subtitle/VTT URL through the open-CDN VTT proxy (adds CORS + forced text/vtt). */
 export function proxiedVttUrl(origin: string, vttUrl: string): string {
-  return buildMediaProxyUrl(vttProxyBase(origin), vttUrl);
+  // VTT proxy does not require auth — no k= appended (unlike HLS/poster proxies).
+  return `${vttProxyBase(origin)}?url=${encodeURIComponent(vttUrl)}`;
 }
 
 /** Prefer English softsub VTT from provider track lists (HTML5 <track> needs VTT). */
