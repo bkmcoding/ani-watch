@@ -2919,15 +2919,15 @@ var watchController = async (c) => {
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px">
                   <div style="display:flex;justify-content:space-between;align-items:center">
                     <label for="ccSize">Size</label>
-                    <span class="hint" id="ccSizeLabel">28px</span>
+                    <span class="hint" id="ccSizeLabel">30px</span>
                   </div>
-                  <input class="menu-slider" id="ccSize" type="range" min="16" max="56" step="1" value="28" aria-label="Caption size" />
+                  <input class="menu-slider" id="ccSize" type="range" min="16" max="56" step="1" value="30" aria-label="Caption size" />
                 </div>
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
                   <label>Font</label>
                   <div class="pos-row" id="ccFontRow" style="flex-wrap:wrap">
-                    <button type="button" class="pill is-active" data-cc-font="sans" style="font-family:system-ui,sans-serif">Sans</button>
-                    <button type="button" class="pill" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
+                    <button type="button" class="pill" data-cc-font="sans" style="font-family:system-ui,sans-serif">Sans</button>
+                    <button type="button" class="pill is-active" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
                     <button type="button" class="pill" data-cc-font="serif" style="font-family:Georgia,serif">Serif</button>
                     <button type="button" class="pill" data-cc-font="mono" style="font-family:'Courier New',monospace">Mono</button>
                   </div>
@@ -2935,8 +2935,8 @@ var watchController = async (c) => {
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
                   <label>Style</label>
                   <div class="pos-row" id="ccStyleRow">
-                    <button type="button" class="pill is-active" data-cc-style="box">Box</button>
-                    <button type="button" class="pill" data-cc-style="outline">Outline</button>
+                    <button type="button" class="pill" data-cc-style="box">Box</button>
+                    <button type="button" class="pill is-active" data-cc-style="outline">Outline</button>
                     <button type="button" class="pill" data-cc-style="raised">Raised</button>
                     <button type="button" class="pill" data-cc-style="drop">Drop</button>
                   </div>
@@ -3096,17 +3096,17 @@ var watchController = async (c) => {
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
-      var ccSizePx = Math.min(56, Math.max(16, Number(localStorage.getItem('ani.ccSize') || '28') || 28));
+      var ccSizePx = Math.min(56, Math.max(16, Number(localStorage.getItem('ani.ccSize') || '30') || 30));
       var ccX = Number(localStorage.getItem('ani.ccX'));
       var ccY = Number(localStorage.getItem('ani.ccY'));
       var CC_STYLES = ['box', 'outline', 'raised', 'drop'];
       var CC_COLORS = { white: '#fff', yellow: '#ffe066', cyan: '#3dd6c6', lime: '#86efac' };
       var CC_FONTS = { sans: 'system-ui,sans-serif', dm: '"DM Sans",sans-serif', serif: 'Georgia,serif', mono: '"Courier New",monospace' };
-      var ccStyle = CC_STYLES.indexOf(localStorage.getItem('ani.ccStyle') || '') >= 0 ? localStorage.getItem('ani.ccStyle') : 'box';
+      var ccStyle = CC_STYLES.indexOf(localStorage.getItem('ani.ccStyle') || '') >= 0 ? localStorage.getItem('ani.ccStyle') : 'outline';
       var ccColorKey = CC_COLORS[localStorage.getItem('ani.ccColor')] ? localStorage.getItem('ani.ccColor') : 'white';
-      var ccFontKey = CC_FONTS[localStorage.getItem('ani.ccFont')] ? localStorage.getItem('ani.ccFont') : 'sans';
+      var ccFontKey = CC_FONTS[localStorage.getItem('ani.ccFont')] ? localStorage.getItem('ani.ccFont') : 'dm';
       var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
-      var ccCollapsed = localStorage.getItem('ani.ccCollapsed') === '1';
+      var ccCollapsed = localStorage.getItem('ani.ccCollapsed') !== '0'; // collapsed by default unless user explicitly opened it
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 12;
       var ccCues = [];
