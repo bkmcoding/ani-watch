@@ -459,7 +459,7 @@ const watchController = async (c: Context) => {
     /* Auto-play next episode overlay */
     .ap-overlay {
       position: absolute; inset: 0; z-index: 7;
-      display: flex; align-items: flex-end; justify-content: flex-end;
+      display: none; align-items: flex-end; justify-content: flex-end;
       padding: 0 16px 72px; pointer-events: none;
     }
     .ap-overlay:not([hidden]) { display: flex; }
@@ -1479,7 +1479,13 @@ const watchController = async (c: Context) => {
           opt.textContent = h ? h + 'p' : (lvl.bitrate ? Math.round(lvl.bitrate / 1000) + ' kbps' : 'Level ' + i);
           quality.appendChild(opt);
         });
-        quality.value = String(hls.autoLevelEnabled ? -1 : hls.currentLevel);
+        // Restore manual level if user already picked one this session
+        if (qualityManual >= 0 && qualityManual < hls.levels.length) {
+          hls.currentLevel = qualityManual;
+          quality.value = String(qualityManual);
+        } else {
+          quality.value = String(hls.autoLevelEnabled ? -1 : hls.currentLevel);
+        }
       }
 
       function destroyHls() {
@@ -1575,23 +1581,11 @@ const watchController = async (c: Context) => {
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, function () {
             hlsNetworkRetries = 0;
-            // Populate quality select
-            try {
-              quality.innerHTML = '<option value="-1">Auto</option>';
-              hls.levels.forEach(function (lvl, i) {
-                var opt = document.createElement('option');
-                opt.value = String(i);
-                var label = lvl.height ? lvl.height + 'p' : ('Level ' + (i + 1));
-                if (lvl.bitrate) label += ' (' + Math.round(lvl.bitrate / 1000) + 'k)';
-                opt.textContent = label;
-                quality.appendChild(opt);
-              });
-              if (qualityManual >= 0 && qualityManual < hls.levels.length) {
-                quality.value = String(qualityManual);
-                hls.currentLevel = qualityManual;
-              }
-            } catch (e) {}
-            finishReady();
+            // Restore manual quality level if user already picked one
+            if (qualityManual >= 0 && qualityManual < hls.levels.length) {
+              hls.currentLevel = qualityManual;
+            }
+            finishReady(); // fillQuality() is called inside finishReady
           });
           hls.on(Hls.Events.ERROR, function (_e, data) {
             if (!data || !data.fatal) return;
@@ -1980,7 +1974,7 @@ const watchController = async (c: Context) => {
         var apCancel = document.getElementById('apCancel');
         if (apNow) {
           apNow.addEventListener('click', function () {
-            clearInterval(autoplayTimer);
+            if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
             var nextHref = document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
             if (nextHref) location.href = nextHref;
           });
@@ -1988,9 +1982,9 @@ const watchController = async (c: Context) => {
         if (apCancel) {
           apCancel.addEventListener('click', function () {
             autoplayCancelled = true;
-            clearInterval(autoplayTimer);
+            if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
             var overlay = document.getElementById('autoplayOverlay');
-            if (overlay) overlay.hidden = true;
+            if (overlay) overlay.setAttribute('hidden', '');
           });
         }
       })();
@@ -2041,6 +2035,9 @@ const watchController = async (c: Context) => {
         renderCcAt(video.currentTime || 0);
       });
       video.addEventListener('ended', function () {
+        // Guard: ignore spurious 'ended' events fired during track switches
+        // (video.load() can reset duration to 0 and briefly fire ended)
+        if (!isFinite(video.duration) || video.duration < 5) return;
         cwRemove(); // finished — remove from continue watching
         // Mark watched
         if (animeId && currentEpNum) {
@@ -2053,23 +2050,25 @@ const watchController = async (c: Context) => {
           } catch (e) {}
         }
         // Auto-play next episode
-        var nextHref = (document.getElementById('nextEpBar') || {}).getAttribute && document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
+        var nextHref = document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
         if (!nextHref) return;
+        // Clear any previous timer before starting a new one
+        if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
         autoplayCancelled = false;
         var overlay = document.getElementById('autoplayOverlay');
         if (!overlay) return;
         var countEl = overlay.querySelector('.ap-count');
         var secs = 12;
-        overlay.hidden = false;
+        overlay.removeAttribute('hidden');
         if (countEl) countEl.textContent = String(secs);
         autoplayTimer = setInterval(function () {
-          if (autoplayCancelled) { clearInterval(autoplayTimer); overlay.hidden = true; return; }
           secs--;
           if (countEl) countEl.textContent = String(secs);
-          if (secs <= 0) {
+          if (autoplayCancelled || secs <= 0) {
             clearInterval(autoplayTimer);
-            overlay.hidden = true;
-            location.href = nextHref;
+            autoplayTimer = null;
+            overlay.setAttribute('hidden', '');
+            if (!autoplayCancelled) location.href = nextHref;
           }
         }, 1000);
       });
