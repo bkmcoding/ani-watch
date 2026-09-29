@@ -1274,20 +1274,39 @@ const watchController = async (c: Context) => {
         }
 
         if (window.Hls && Hls.isSupported()) {
+          var hlsNetworkRetries = 0;
           hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
             startLevel: -1,
+            // Prevent live-stream playlist polling on VOD content
+            liveDurationInfinity: false,
+            // Cap buffer to avoid filling RAM with segments
+            maxBufferLength: 60,
+            maxMaxBufferLength: 120,
+            backBufferLength: 30,
+            // Limit retries so a flaky CDN doesn't spam the Worker indefinitely
+            manifestLoadingMaxRetry: 2,
+            levelLoadingMaxRetry: 2,
+            fragLoadingMaxRetry: 3,
+            manifestLoadingRetryDelay: 1000,
+            levelLoadingRetryDelay: 1000,
+            fragLoadingRetryDelay: 1000,
           });
           hls.loadSource(src);
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            hlsNetworkRetries = 0;
             finishReady();
           });
           hls.on(Hls.Events.ERROR, function (_e, data) {
             if (!data || !data.fatal) return;
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              try { hls.startLoad(); return; } catch (e) {}
+              // Cap manual recovery attempts — don't loop forever on a dead CDN
+              if (hlsNetworkRetries < 2) {
+                hlsNetworkRetries++;
+                try { hls.startLoad(); return; } catch (e) {}
+              }
             }
             fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try the other track.');
           });
