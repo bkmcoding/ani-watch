@@ -1412,28 +1412,25 @@ function requestOrigin(c) {
   if (!local && proto === "http") proto = "https";
   return `${proto}://${host}`;
 }
-var ALLOWED_HOST_SUFFIXES = [
-  "megaplay.buzz",
-  "megap.buzz",
-  "megaplayx.buzz",
-  "megapcdn.buzz",
-  "shiora.top",
-  "akirax.buzz",
-  "tiktokcdn.com",
-  "tiktokcdn-us.com",
-  "hiddenvertex.top",
-  "aniwatchtv.uk",
-  "zokoanime.video",
-  // Broader CDN patterns used by MegaPlay for newer content
-  "aniwatch.cc",
-  "aniwatchtv.to"
+var BLOCKED_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^0\./,
+  /^10\./,
+  /^192\.168\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^169\.254\./,
+  // link-local / AWS metadata
+  /^::1$/,
+  /^fc00:/i,
+  /^fe80:/i,
+  /^0\.0\.0\.0$/,
+  /\.local$/i,
+  /\.internal$/i
 ];
 function isAllowedStreamHost(hostname) {
   const host = hostname.toLowerCase();
-  if (host.endsWith(".buzz") || host === "buzz") return true;
-  if (host.startsWith("megap.")) return true;
-  if (host.startsWith("hls") && host.includes("aniwatchtv")) return true;
-  return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
+  return !BLOCKED_HOST_PATTERNS.some((re) => re.test(host));
 }
 function refererForStreamUrl(url) {
   try {
