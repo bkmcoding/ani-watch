@@ -16,15 +16,26 @@ export interface Env {
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
-const STREAM_HOST_SUFFIXES = [
-  'megaplay.buzz',
-  'shiora.top',
-  'akirax.buzz',
-  'tiktokcdn.com',
-  'tiktokcdn-us.com',
-  'hiddenvertex.top',
-  'aniwatchtv.uk',
-  'zokoanime.video',
+/**
+ * SSRF guard for stream URLs: block private/reserved ranges only.
+ * We use a blocklist (not an allowlist) so CDN rotations never break playback.
+ * MegaPlay/Zoko rotate CDN hostnames regularly; maintaining an allowlist
+ * requires a redeployment every time they do.
+ */
+const BLOCKED_STREAM_HOST_PATTERNS: RegExp[] = [
+  /^localhost$/i,
+  /^127\./,
+  /^0\./,
+  /^10\./,
+  /^192\.168\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^169\.254\./, // link-local / AWS metadata
+  /^::1$/,
+  /^fc00:/i,
+  /^fe80:/i,
+  /^0\.0\.0\.0$/,
+  /\.local$/i,
+  /\.internal$/i,
 ];
 
 const POSTER_HOST_SUFFIXES = [
@@ -38,9 +49,7 @@ const POSTER_HOST_SUFFIXES = [
 
 function isAllowedStreamHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
-  if (host.startsWith('megap.')) return true;
-  if (host.startsWith('hls') && host.includes('aniwatchtv')) return true;
-  return STREAM_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s));
+  return !BLOCKED_STREAM_HOST_PATTERNS.some((re) => re.test(host));
 }
 
 function isAllowedPosterHost(hostname: string): boolean {
