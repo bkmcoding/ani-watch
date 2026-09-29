@@ -177,7 +177,10 @@ const watchController = async (c: Context) => {
     providers.dub ||
     activeProviderParam;
   const initialProviderLabel = providerDisplayName(initialProvider);
-  const hasBoth = Boolean(streams.sub && streams.dub);
+  const hasSub = Boolean(streams.sub);
+  const hasDub = Boolean(streams.dub);
+  const hasEither = hasSub || hasDub;
+  const hasBoth = hasSub && hasDub;
   const hasAnyCc = Boolean(captions.sub || captions.dub);
 
   const pageTitleParts = [SITE_NAME];
@@ -283,6 +286,11 @@ const watchController = async (c: Context) => {
     }
     .pill:hover { color: var(--ink); }
     .pill.is-active { background: var(--accent-dim); color: var(--accent); }
+    .pill:disabled, .pill[aria-disabled="true"] {
+      opacity: 0.38;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
     .pill.nav-pill {
       background: var(--accent-dim);
       color: var(--accent);
@@ -615,9 +623,9 @@ const watchController = async (c: Context) => {
           <a class="pill nav-pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'}>← Prev</a>
           <a class="pill nav-pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'}>Next →</a>
         </div>
-        <div class="pill-toggle" id="audioToggle" ${hasBoth ? '' : 'hidden'}>
-          <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${streams.sub ? '' : 'hidden'}>Sub</button>
-          <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${streams.dub ? '' : 'hidden'}>Dub</button>
+        <div class="pill-toggle" id="audioToggle" ${hasEither ? '' : 'hidden'}>
+          <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${!hasSub ? 'disabled aria-disabled="true" title="Subtitled version unavailable"' : ''}>Sub</button>
+          <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ''}>Dub</button>
         </div>
         <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? '' : 'hidden'}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? '' : 'hidden'} aria-pressed="false">CC</button>
@@ -651,11 +659,11 @@ const watchController = async (c: Context) => {
         <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
           <div class="menu-section">
             <h3>Audio</h3>
-            <div class="pill-toggle" id="audioToggleMenu" ${hasBoth ? '' : 'hidden'} style="width:100%;justify-content:stretch">
-              <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" style="flex:1" ${streams.sub ? '' : 'hidden'}>Sub</button>
-              <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${streams.dub ? '' : 'hidden'}>Dub</button>
+            <div class="pill-toggle" id="audioToggleMenu" ${hasEither ? '' : 'hidden'} style="width:100%;justify-content:stretch">
+              <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" style="flex:1" ${!hasSub ? 'disabled aria-disabled="true" title="Subtitled version unavailable"' : ''}>Sub</button>
+              <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ''}>Dub</button>
             </div>
-            <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">Only one audio track is available for this episode.</p>
+            <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">${!hasSub ? 'Sub not available for this episode.' : !hasDub ? 'Dub not available for this episode.' : 'Only one audio track is available for this episode.'}</p>
           </div>
           <div class="menu-section" ${hasNav || hasAnime ? '' : 'hidden'}>
             <h3>Episodes</h3>
@@ -752,7 +760,7 @@ const watchController = async (c: Context) => {
 
     <p class="err" id="err" hidden></p>
     <footer>
-      <span>${SITE_NAME} · by wab · Sub/Dub · CC · Episodes · Prev/Next<br />${NOTICE_SHORT}</span>
+      <span>${SITE_NAME} · by wab · Sub/Dub · CC · Episodes · Prev/Next<span id="footerProvider">${initialProviderLabel ? ` · ${escAttr(initialProviderLabel)}` : ''}</span><br />${NOTICE_SHORT}</span>
       <a href="/browse">Browse</a>
     </footer>
   </div>
@@ -1174,10 +1182,13 @@ const watchController = async (c: Context) => {
         if (!label) {
           providerBadge.hidden = true;
           providerBadge.textContent = '';
-          return;
+        } else {
+          providerBadge.hidden = false;
+          providerBadge.textContent = label;
         }
-        providerBadge.hidden = false;
-        providerBadge.textContent = label;
+        // Also update the footer subtext
+        var footerProv = document.getElementById('footerProvider');
+        if (footerProv) footerProv.textContent = label ? ' · ' + label : '';
       }
 
       function fillQuality() {
@@ -1315,13 +1326,47 @@ const watchController = async (c: Context) => {
         setEpPanel(!(epPanel && epPanel.classList.contains('is-open')));
       }
 
-      function playEpisodeId(episodeId) {
+      function playEpisodeId(episodeId, btn) {
         if (!episodeId) return;
+        // Mark as loading
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+        }
         var params = new URLSearchParams({
           animeEpisodeId: String(episodeId).replace(/::/g, '?'),
           category: playCategory === 'dub' ? 'dub' : 'sub',
         });
-        location.href = '/api/v2/hianime/watch/play?' + params.toString();
+        // Preflight — check if the episode is actually playable before navigating.
+        // /watch/play returns 302 on success; on failure it returns 4xx/5xx JSON.
+        fetch('/api/v2/hianime/watch/play?' + params.toString(), { redirect: 'manual' })
+          .then(function (r) {
+            if (r.type === 'opaqueredirect' || (r.status >= 200 && r.status < 400)) {
+              // Success — navigate
+              location.href = '/api/v2/hianime/watch/play?' + params.toString();
+            } else {
+              // Unavailable — grey out the button permanently in this session
+              if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.4';
+                btn.style.cursor = 'not-allowed';
+                btn.title = 'Episode unavailable';
+                var nEl = btn.querySelector('.ep-n');
+                if (nEl) nEl.style.color = 'var(--danger)';
+                // Store in sessionStorage so it persists while the panel is open
+                try {
+                  var key = 'ani.unavail.' + animeId;
+                  var set = JSON.parse(sessionStorage.getItem(key) || '[]');
+                  if (set.indexOf(String(episodeId)) < 0) set.push(String(episodeId));
+                  sessionStorage.setItem(key, JSON.stringify(set));
+                } catch (e) {}
+              }
+            }
+          })
+          .catch(function () {
+            // Network error — just navigate anyway (may recover)
+            location.href = '/api/v2/hianime/watch/play?' + params.toString();
+          });
       }
 
       function readEpsCache() {
@@ -1362,6 +1407,11 @@ const watchController = async (c: Context) => {
         epList.innerHTML = '';
         var cur = currentEpNum != null ? String(currentEpNum) : '';
         var currentEl = null;
+        // Restore any previously detected unavailable episodes
+        var unavailSet = [];
+        try {
+          if (animeId) unavailSet = JSON.parse(sessionStorage.getItem('ani.unavail.' + animeId) || '[]');
+        } catch (e) {}
         episodes.forEach(function (ep) {
           if (!ep || !ep.id) return;
           var btn = document.createElement('button');
@@ -1376,11 +1426,23 @@ const watchController = async (c: Context) => {
             '<span class="ep-n">' + (n || '—') + '</span>' +
             '<span class="ep-t"></span>';
           btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
-          btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            playEpisodeId(ep.id);
-          });
+          // Restore unavailable state
+          if (unavailSet.indexOf(String(ep.id)) >= 0) {
+            btn.disabled = true;
+            btn.style.opacity = '0.4';
+            btn.style.cursor = 'not-allowed';
+            btn.title = 'Episode unavailable';
+            var nEl = btn.querySelector('.ep-n');
+            if (nEl) nEl.style.color = 'var(--danger)';
+          }
+          (function (epId, epBtn) {
+            epBtn.addEventListener('click', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (epBtn.disabled) return;
+              playEpisodeId(epId, epBtn);
+            });
+          })(ep.id, btn);
           epList.appendChild(btn);
         });
         if (currentEl && typeof currentEl.scrollIntoView === 'function') {

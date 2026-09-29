@@ -24,7 +24,6 @@ import { titleFromAnimeSlug } from '../lib/brand';
 import { scrapeCache } from '../lib/ttlCache';
 
 const STREAM_TTL_MS = 180_000; // 3 minutes
-const OTHER_CATEGORY_BUDGET_MS = 3_500;
 
 type ResolvedTrack = {
   category: 'sub' | 'dub';
@@ -298,17 +297,23 @@ export async function resolveEpisodePlayback(
   const neighborsPromise =
     wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
 
-  // Resolve requested category first (main latency win).
-  const primary = hasPreferred
-    ? await resolveCategory(servers, preferred, server, episodeId)
-    : null;
+  // Start ALL three fetches in parallel — the secondary track and neighbors
+  // used to run after primary finished, eating their entire budget. Now primary
+  // and secondary race together; we just await primary first to get the redirect
+  // target, then collect secondary and neighbors together.
+  const SECONDARY_BUDGET_MS = 6_000;
 
-  // Best-effort other category + neighbors with a short budget (don't block playback).
-  const [secondary, neighbors] = await Promise.all([
-    hasOther
-      ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS)
-      : Promise.resolve(null),
-    withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS),
+  const primaryPromise = hasPreferred
+    ? resolveCategory(servers, preferred, server, episodeId)
+    : Promise.resolve(null);
+  const secondaryPromise = hasOther
+    ? withTimeout(resolveCategory(servers, other, server, episodeId), SECONDARY_BUDGET_MS)
+    : Promise.resolve(null);
+
+  const [primary, secondary, neighbors] = await Promise.all([
+    primaryPromise,
+    secondaryPromise,
+    withTimeout(neighborsPromise, SECONDARY_BUDGET_MS),
   ]);
 
   const subTrack = preferred === 'sub' ? primary : secondary;
