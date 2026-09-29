@@ -1329,45 +1329,11 @@ const watchController = async (c: Context) => {
 
       function playEpisodeId(episodeId, btn) {
         if (!episodeId) return;
-        // Mark as loading
-        if (btn) {
-          btn.disabled = true;
-          btn.style.opacity = '0.5';
-        }
         var params = new URLSearchParams({
           animeEpisodeId: String(episodeId).replace(/::/g, '?'),
           category: playCategory === 'dub' ? 'dub' : 'sub',
         });
-        // Preflight — check if the episode is actually playable before navigating.
-        // /watch/play returns 302 on success; on failure it returns 4xx/5xx JSON.
-        fetch('/api/v2/hianime/watch/play?' + params.toString(), { redirect: 'manual' })
-          .then(function (r) {
-            if (r.type === 'opaqueredirect' || (r.status >= 200 && r.status < 400)) {
-              // Success — navigate
-              location.href = '/api/v2/hianime/watch/play?' + params.toString();
-            } else {
-              // Unavailable — grey out the button permanently in this session
-              if (btn) {
-                btn.disabled = true;
-                btn.style.opacity = '0.4';
-                btn.style.cursor = 'not-allowed';
-                btn.title = 'Episode unavailable';
-                var nEl = btn.querySelector('.ep-n');
-                if (nEl) nEl.style.color = 'var(--danger)';
-                // Store in sessionStorage so it persists while the panel is open
-                try {
-                  var key = 'ani.unavail.' + animeId;
-                  var set = JSON.parse(sessionStorage.getItem(key) || '[]');
-                  if (set.indexOf(String(episodeId)) < 0) set.push(String(episodeId));
-                  sessionStorage.setItem(key, JSON.stringify(set));
-                } catch (e) {}
-              }
-            }
-          })
-          .catch(function () {
-            // Network error — just navigate anyway (may recover)
-            location.href = '/api/v2/hianime/watch/play?' + params.toString();
-          });
+        location.href = '/api/v2/hianime/watch/play?' + params.toString();
       }
 
       function readEpsCache() {
@@ -1408,11 +1374,6 @@ const watchController = async (c: Context) => {
         epList.innerHTML = '';
         var cur = currentEpNum != null ? String(currentEpNum) : '';
         var currentEl = null;
-        // Restore any previously detected unavailable episodes
-        var unavailSet = [];
-        try {
-          if (animeId) unavailSet = JSON.parse(sessionStorage.getItem('ani.unavail.' + animeId) || '[]');
-        } catch (e) {}
         episodes.forEach(function (ep) {
           if (!ep || !ep.id) return;
           var btn = document.createElement('button');
@@ -1427,20 +1388,10 @@ const watchController = async (c: Context) => {
             '<span class="ep-n">' + (n || '—') + '</span>' +
             '<span class="ep-t"></span>';
           btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
-          // Restore unavailable state
-          if (unavailSet.indexOf(String(ep.id)) >= 0) {
-            btn.disabled = true;
-            btn.style.opacity = '0.4';
-            btn.style.cursor = 'not-allowed';
-            btn.title = 'Episode unavailable';
-            var nEl = btn.querySelector('.ep-n');
-            if (nEl) nEl.style.color = 'var(--danger)';
-          }
           (function (epId, epBtn) {
             epBtn.addEventListener('click', function (e) {
               e.preventDefault();
               e.stopPropagation();
-              if (epBtn.disabled) return;
               playEpisodeId(epId, epBtn);
             });
           })(ep.id, btn);
