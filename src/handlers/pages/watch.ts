@@ -11,12 +11,21 @@ import { faviconLinkTags, SITE_NAME, titleFromAnimeSlug } from '../../lib/brand'
 import { NOTICE_SHORT } from '../../lib/notices';
 import { vercelObservabilityScriptTags } from '../../lib/vercelObservability';
 
-function parseAllowedUrl(raw: string | undefined): string | null {
+function parseAllowedUrl(raw: string | undefined, requestUrl?: string): string | null {
   if (!raw) return null;
   try {
     const u = new URL(raw);
-    if (!/^https?:$/i.test(u.protocol) || !isAllowedStreamHost(u.hostname)) return null;
-    return u.href;
+    if (!/^https?:$/i.test(u.protocol)) return null;
+    // Allow CDN hosts directly
+    if (isAllowedStreamHost(u.hostname)) return u.href;
+    // Also allow same-origin HLS proxy URLs (sub/dub params now carry proxied URLs)
+    if (requestUrl) {
+      try {
+        const origin = new URL(requestUrl).origin;
+        if (u.origin === origin && u.pathname.startsWith('/api/v2/hianime/hls')) return u.href;
+      } catch { /* fall through */ }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -86,9 +95,10 @@ function providerDisplayName(id: string | null | undefined): string {
 }
 
 const watchController = async (c: Context) => {
-  const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
-  const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
-  const legacy = parseAllowedUrl(c.req.query('url') || undefined);
+  const reqUrl = c.req.url;
+  const subCdn = parseAllowedUrl(c.req.query('sub') || undefined, reqUrl);
+  const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined, reqUrl);
+  const legacy = parseAllowedUrl(c.req.query('url') || undefined, reqUrl);
   const subCcCdn = parseCcUrl(c.req.query('subCc') || undefined);
   const dubCcCdn = parseCcUrl(c.req.query('dubCc') || undefined);
   const preferredRaw = (c.req.query('t') || 'sub').toLowerCase();
