@@ -11,21 +11,16 @@ import { faviconLinkTags, SITE_NAME, titleFromAnimeSlug } from '../../lib/brand'
 import { NOTICE_SHORT } from '../../lib/notices';
 import { vercelObservabilityScriptTags } from '../../lib/vercelObservability';
 
-function parseAllowedUrl(raw: string | undefined, requestUrl?: string): string | null {
+function parseAllowedUrl(raw: string | undefined): string | null {
   if (!raw) return null;
   try {
     const u = new URL(raw);
     if (!/^https?:$/i.test(u.protocol)) return null;
-    // Allow CDN hosts directly
-    if (isAllowedStreamHost(u.hostname)) return u.href;
-    // Also allow same-origin HLS proxy URLs (sub/dub params now carry proxied URLs)
-    if (requestUrl) {
-      try {
-        const origin = new URL(requestUrl).origin;
-        if (u.origin === origin && u.pathname.startsWith('/api/v2/hianime/hls')) return u.href;
-      } catch { /* fall through */ }
+    if (!isAllowedStreamHost(u.hostname)) {
+      console.error('[watch] parseAllowedUrl: rejected host', u.hostname, 'from URL', raw.slice(0, 120));
+      return null;
     }
-    return null;
+    return u.href;
   } catch {
     return null;
   }
@@ -95,10 +90,9 @@ function providerDisplayName(id: string | null | undefined): string {
 }
 
 const watchController = async (c: Context) => {
-  const reqUrl = c.req.url;
-  const subCdn = parseAllowedUrl(c.req.query('sub') || undefined, reqUrl);
-  const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined, reqUrl);
-  const legacy = parseAllowedUrl(c.req.query('url') || undefined, reqUrl);
+  const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
+  const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
+  const legacy = parseAllowedUrl(c.req.query('url') || undefined);
   const subCcCdn = parseCcUrl(c.req.query('subCc') || undefined);
   const dubCcCdn = parseCcUrl(c.req.query('dubCc') || undefined);
   const preferredRaw = (c.req.query('t') || 'sub').toLowerCase();
@@ -1355,10 +1349,7 @@ const watchController = async (c: Context) => {
               // Success — navigate
               location.href = '/api/v2/hianime/watch/play?' + params.toString();
             } else {
-              // Unavailable — grey out the button for this page load only.
-              // Do NOT persist to sessionStorage: a transient upstream failure
-              // would permanently disable episodes across navigations until the
-              // user manually clears storage, which is far worse UX than a retry.
+              // Unavailable — grey out the button permanently in this session
               if (btn) {
                 btn.disabled = true;
                 btn.style.opacity = '0.4';
@@ -1366,6 +1357,13 @@ const watchController = async (c: Context) => {
                 btn.title = 'Episode unavailable';
                 var nEl = btn.querySelector('.ep-n');
                 if (nEl) nEl.style.color = 'var(--danger)';
+                // Store in sessionStorage so it persists while the panel is open
+                try {
+                  var key = 'ani.unavail.' + animeId;
+                  var set = JSON.parse(sessionStorage.getItem(key) || '[]');
+                  if (set.indexOf(String(episodeId)) < 0) set.push(String(episodeId));
+                  sessionStorage.setItem(key, JSON.stringify(set));
+                } catch (e) {}
               }
             }
           })
@@ -1413,6 +1411,11 @@ const watchController = async (c: Context) => {
         epList.innerHTML = '';
         var cur = currentEpNum != null ? String(currentEpNum) : '';
         var currentEl = null;
+        // Restore any previously detected unavailable episodes
+        var unavailSet = [];
+        try {
+          if (animeId) unavailSet = JSON.parse(sessionStorage.getItem('ani.unavail.' + animeId) || '[]');
+        } catch (e) {}
         episodes.forEach(function (ep) {
           if (!ep || !ep.id) return;
           var btn = document.createElement('button');
@@ -1427,6 +1430,15 @@ const watchController = async (c: Context) => {
             '<span class="ep-n">' + (n || '—') + '</span>' +
             '<span class="ep-t"></span>';
           btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
+          // Restore unavailable state
+          if (unavailSet.indexOf(String(ep.id)) >= 0) {
+            btn.disabled = true;
+            btn.style.opacity = '0.4';
+            btn.style.cursor = 'not-allowed';
+            btn.title = 'Episode unavailable';
+            var nEl = btn.querySelector('.ep-n');
+            if (nEl) nEl.style.color = 'var(--danger)';
+          }
           (function (epId, epBtn) {
             epBtn.addEventListener('click', function (e) {
               e.preventDefault();

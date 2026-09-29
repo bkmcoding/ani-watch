@@ -35,7 +35,7 @@ var NotFoundError = class extends AppError {
   }
 };
 var validationError = class extends AppError {
-  constructor(message = "validaion failed", details = null) {
+  constructor(message = "validation failed", details = null) {
     super(message, 400, details);
   }
 };
@@ -158,7 +158,8 @@ var axiosInstance = async (endpoint, options = {}) => {
         clearTimeout(timeoutId);
         if (response.status === 429) {
           const retryAfter = response.headers.get("retry-after");
-          const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1e3 : RETRY_DELAY * 2;
+          const parsed = retryAfter ? parseInt(retryAfter, 10) : NaN;
+          const waitTime = Number.isFinite(parsed) && parsed > 0 ? parsed * 1e3 : RETRY_DELAY * 2;
           await sleep(waitTime);
           continue;
         }
@@ -1413,16 +1414,23 @@ function requestOrigin(c) {
 }
 var ALLOWED_HOST_SUFFIXES = [
   "megaplay.buzz",
+  "megap.buzz",
+  "megaplayx.buzz",
+  "megapcdn.buzz",
   "shiora.top",
   "akirax.buzz",
   "tiktokcdn.com",
   "tiktokcdn-us.com",
   "hiddenvertex.top",
   "aniwatchtv.uk",
-  "zokoanime.video"
+  "zokoanime.video",
+  // Broader CDN patterns used by MegaPlay for newer content
+  "aniwatch.cc",
+  "aniwatchtv.to"
 ];
 function isAllowedStreamHost(hostname) {
   const host = hostname.toLowerCase();
+  if (host.endsWith(".buzz") || host === "buzz") return true;
   if (host.startsWith("megap.")) return true;
   if (host.startsWith("hls") && host.includes("aniwatchtv")) return true;
   return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
@@ -1478,18 +1486,25 @@ function posterProxyBase(siteOrigin) {
   if (media) return `${media}/poster`;
   return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/poster`;
 }
+function vttProxyBase(siteOrigin) {
+  return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/vtt`;
+}
 function buildMediaProxyUrl(proxyBase, upstreamUrl) {
   return withMediaProxyAuth(`${proxyBase}?url=${encodeURIComponent(upstreamUrl)}`);
 }
 function proxiedHlsUrl(origin, m3u8) {
   return buildMediaProxyUrl(hlsProxyBase(origin), m3u8);
 }
+function proxiedVttUrl(origin, vttUrl) {
+  return buildMediaProxyUrl(vttProxyBase(origin), vttUrl);
+}
 function pickEnglishSubtitle(subs) {
   if (!subs?.length) return null;
-  const scored = subs.filter((s) => s.url && /^https?:\/\//i.test(s.url) && /\.vtt(\?|$)/i.test(s.url)).map((s) => {
+  const scored = subs.filter((s) => s.url && /^https?:\/\//i.test(s.url)).map((s) => {
     const lang = (s.lang || "").trim();
     let score = 0;
     if (/^(en|eng|english)([-_]|$)/i.test(lang) || /\benglish\b/i.test(lang)) score += 10;
+    if (/\.vtt(\?|$)/i.test(s.url)) score += 2;
     return { url: s.url, score };
   }).filter((s) => s.score >= 10).sort((a, b) => b.score - a.score);
   return scored[0]?.url || null;
@@ -1577,7 +1592,6 @@ function faviconLinkTags(origin) {
 
 // src/services/episodeSources.ts
 var STREAM_TTL_MS = 18e4;
-var OTHER_CATEGORY_BUDGET_MS = 3500;
 function pickMegaPlay(servers, category, server) {
   const picked = pickServer(servers, server, category);
   if (picked && /megaplay/i.test(picked.embedUrl)) return picked;
@@ -1749,10 +1763,13 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
   const hasPreferred = servers.some((s) => s.type === preferred);
   const hasOther = servers.some((s) => s.type === other);
   const neighborsPromise = wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
-  const primary = hasPreferred ? await resolveCategory(servers, preferred, server, episodeId) : null;
-  const [secondary, neighbors] = await Promise.all([
-    hasOther ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS) : Promise.resolve(null),
-    withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS)
+  const SECONDARY_BUDGET_MS = 6e3;
+  const primaryPromise = hasPreferred ? resolveCategory(servers, preferred, server, episodeId) : Promise.resolve(null);
+  const secondaryPromise = hasOther ? withTimeout(resolveCategory(servers, other, server, episodeId), SECONDARY_BUDGET_MS) : Promise.resolve(null);
+  const [primary, secondary, neighbors] = await Promise.all([
+    primaryPromise,
+    secondaryPromise,
+    withTimeout(neighborsPromise, SECONDARY_BUDGET_MS)
   ]);
   const subTrack = preferred === "sub" ? primary : secondary;
   const dubTrack = preferred === "dub" ? primary : secondary;
@@ -1830,7 +1847,7 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
       intro: track.stream.intro ?? null,
       outro: track.stream.outro ?? null,
       englishCc: enCc ? {
-        url: proxiedHlsUrl(origin, enCc),
+        url: proxiedVttUrl(origin, enCc),
         originalUrl: enCc
       } : null
     };
@@ -2142,6 +2159,48 @@ var posterProxyController = async (c) => {
 };
 var posterProxy_default = posterProxyController;
 
+// src/handlers/media/vttProxy.ts
+var UA3 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+var vttProxyController = async (c) => {
+  if (!mediaProxyAuthOk(c.req.query("k") || void 0)) {
+    throw new validationError("invalid or missing media proxy key");
+  }
+  const target = c.req.query("url");
+  if (!target) throw new validationError("url is required");
+  let parsed;
+  try {
+    parsed = new URL(target);
+  } catch {
+    throw new validationError("url must be absolute");
+  }
+  if (parsed.protocol !== "https:") {
+    throw new validationError("only https:// subtitle URLs are allowed");
+  }
+  const upstream = await fetch(parsed.href, {
+    headers: {
+      "User-Agent": UA3,
+      Accept: "text/vtt, text/plain, */*"
+    },
+    redirect: "follow",
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!upstream.ok) {
+    return c.text(`Upstream ${upstream.status}`, 502);
+  }
+  const text = await upstream.text();
+  const isAss = /\.ass(\?|$)/i.test(parsed.pathname);
+  const contentType = isAss ? "text/plain; charset=utf-8" : "text/vtt; charset=utf-8";
+  return new Response(text, {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=600",
+      "Access-Control-Allow-Origin": "*"
+    }
+  });
+};
+var vttProxy_default = vttProxyController;
+
 // src/lib/notices.ts
 var NOTICE_SHORT = "Unofficial \xB7 educational \xB7 no media hosted";
 var NOTICE_API = "Unofficial educational demo. Does not host media; grants no rights. Use at your own risk.";
@@ -2165,7 +2224,22 @@ function parseAllowedUrl(raw) {
   if (!raw) return null;
   try {
     const u = new URL(raw);
-    if (!/^https?:$/i.test(u.protocol) || !isAllowedStreamHost(u.hostname)) return null;
+    if (!/^https?:$/i.test(u.protocol)) return null;
+    if (!isAllowedStreamHost(u.hostname)) {
+      console.error("[watch] parseAllowedUrl: rejected host", u.hostname, "from URL", raw.slice(0, 120));
+      return null;
+    }
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+function parseCcUrl(raw) {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return null;
+    if (!u.hostname || u.hostname.length < 3) return null;
     return u.href;
   } catch {
     return null;
@@ -2209,8 +2283,8 @@ var watchController = async (c) => {
   const subCdn = parseAllowedUrl(c.req.query("sub") || void 0);
   const dubCdn = parseAllowedUrl(c.req.query("dub") || void 0);
   const legacy = parseAllowedUrl(c.req.query("url") || void 0);
-  const subCcCdn = parseAllowedUrl(c.req.query("subCc") || void 0);
-  const dubCcCdn = parseAllowedUrl(c.req.query("dubCc") || void 0);
+  const subCcCdn = parseCcUrl(c.req.query("subCc") || void 0);
+  const dubCcCdn = parseCcUrl(c.req.query("dubCc") || void 0);
   const preferredRaw = (c.req.query("t") || "sub").toLowerCase();
   const animeTitle = c.req.query("title")?.trim() || titleFromAnimeSlug(c.req.query("anime") || void 0);
   const animeId = (c.req.query("anime") || "").trim() || null;
@@ -2261,8 +2335,8 @@ var watchController = async (c) => {
     dub: resolvedDub ? proxiedHlsUrl(origin, resolvedDub) : null
   };
   const captions = {
-    sub: subCcCdn ? proxiedHlsUrl(origin, subCcCdn) : null,
-    dub: dubCcCdn ? proxiedHlsUrl(origin, dubCcCdn) : null
+    sub: subCcCdn ? proxiedVttUrl(origin, subCcCdn) : null,
+    dub: dubCcCdn ? proxiedVttUrl(origin, dubCcCdn) : null
   };
   const skips = {
     sub: { intro: subIntro, outro: subOutro },
@@ -2278,7 +2352,10 @@ var watchController = async (c) => {
   }
   const initialProvider = (initial === "dub" ? providers.dub : providers.sub) || providers.sub || providers.dub || activeProviderParam;
   const initialProviderLabel = providerDisplayName(initialProvider);
-  const hasBoth = Boolean(streams.sub && streams.dub);
+  const hasSub = Boolean(streams.sub);
+  const hasDub = Boolean(streams.dub);
+  const hasEither = hasSub || hasDub;
+  const hasBoth = hasSub && hasDub;
   const hasAnyCc = Boolean(captions.sub || captions.dub);
   const pageTitleParts = [SITE_NAME];
   if (animeTitle && animeTitle !== SITE_NAME) pageTitleParts.unshift(animeTitle);
@@ -2382,6 +2459,11 @@ var watchController = async (c) => {
     }
     .pill:hover { color: var(--ink); }
     .pill.is-active { background: var(--accent-dim); color: var(--accent); }
+    .pill:disabled, .pill[aria-disabled="true"] {
+      opacity: 0.38;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
     .pill.nav-pill {
       background: var(--accent-dim);
       color: var(--accent);
@@ -2714,9 +2796,9 @@ var watchController = async (c) => {
           <a class="pill nav-pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? "" : "hidden"}>\u2190 Prev</a>
           <a class="pill nav-pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? "" : "hidden"}>Next \u2192</a>
         </div>
-        <div class="pill-toggle" id="audioToggle" ${hasBoth ? "" : "hidden"}>
-          <button type="button" class="pill ${initial === "sub" ? "is-active" : ""}" data-track="sub" ${streams.sub ? "" : "hidden"}>Sub</button>
-          <button type="button" class="pill ${initial === "dub" ? "is-active" : ""}" data-track="dub" ${streams.dub ? "" : "hidden"}>Dub</button>
+        <div class="pill-toggle" id="audioToggle" ${hasEither ? "" : "hidden"}>
+          <button type="button" class="pill ${initial === "sub" ? "is-active" : ""}" data-track="sub" ${!hasSub ? 'disabled aria-disabled="true" title="Subtitled version unavailable"' : ""}>Sub</button>
+          <button type="button" class="pill ${initial === "dub" ? "is-active" : ""}" data-track="dub" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ""}>Dub</button>
         </div>
         <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? "" : "hidden"}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? "" : "hidden"} aria-pressed="false">CC</button>
@@ -2750,11 +2832,11 @@ var watchController = async (c) => {
         <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
           <div class="menu-section">
             <h3>Audio</h3>
-            <div class="pill-toggle" id="audioToggleMenu" ${hasBoth ? "" : "hidden"} style="width:100%;justify-content:stretch">
-              <button type="button" class="pill ${initial === "sub" ? "is-active" : ""}" data-track="sub" style="flex:1" ${streams.sub ? "" : "hidden"}>Sub</button>
-              <button type="button" class="pill ${initial === "dub" ? "is-active" : ""}" data-track="dub" style="flex:1" ${streams.dub ? "" : "hidden"}>Dub</button>
+            <div class="pill-toggle" id="audioToggleMenu" ${hasEither ? "" : "hidden"} style="width:100%;justify-content:stretch">
+              <button type="button" class="pill ${initial === "sub" ? "is-active" : ""}" data-track="sub" style="flex:1" ${!hasSub ? 'disabled aria-disabled="true" title="Subtitled version unavailable"' : ""}>Sub</button>
+              <button type="button" class="pill ${initial === "dub" ? "is-active" : ""}" data-track="dub" style="flex:1" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ""}>Dub</button>
             </div>
-            <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? "display:none" : ""}">Only one audio track is available for this episode.</p>
+            <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? "display:none" : ""}">${!hasSub ? "Sub not available for this episode." : !hasDub ? "Dub not available for this episode." : "Only one audio track is available for this episode."}</p>
           </div>
           <div class="menu-section" ${hasNav || hasAnime ? "" : "hidden"}>
             <h3>Episodes</h3>
@@ -2851,7 +2933,7 @@ var watchController = async (c) => {
 
     <p class="err" id="err" hidden></p>
     <footer>
-      <span>${SITE_NAME} \xB7 by wab \xB7 Sub/Dub \xB7 CC \xB7 Episodes \xB7 Prev/Next<br />${NOTICE_SHORT}</span>
+      <span>${SITE_NAME} \xB7 by wab \xB7 Sub/Dub \xB7 CC \xB7 Episodes \xB7 Prev/Next<span id="footerProvider">${initialProviderLabel ? ` \xB7 ${escAttr(initialProviderLabel)}` : ""}</span><br />${NOTICE_SHORT}</span>
       <a href="/browse">Browse</a>
     </footer>
   </div>
@@ -3273,10 +3355,13 @@ var watchController = async (c) => {
         if (!label) {
           providerBadge.hidden = true;
           providerBadge.textContent = '';
-          return;
+        } else {
+          providerBadge.hidden = false;
+          providerBadge.textContent = label;
         }
-        providerBadge.hidden = false;
-        providerBadge.textContent = label;
+        // Also update the footer subtext
+        var footerProv = document.getElementById('footerProvider');
+        if (footerProv) footerProv.textContent = label ? ' \xB7 ' + label : '';
       }
 
       function fillQuality() {
@@ -3414,13 +3499,47 @@ var watchController = async (c) => {
         setEpPanel(!(epPanel && epPanel.classList.contains('is-open')));
       }
 
-      function playEpisodeId(episodeId) {
+      function playEpisodeId(episodeId, btn) {
         if (!episodeId) return;
+        // Mark as loading
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+        }
         var params = new URLSearchParams({
           animeEpisodeId: String(episodeId).replace(/::/g, '?'),
           category: playCategory === 'dub' ? 'dub' : 'sub',
         });
-        location.href = '/api/v2/hianime/watch/play?' + params.toString();
+        // Preflight \u2014 check if the episode is actually playable before navigating.
+        // /watch/play returns 302 on success; on failure it returns 4xx/5xx JSON.
+        fetch('/api/v2/hianime/watch/play?' + params.toString(), { redirect: 'manual' })
+          .then(function (r) {
+            if (r.type === 'opaqueredirect' || (r.status >= 200 && r.status < 400)) {
+              // Success \u2014 navigate
+              location.href = '/api/v2/hianime/watch/play?' + params.toString();
+            } else {
+              // Unavailable \u2014 grey out the button permanently in this session
+              if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.4';
+                btn.style.cursor = 'not-allowed';
+                btn.title = 'Episode unavailable';
+                var nEl = btn.querySelector('.ep-n');
+                if (nEl) nEl.style.color = 'var(--danger)';
+                // Store in sessionStorage so it persists while the panel is open
+                try {
+                  var key = 'ani.unavail.' + animeId;
+                  var set = JSON.parse(sessionStorage.getItem(key) || '[]');
+                  if (set.indexOf(String(episodeId)) < 0) set.push(String(episodeId));
+                  sessionStorage.setItem(key, JSON.stringify(set));
+                } catch (e) {}
+              }
+            }
+          })
+          .catch(function () {
+            // Network error \u2014 just navigate anyway (may recover)
+            location.href = '/api/v2/hianime/watch/play?' + params.toString();
+          });
       }
 
       function readEpsCache() {
@@ -3461,6 +3580,11 @@ var watchController = async (c) => {
         epList.innerHTML = '';
         var cur = currentEpNum != null ? String(currentEpNum) : '';
         var currentEl = null;
+        // Restore any previously detected unavailable episodes
+        var unavailSet = [];
+        try {
+          if (animeId) unavailSet = JSON.parse(sessionStorage.getItem('ani.unavail.' + animeId) || '[]');
+        } catch (e) {}
         episodes.forEach(function (ep) {
           if (!ep || !ep.id) return;
           var btn = document.createElement('button');
@@ -3475,11 +3599,23 @@ var watchController = async (c) => {
             '<span class="ep-n">' + (n || '\u2014') + '</span>' +
             '<span class="ep-t"></span>';
           btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
-          btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            playEpisodeId(ep.id);
-          });
+          // Restore unavailable state
+          if (unavailSet.indexOf(String(ep.id)) >= 0) {
+            btn.disabled = true;
+            btn.style.opacity = '0.4';
+            btn.style.cursor = 'not-allowed';
+            btn.title = 'Episode unavailable';
+            var nEl = btn.querySelector('.ep-n');
+            if (nEl) nEl.style.color = 'var(--danger)';
+          }
+          (function (epId, epBtn) {
+            epBtn.addEventListener('click', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (epBtn.disabled) return;
+              playEpisodeId(epId, epBtn);
+            });
+          })(ep.id, btn);
           epList.appendChild(btn);
         });
         if (currentEl && typeof currentEl.scrollIntoView === 'function') {
@@ -3800,7 +3936,7 @@ function normalizeEpisodeId2(raw) {
 }
 var watchEpisodesController = async (c) => {
   const anime = (c.req.query("anime") || c.req.query("id") || "").trim();
-  if (!anime || anime.length > 180 || /[\s<>"']/.test(anime)) {
+  if (!anime || anime.length > 180 || /[\s<>"'&]/.test(anime)) {
     throw new validationError("anime query param required (slug like one-piece-100)");
   }
   let idNum;
@@ -4051,7 +4187,6 @@ var filterController = async (c) => {
   const queryString = params.toString();
   const url = queryString ? `${endpoint}?${queryString}` : endpoint;
   const result = await axiosInstance(url);
-  console.log(result.message);
   if (!result.success || !result.data)
     throw new validationError(result.message || "something went wrong will queries");
   const response = extractListPage(result.data);
@@ -4126,10 +4261,8 @@ var news_default = newsController;
 // src/handlers/catalog/random.ts
 import * as cheerio2 from "cheerio";
 var randomController = async (_c) => {
-  console.log("Fetching random anime...");
   const result = await axiosInstance("/home");
   if (!result.success || !result.data) {
-    console.error("Random anime fetch failed:", result.message);
     throw new validationError(result.message || "Failed to fetch homepage for random selection");
   }
   const $ = cheerio2.load(result.data);
@@ -4299,6 +4432,16 @@ router.get("/hianime/hls", async (c) => {
     throw error;
   }
 });
+router.get("/hianime/vtt", async (c) => {
+  try {
+    return await vttProxy_default(c);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return fail(c, error.message, error.statusCode, error.details);
+    }
+    throw error;
+  }
+});
 router.get("/hianime/poster", async (c) => {
   try {
     return await posterProxy_default(c);
@@ -4333,10 +4476,39 @@ router.get("/hianime/watch", async (c) => {
   try {
     return await watch_default(c);
   } catch (error) {
-    if (error instanceof AppError) {
-      return fail(c, error.message, error.statusCode, error.details);
-    }
-    throw error;
+    const msg = error instanceof AppError ? error.message : error instanceof Error ? error.message : "Something went wrong loading this episode.";
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>ani.watch \u2014 Episode unavailable</title>
+  <style>
+    :root { --bg: #0a0c10; --ink: #e8edf5; --muted: #8b95a8; --accent: #3dd6c6; --danger: #ff7b72; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100dvh; background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; display: grid; place-items: center; }
+    .card { max-width: 480px; width: 90%; text-align: center; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.4rem; margin: 0 0 .75rem; color: var(--danger); }
+    p { color: var(--muted); font-size: .95rem; margin: 0 0 1.5rem; }
+    code { background: rgba(255,255,255,.07); padding: .15em .4em; border-radius: 6px; font-size: .88rem; word-break: break-all; }
+    a { color: var(--accent); text-decoration: none; font-weight: 600; border: 1px solid rgba(61,214,198,.35); padding: .55em 1.2em; border-radius: 999px; display: inline-block; }
+    a:hover { background: rgba(61,214,198,.15); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Episode unavailable</h1>
+    <p><code>${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></p>
+    <a href="/browse">\u2190 Back to browse</a>
+  </div>
+</body>
+</html>`;
+    const status = error instanceof AppError ? error.statusCode : 500;
+    return new Response(html, {
+      status,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
+    });
   }
 });
 router.get("/genres", handler_default(genres_default));
@@ -4357,7 +4529,7 @@ var landingController = async (c) => {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <title>${SITE_NAME}</title>
-  <meta name="description" content="Search anime and watch Sub/Dub streams \u2014 ${SITE_TAGLINE}" />
+  <meta name="description" content="Discover trending and new anime, then watch Sub/Dub streams \u2014 ${SITE_TAGLINE}" />
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -4503,14 +4675,15 @@ var landingController = async (c) => {
     <main class="hero">
       <h1 class="brand">ani<span>.</span>watch</h1>
       <p class="byline">by <em>wab</em></p>
-      <p class="lede">Search titles, pick an episode, and play Sub/Dub with captions \u2014 the same flow as the API, in the browser.</p>
+      <p class="lede">Browse trending and latest episodes, pick a title, and play Sub/Dub with captions \u2014 the same flow as the API, in the browser.</p>
       <div class="cta">
-        <a class="btn" href="/browse">Browse anime</a>
+        <a class="btn" href="/browse">Trending &amp; new</a>
+        <a class="btn ghost" href="/browse">Search titles</a>
         <a class="btn ghost" href="/api">API index</a>
       </div>
       <section class="panel">
         <h2>API access</h2>
-        <p>JSON routes under <code>/api/v2</code> need header <code>x-api-key</code>. Browse uses that key once (saved locally). Watch, play, and HLS stay public.</p>
+        <p>JSON routes under <code>/api/v2</code> need header <code>x-api-key</code>. Browse uses that key once (saved locally) to load Discover rails and category pages. Watch, play, and HLS stay public.</p>
       </section>
       <p class="lede-note">${NOTICE_SHORT}</p>
     </main>
@@ -4541,7 +4714,7 @@ var browseController = async (c) => {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <title>Browse \u2014 ${SITE_NAME}</title>
-  <meta name="description" content="Browse and watch anime on ${SITE_NAME}" />
+  <meta name="description" content="Discover trending anime, browse categories, and watch on ${SITE_NAME}" />
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -4695,6 +4868,72 @@ var browseController = async (c) => {
       justify-content: space-between;
       gap: 10px;
       flex-wrap: wrap;
+    }
+    .cat-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .cat-row .pill.is-active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: rgba(61,214,198,0.35);
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .pager .page-label {
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      min-width: 7rem;
+      text-align: center;
+    }
+    .rail-block { display: grid; gap: 10px; margin-bottom: 22px; }
+    .rail-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .rail-head h2 {
+      margin: 0;
+      font-family: Syne, sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .rail-head .hint-inline {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .rail {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 2px 2px 10px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .rail::-webkit-scrollbar { height: 6px; }
+    .rail::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.12);
+      border-radius: 999px;
+    }
+    .rail .card {
+      flex: 0 0 138px;
+      scroll-snap-align: start;
+      width: 138px;
+    }
+    @media (max-width: 560px) {
+      .rail .card { flex-basis: 120px; width: 120px; }
     }
     .crumbs {
       display: flex;
@@ -5018,16 +5257,31 @@ var browseController = async (c) => {
         </div>
         <p class="hint">Kept in sessionStorage \u2014 cleared when you close the tab. Only sent as <code>x-api-key</code> to this site.</p>
       </div>
+      <div>
+        <label class="field-label">Browse</label>
+        <div class="cat-row" id="catRow" role="tablist" aria-label="Browse categories">
+          <button type="button" class="pill is-active" data-cat="discover" data-label="Discover">Discover</button>
+          <button type="button" class="pill" data-cat="recently-updated" data-label="Recently updated">Updated</button>
+          <button type="button" class="pill" data-cat="recently-added" data-label="Recently added">New</button>
+          <button type="button" class="pill" data-cat="top-airing" data-label="Top airing">Airing</button>
+          <button type="button" class="pill" data-cat="most-popular" data-label="Most popular">Popular</button>
+          <button type="button" class="pill" data-cat="most-favorite" data-label="Most favorite">Favorite</button>
+          <button type="button" class="pill" data-cat="top-upcoming" data-label="Top upcoming">Upcoming</button>
+          <button type="button" class="pill" data-cat="movie" data-label="Movies">Movies</button>
+          <button type="button" class="pill" data-cat="tv" data-label="TV series">TV</button>
+          <button type="button" class="pill" data-cat="completed" data-label="Completed">Completed</button>
+        </div>
+      </div>
       <div class="meta-row">
-        <div class="crumbs" id="crumbs"><span>Search a title to begin</span></div>
+        <div class="crumbs" id="crumbs"><span>Discover loads with your API key</span></div>
         <p class="status" id="status"></p>
       </div>
     </div>
 
     <main id="main">
       <div class="empty">
-        <h2>Find something to watch</h2>
-        <p>Enter your API key once, then search. Posters load through our proxy \u2014 open an episode to launch the player.</p>
+        <h2>Discover &amp; browse</h2>
+        <p>Enter your API key once to load Trending, Latest episodes, and category pages \u2014 or search any title. Open an episode to launch the player.</p>
       </div>
     </main>
 
@@ -5037,16 +5291,28 @@ var browseController = async (c) => {
   <script>
     (function () {
       var KEY = 'ani.apiKey';
+      var RAIL_CAP = 18;
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
       var searchBtn = document.getElementById('searchBtn');
       var saveKey = document.getElementById('saveKey');
       var keyToggle = document.getElementById('keyToggle');
       var keyPanel = document.getElementById('keyPanel');
+      var catRow = document.getElementById('catRow');
       var main = document.getElementById('main');
       var statusEl = document.getElementById('status');
       var crumbs = document.getElementById('crumbs');
-      var state = { view: 'home', anime: null, lastAnimes: [] };
+      var state = {
+        view: 'discover',
+        anime: null,
+        lastAnimes: [],
+        source: 'discover',
+        listQuery: null,
+        listLabel: 'Discover',
+        listPage: 1,
+        pageInfo: null,
+        home: null,
+      };
       var POSTER_PROXY_BASE = ${JSON.stringify(posterProxy)};
       var POSTER_PROXY_KEY = ${JSON.stringify(posterKey)};
 
@@ -5065,6 +5331,7 @@ var browseController = async (c) => {
         persistKey();
         setStatus(apiKey.value.trim() ? 'API key saved for this tab' : 'API key cleared');
         keyPanel.classList.remove('is-open');
+        if (apiKey.value.trim()) loadDiscover();
       });
       keyToggle.addEventListener('click', function () {
         keyPanel.classList.toggle('is-open');
@@ -5073,6 +5340,19 @@ var browseController = async (c) => {
       function setStatus(msg, isErr) {
         statusEl.textContent = msg || '';
         statusEl.classList.toggle('is-err', !!isErr);
+      }
+
+      function requireKey(action) {
+        if (apiKey.value.trim()) return true;
+        keyPanel.classList.add('is-open');
+        setStatus('API key required' + (action ? ' for ' + action : '') + '.', true);
+        return false;
+      }
+
+      function setActiveCat(query) {
+        catRow.querySelectorAll('[data-cat]').forEach(function (btn) {
+          btn.classList.toggle('is-active', btn.getAttribute('data-cat') === query);
+        });
       }
 
       var FETCH_MS = 20000;
@@ -5123,6 +5403,24 @@ var browseController = async (c) => {
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;');
+      }
+
+      function normalizeAnime(a) {
+        if (!a) return null;
+        return {
+          id: a.id,
+          name: a.name || a.title || a.id,
+          jname: a.jname || a.alternativeTitle || null,
+          poster: a.poster || null,
+          duration: a.duration || null,
+          type: a.type || null,
+          episodes: a.episodes || {},
+          rank: a.rank || null,
+        };
+      }
+
+      function takeList(arr, cap) {
+        return (arr || []).map(normalizeAnime).filter(function (a) { return a && a.id; }).slice(0, cap || RAIL_CAP);
       }
 
       /** Normalize to absolute http(s) URL. */
@@ -5208,6 +5506,16 @@ var browseController = async (c) => {
         );
       }
 
+      function backCrumb() {
+        if (state.source === 'list') {
+          return { label: state.listLabel || 'Browse', action: 'list' };
+        }
+        if (state.source === 'search') {
+          return { label: 'Results', action: 'search' };
+        }
+        return { label: 'Discover', action: 'discover' };
+      }
+
       function setCrumbs(parts) {
         crumbs.innerHTML = parts.map(function (p) {
           if (p.action) {
@@ -5217,7 +5525,14 @@ var browseController = async (c) => {
         }).join('<span aria-hidden="true">/</span>');
         crumbs.querySelectorAll('[data-crumb]').forEach(function (btn) {
           btn.addEventListener('click', function () {
-            if (btn.getAttribute('data-crumb') === 'search') renderSearch(state.lastAnimes || []);
+            var action = btn.getAttribute('data-crumb');
+            if (action === 'search') renderSearch(state.lastAnimes || []);
+            else if (action === 'list') renderList(state.lastAnimes || [], state.pageInfo);
+            else if (action === 'discover') {
+              setActiveCat('discover');
+              if (state.home) renderDiscover(state.home);
+              else loadDiscover();
+            }
           });
         });
       }
@@ -5230,33 +5545,123 @@ var browseController = async (c) => {
         main.innerHTML = html + '</div>';
       }
 
-      function renderSearch(animes) {
-        state.view = 'search';
+      function animeCard(a) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'card';
+        var eps = a.episodes || {};
+        var ticks = '';
+        if (a.rank != null) ticks += '<span>#' + esc(a.rank) + '</span>';
+        if (a.type) ticks += '<span>' + esc(a.type) + '</span>';
+        if (eps.sub != null) ticks += '<span class="sub">SUB ' + esc(eps.sub) + '</span>';
+        if (eps.dub != null) ticks += '<span>DUB ' + esc(eps.dub) + '</span>';
+        if (eps.eps != null && eps.sub == null && eps.dub == null) {
+          ticks += '<span>EP ' + esc(eps.eps) + '</span>';
+        }
+        btn.innerHTML =
+          posterImg(a.poster, a.name) +
+          '<div class="meta"><div class="title">' + esc(a.name || a.id) + '</div>' +
+          '<div class="tick">' + ticks + '</div></div>';
+        btn.addEventListener('click', function () { loadEpisodes(a); });
+        return btn;
+      }
+
+      function fillGrid(grid, animes) {
+        animes.forEach(function (a) { grid.appendChild(animeCard(a)); });
+      }
+
+      function renderRail(title, items, hint) {
+        if (!items || !items.length) return '';
+        var wrap = document.createElement('section');
+        wrap.className = 'rail-block';
+        wrap.innerHTML =
+          '<div class="rail-head"><h2>' + esc(title) + '</h2>' +
+          (hint ? '<span class="hint-inline">' + esc(hint) + '</span>' : '') +
+          '</div><div class="rail"></div>';
+        var rail = wrap.querySelector('.rail');
+        fillGrid(rail, items);
+        return wrap;
+      }
+
+      function renderDiscover(home) {
+        state.view = 'discover';
+        state.source = 'discover';
+        state.anime = null;
+        state.home = home;
+        state.listQuery = null;
+        setActiveCat('discover');
+        setCrumbs([{ label: 'Discover' }]);
+        main.innerHTML = '';
+        var rails = [
+          renderRail('Trending', takeList(home.trending), 'Hot now'),
+          renderRail('Latest episodes', takeList(home.latestEpisode), 'Just dropped'),
+          renderRail('Newly added', takeList(home.newAdded), 'Fresh titles'),
+          renderRail('Top airing', takeList(home.topAiring)),
+          renderRail('Most popular', takeList(home.mostPopular)),
+        ].filter(Boolean);
+        if (!rails.length) {
+          main.innerHTML = '<div class="empty"><h2>Nothing to show</h2><p>Home catalog came back empty. Try a category or search.</p></div>';
+          return;
+        }
+        rails.forEach(function (el) { main.appendChild(el); });
+      }
+
+      function renderList(animes, pageInfo) {
+        state.view = 'list';
+        state.source = 'list';
         state.anime = null;
         state.lastAnimes = animes;
-        setCrumbs([{ label: animes.length + ' result' + (animes.length === 1 ? '' : 's') }]);
+        state.pageInfo = pageInfo || null;
+        setActiveCat(state.listQuery || 'discover');
+        var page = (pageInfo && pageInfo.currentPage) || state.listPage || 1;
+        var total = (pageInfo && pageInfo.totalPages) || null;
+        setCrumbs([
+          { label: 'Discover', action: 'discover' },
+          { label: (state.listLabel || 'Browse') + (total ? ' \xB7 p.' + page : '') },
+        ]);
+        if (!animes.length) {
+          main.innerHTML = '<div class="empty"><h2>No titles</h2><p>This category has nothing on this page.</p></div>';
+          return;
+        }
+        main.innerHTML = '<div class="grid" id="animeGrid"></div><div class="pager" id="pager"></div>';
+        fillGrid(document.getElementById('animeGrid'), animes);
+        var pager = document.getElementById('pager');
+        var hasPrev = page > 1;
+        var hasNext = pageInfo ? !!pageInfo.hasNextPage : false;
+        if (!hasPrev && !hasNext) {
+          pager.innerHTML = '<span class="page-label">Page ' + page + (total ? ' / ' + total : '') + '</span>';
+          return;
+        }
+        pager.innerHTML =
+          '<button type="button" class="btn ghost" id="prevPage"' + (hasPrev ? '' : ' disabled') + '>Previous</button>' +
+          '<span class="page-label">Page ' + page + (total ? ' / ' + total : '') + '</span>' +
+          '<button type="button" class="btn ghost" id="nextPage"' + (hasNext ? '' : ' disabled') + '>Next</button>';
+        var prev = document.getElementById('prevPage');
+        var next = document.getElementById('nextPage');
+        if (prev) prev.addEventListener('click', function () {
+          if (page > 1) loadList(state.listQuery, state.listLabel, page - 1);
+        });
+        if (next) next.addEventListener('click', function () {
+          if (hasNext) loadList(state.listQuery, state.listLabel, page + 1);
+        });
+      }
+
+      function renderSearch(animes) {
+        state.view = 'search';
+        state.source = 'search';
+        state.anime = null;
+        state.lastAnimes = animes;
+        setActiveCat(null);
+        setCrumbs([
+          { label: 'Discover', action: 'discover' },
+          { label: animes.length + ' result' + (animes.length === 1 ? '' : 's') },
+        ]);
         if (!animes.length) {
           main.innerHTML = '<div class="empty"><h2>No matches</h2><p>Try another spelling or a shorter keyword.</p></div>';
           return;
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div>';
-        var grid = document.getElementById('animeGrid');
-        animes.forEach(function (a) {
-          var btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'card';
-          var eps = a.episodes || {};
-          var ticks = '';
-          if (a.type) ticks += '<span>' + esc(a.type) + '</span>';
-          if (eps.sub != null) ticks += '<span class="sub">SUB ' + esc(eps.sub) + '</span>';
-          if (eps.dub != null) ticks += '<span>DUB ' + esc(eps.dub) + '</span>';
-          btn.innerHTML =
-            posterImg(a.poster, a.name) +
-            '<div class="meta"><div class="title">' + esc(a.name || a.id) + '</div>' +
-            '<div class="tick">' + ticks + '</div></div>';
-          btn.addEventListener('click', function () { loadEpisodes(a); });
-          grid.appendChild(btn);
-        });
+        fillGrid(document.getElementById('animeGrid'), animes.map(normalizeAnime).filter(Boolean));
       }
 
       function renderEpisodes(anime, payload, detail) {
@@ -5273,7 +5678,7 @@ var browseController = async (c) => {
         var posterFallbacks = [anime.poster, payload.poster, d.poster].filter(Boolean);
         var title = d.title || anime.name || anime.id;
         setCrumbs([
-          { label: 'Results', action: 'search' },
+          backCrumb(),
           { label: title },
         ]);
         if (!episodes.length) {
@@ -5424,17 +5829,64 @@ var browseController = async (c) => {
         });
       }
 
+      async function loadDiscover() {
+        if (!requireKey('discover')) return;
+        persistKey();
+        var seq = ++loadSeq;
+        setStatus('Loading discover\u2026');
+        showSkeleton(8);
+        try {
+          var data = await getJson('/api/v2/home');
+          if (seq !== loadSeq) return;
+          setStatus('Discover ready');
+          renderDiscover(data || {});
+        } catch (err) {
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Discover failed', true);
+          main.innerHTML = '<div class="empty"><h2>Discover failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
+        }
+      }
+
+      async function loadList(query, label, page) {
+        if (!query || query === 'discover') {
+          loadDiscover();
+          return;
+        }
+        if (!requireKey('browse')) return;
+        persistKey();
+        var seq = ++loadSeq;
+        state.listQuery = query;
+        state.listLabel = label || query;
+        state.listPage = page || 1;
+        setActiveCat(query);
+        setStatus('Loading ' + (label || query) + '\u2026');
+        showSkeleton(10);
+        try {
+          var path = '/api/v2/animes/' + encodeURIComponent(query) + '?page=' + encodeURIComponent(String(page || 1));
+          var data = await getJson(path);
+          if (seq !== loadSeq) return;
+          var animes = takeList((data && data.response) || [], 48);
+          var pageInfo = (data && data.pageInfo) || {
+            currentPage: page || 1,
+            hasNextPage: false,
+            totalPages: 1,
+          };
+          setStatus((animes.length || 0) + ' titles \xB7 page ' + (pageInfo.currentPage || page || 1));
+          renderList(animes, pageInfo);
+        } catch (err) {
+          if (seq !== loadSeq) return;
+          setStatus((err && err.message) || 'Browse failed', true);
+          main.innerHTML = '<div class="empty"><h2>Browse failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
+        }
+      }
+
       async function doSearch() {
         var keyword = q.value.trim();
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
-        if (!apiKey.value.trim()) {
-          keyPanel.classList.add('is-open');
-          setStatus('API key required for search.', true);
-          return;
-        }
+        if (!requireKey('search')) return;
         persistKey();
         var seq = ++loadSeq;
         searchBtn.disabled = true;
@@ -5524,11 +5976,22 @@ var browseController = async (c) => {
         try { ev.preventDefault(); } catch (e) {}
       });
 
+      catRow.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest('[data-cat]') : null;
+        if (!btn) return;
+        var query = btn.getAttribute('data-cat');
+        var label = btn.getAttribute('data-label') || query;
+        if (query === 'discover') loadDiscover();
+        else loadList(query, label, 1);
+      });
+
       searchBtn.addEventListener('click', doSearch);
       q.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') doSearch();
       });
-      q.focus();
+
+      if (apiKey.value.trim()) loadDiscover();
+      else q.focus();
     })();
   </script>
   ${vercelObservabilityScriptTags()}
@@ -5552,7 +6015,7 @@ app.use(
   "*",
   cors({
     origin: origins,
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Api-Key"],
     exposeHeaders: ["Content-Length", "X-Request-Id", "Cache-Control"],
     maxAge: 600,

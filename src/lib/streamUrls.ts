@@ -16,6 +16,7 @@ export function requestOrigin(c: Context): string {
 
 const ALLOWED_HOST_SUFFIXES = [
   'megaplay.buzz',
+  'megap.buzz',
   'megaplayx.buzz',
   'megapcdn.buzz',
   'shiora.top',
@@ -33,8 +34,9 @@ const ALLOWED_HOST_SUFFIXES = [
 /** CDN hosts used by MegaPlay / Zoko playlists and segments. */
 export function isAllowedStreamHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
-  // MegaPlay CDN prefix variants (megap.*, megapXXX.*)
-  if (host.startsWith('megap') && (host.includes('.buzz') || host.includes('.to') || host.includes('.cc'))) return true;
+  // MegaPlay uses many *.buzz CDN hostnames — allow the whole TLD
+  if (host.endsWith('.buzz') || host === 'buzz') return true;
+  if (host.startsWith('megap.')) return true;
   if (host.startsWith('hls') && host.includes('aniwatchtv')) return true;
   return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s));
 }
