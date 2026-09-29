@@ -16,7 +16,6 @@ export function requestOrigin(c: Context): string {
 
 const ALLOWED_HOST_SUFFIXES = [
   'megaplay.buzz',
-  'megap.buzz',
   'megaplayx.buzz',
   'megapcdn.buzz',
   'shiora.top',

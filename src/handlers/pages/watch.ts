@@ -1345,7 +1345,10 @@ const watchController = async (c: Context) => {
               // Success — navigate
               location.href = '/api/v2/hianime/watch/play?' + params.toString();
             } else {
-              // Unavailable — grey out the button permanently in this session
+              // Unavailable — grey out the button for this page load only.
+              // Do NOT persist to sessionStorage: a transient upstream failure
+              // would permanently disable episodes across navigations until the
+              // user manually clears storage, which is far worse UX than a retry.
               if (btn) {
                 btn.disabled = true;
                 btn.style.opacity = '0.4';
@@ -1353,13 +1356,6 @@ const watchController = async (c: Context) => {
                 btn.title = 'Episode unavailable';
                 var nEl = btn.querySelector('.ep-n');
                 if (nEl) nEl.style.color = 'var(--danger)';
-                // Store in sessionStorage so it persists while the panel is open
-                try {
-                  var key = 'ani.unavail.' + animeId;
-                  var set = JSON.parse(sessionStorage.getItem(key) || '[]');
-                  if (set.indexOf(String(episodeId)) < 0) set.push(String(episodeId));
-                  sessionStorage.setItem(key, JSON.stringify(set));
-                } catch (e) {}
               }
             }
           })
@@ -1407,11 +1403,6 @@ const watchController = async (c: Context) => {
         epList.innerHTML = '';
         var cur = currentEpNum != null ? String(currentEpNum) : '';
         var currentEl = null;
-        // Restore any previously detected unavailable episodes
-        var unavailSet = [];
-        try {
-          if (animeId) unavailSet = JSON.parse(sessionStorage.getItem('ani.unavail.' + animeId) || '[]');
-        } catch (e) {}
         episodes.forEach(function (ep) {
           if (!ep || !ep.id) return;
           var btn = document.createElement('button');
@@ -1426,15 +1417,6 @@ const watchController = async (c: Context) => {
             '<span class="ep-n">' + (n || '—') + '</span>' +
             '<span class="ep-t"></span>';
           btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
-          // Restore unavailable state
-          if (unavailSet.indexOf(String(ep.id)) >= 0) {
-            btn.disabled = true;
-            btn.style.opacity = '0.4';
-            btn.style.cursor = 'not-allowed';
-            btn.title = 'Episode unavailable';
-            var nEl = btn.querySelector('.ep-n');
-            if (nEl) nEl.style.color = 'var(--danger)';
-          }
           (function (epId, epBtn) {
             epBtn.addEventListener('click', function (e) {
               e.preventDefault();

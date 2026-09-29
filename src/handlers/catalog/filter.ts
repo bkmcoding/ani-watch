@@ -68,8 +68,6 @@ const filterController = async (c: Context): Promise<ListPageResponse> => {
 
   const result = await axiosInstance(url);
 
-  console.log(result.message);
-
   if (!result.success || !result.data)
     throw new validationError(result.message || 'something went wrong will queries');
   const response = extractListPage(result.data);

@@ -52,7 +52,10 @@ const axiosInstance = async (
 
         if (response.status === 429) {
           const retryAfter = response.headers.get('retry-after');
-          const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_DELAY * 2;
+          const parsed = retryAfter ? parseInt(retryAfter, 10) : NaN;
+          // Retry-After can be a delay in seconds OR an HTTP-date string.
+          // parseInt of a date string returns NaN — fall back to a safe default.
+          const waitTime = Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : RETRY_DELAY * 2;
           await sleep(waitTime);
           continue;
         }

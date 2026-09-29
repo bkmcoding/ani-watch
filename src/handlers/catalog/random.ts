@@ -4,11 +4,9 @@ import { validationError } from '../../lib/errors';
 import * as cheerio from 'cheerio';
 
 const randomController = async (_c: Context): Promise<{ id: string }> => {
-  console.log('Fetching random anime...');
   const result = await axiosInstance('/home');
 
   if (!result.success || !result.data) {
-    console.error('Random anime fetch failed:', result.message);
     throw new validationError(result.message || 'Failed to fetch homepage for random selection');
   }
 

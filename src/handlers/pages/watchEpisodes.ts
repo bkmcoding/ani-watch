@@ -14,7 +14,7 @@ function normalizeEpisodeId(raw: string | null): string | null {
  */
 const watchEpisodesController = async (c: Context) => {
   const anime = (c.req.query('anime') || c.req.query('id') || '').trim();
-  if (!anime || anime.length > 180 || /[\s<>"']/.test(anime)) {
+  if (!anime || anime.length > 180 || /[\s<>"'&]/.test(anime)) {
     throw new validationError('anime query param required (slug like one-piece-100)');
   }
 
