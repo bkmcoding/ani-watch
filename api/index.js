@@ -2507,6 +2507,7 @@ var watchController = async (c) => {
       width: 100%; height: 100%; display: block; background: #000;
       object-fit: contain; cursor: pointer;
     }
+    .stage.cursor-hidden, .stage.cursor-hidden video { cursor: none; }
     /* Hide any native cue chrome \u2014 we render CC ourselves */
     video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; }
     .cc-layer {
@@ -2628,7 +2629,7 @@ var watchController = async (c) => {
       pointer-events: auto;
     }
     .skip-btn:hover { background: rgba(61, 214, 198, 0.28); }
-    .stage:hover .skip-btn.is-visible, .stage.is-paused .skip-btn.is-visible,
+    .stage.is-paused .skip-btn.is-visible,
     .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
       opacity: 1;
     }
@@ -2648,7 +2649,7 @@ var watchController = async (c) => {
       transition: opacity 0.28s var(--ease), transform 0.28s var(--ease);
       z-index: 3;
     }
-    .stage:hover .controls, .stage.is-paused .controls,
+    .stage.is-paused .controls,
     .stage.show-controls .controls, .stage:focus-within .controls,
     .stage.settings-open .controls {
       opacity: 1; transform: translateY(0);
@@ -3009,6 +3010,19 @@ var watchController = async (c) => {
               <label>Cast to TV</label>
               <button type="button" class="pill" id="castBtn" style="padding:6px 10px" title="Cast to a nearby screen or smart TV">\u{1F4FA} Cast</button>
             </div>
+            <div class="menu-row" style="flex-direction:column;align-items:flex-start;gap:6px;padding-top:4px;border-top:1px solid var(--line);margin-top:4px">
+              <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">Keyboard shortcuts</label>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:0.78rem;color:var(--muted);width:100%">
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">Space</kbd><span>Play / Pause</span>
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">\u2190 \u2192</kbd><span>Seek \xB110s</span>
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">[ ]</kbd><span>Prev / Next episode</span>
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">F</kbd><span>Fullscreen</span>
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">T</kbd><span>Theater mode</span>
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">C</kbd><span>Captions on/off</span>
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">M</kbd><span>Mute</span>
+                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">, .</kbd><span>Speed down / up</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3216,10 +3230,12 @@ var watchController = async (c) => {
 
       function pokeControls() {
         stage.classList.add('show-controls');
+        stage.classList.remove('cursor-hidden');
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
           if (!video.paused && !settingsMenu.classList.contains('is-open')) {
             stage.classList.remove('show-controls');
+            stage.classList.add('cursor-hidden');
           }
         }, 2800);
       }
@@ -3233,8 +3249,12 @@ var watchController = async (c) => {
         setMuted(video.muted);
       }
       function toggleFs() {
-        if (!document.fullscreenElement) (stage.requestFullscreen && stage.requestFullscreen()) || (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen());
-        else document.exitFullscreen && document.exitFullscreen();
+        if (!document.fullscreenElement) {
+          if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
+          (stage.requestFullscreen && stage.requestFullscreen()) || (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen());
+        } else {
+          document.exitFullscreen && document.exitFullscreen();
+        }
       }
 
       function setTheater(on) {
@@ -3546,6 +3566,7 @@ var watchController = async (c) => {
         if (switching) return;
         if (next === track && hls) {
           syncAudioButtons();
+          syncCcButtons();
           return;
         }
 
@@ -4018,6 +4039,7 @@ var watchController = async (c) => {
         video.muted = video.volume === 0;
         vol.style.setProperty('--vol', video.volume * 100 + '%');
         setMuted(video.muted);
+        localStorage.setItem('ani.vol', String(video.volume));
       });
 
       if (skipBtn) {
@@ -4045,12 +4067,26 @@ var watchController = async (c) => {
         if (Math.abs(video.playbackRate - rate) > 0.01) setRate(video.playbackRate);
       });
       video.addEventListener('play', function () { setPlaying(true); stage.classList.remove('is-loading'); });
-      video.addEventListener('pause', function () { setPlaying(false); });
+      video.addEventListener('pause', function () {
+        setPlaying(false);
+        // Always show cursor when paused \u2014 controls are visible via is-paused CSS rule
+        stage.classList.remove('cursor-hidden');
+        clearTimeout(hideTimer);
+      });
       video.addEventListener('waiting', function () { stage.classList.add('is-loading'); });
       video.addEventListener('playing', function () { stage.classList.remove('is-loading'); });
       video.addEventListener('canplay', function () { stage.classList.remove('is-loading'); });
 
       stage.addEventListener('mousemove', pokeControls);
+      stage.addEventListener('mouseleave', function () {
+        // When the cursor leaves the stage entirely, immediately hide controls (if playing)
+        clearTimeout(hideTimer);
+        if (!video.paused && !settingsMenu.classList.contains('is-open')) {
+          stage.classList.remove('show-controls');
+          stage.classList.add('cursor-hidden');
+        }
+      });
+      stage.addEventListener('mouseenter', pokeControls);
       stage.addEventListener('touchstart', pokeControls, { passive: true });
       document.addEventListener('click', function (e) {
         if (settingsMenu.classList.contains('is-open')) {
@@ -4094,6 +4130,7 @@ var watchController = async (c) => {
         else if (e.key === 'ArrowLeft') video.currentTime = Math.max(0, video.currentTime - 10);
         else if (e.key === 'Escape') {
           if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+          else if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
           else if (theater && !document.fullscreenElement) setTheater(false);
         }
         pokeControls();
@@ -4101,7 +4138,13 @@ var watchController = async (c) => {
 
       setPlaying(false);
       setMuted(false);
-      vol.style.setProperty('--vol', '100%');
+      // Restore saved volume level
+      var savedVol = parseFloat(localStorage.getItem('ani.vol') || '1');
+      if (isFinite(savedVol) && savedVol >= 0 && savedVol <= 1) {
+        video.volume = savedVol;
+        vol.value = String(savedVol);
+      }
+      vol.style.setProperty('--vol', video.volume * 100 + '%');
       loadTrack(track, false);
     })();
   </script>
