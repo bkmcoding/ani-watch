@@ -5583,6 +5583,20 @@ var browseController = async (c) => {
       }
       .mobile-cat-bar::-webkit-scrollbar { display: none; }
       .mobile-cat-bar .pill { flex: 0 0 auto; scroll-snap-align: start; font-size: 0.8rem; padding: 7px 12px; }
+      .mobile-key-section {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .mobile-key-section.key-set::before {
+        content: '\u2713 API key saved';
+        font-size: 0.78rem;
+        color: var(--accent);
+        font-weight: 600;
+      }
     }
     .detail {
       display: grid;
@@ -5884,6 +5898,14 @@ var browseController = async (c) => {
           <button type="button" class="btn" id="searchBtnMobile">Go</button>
         </div>
       </div>
+      <div class="mobile-key-section" id="mobileKeySection">
+        <label class="field-label" for="apiKeyMobile">API Key</label>
+        <div class="search-row" style="grid-template-columns: 1fr auto">
+          <input id="apiKeyMobile" type="password" autocomplete="off" placeholder="BOT_SECRET_KEY" />
+          <button type="button" class="btn ghost" id="saveKeyMobile">Save</button>
+        </div>
+        <p class="hint">Kept in sessionStorage \u2014 cleared when you close the tab.</p>
+      </div>
     </div>
   </div>
 
@@ -5903,6 +5925,9 @@ var browseController = async (c) => {
       var saveKey = document.getElementById('saveKey');
       var keyToggle = document.getElementById('keyToggle');
       var keyPanel = document.getElementById('keyPanel');
+      var apiKeyMobile = document.getElementById('apiKeyMobile');
+      var saveKeyMobile = document.getElementById('saveKeyMobile');
+      var mobileKeySection = document.getElementById('mobileKeySection');
       var catRow = document.getElementById('catRow');
       var main = document.getElementById('main');
       var statusEl = document.getElementById('status');
@@ -5923,23 +5948,44 @@ var browseController = async (c) => {
 
       try { localStorage.removeItem(KEY); } catch (e) {}
       apiKey.value = sessionStorage.getItem(KEY) || '';
+      apiKeyMobile.value = apiKey.value;
+      if (apiKey.value.trim()) mobileKeySection.classList.add('key-set');
       if (!apiKey.value.trim()) keyPanel.classList.add('is-open');
 
       function persistKey() {
-        var v = apiKey.value.trim();
-        if (v) sessionStorage.setItem(KEY, v);
-        else sessionStorage.removeItem(KEY);
+        var v = apiKey.value.trim() || apiKeyMobile.value.trim();
+        apiKey.value = v;
+        apiKeyMobile.value = v;
+        if (v) { sessionStorage.setItem(KEY, v); mobileKeySection.classList.add('key-set'); }
+        else { sessionStorage.removeItem(KEY); mobileKeySection.classList.remove('key-set'); }
       }
       apiKey.addEventListener('change', persistKey);
       apiKey.addEventListener('blur', persistKey);
+      apiKeyMobile.addEventListener('change', persistKey);
+      apiKeyMobile.addEventListener('blur', persistKey);
       saveKey.addEventListener('click', function () {
         persistKey();
         setStatus(apiKey.value.trim() ? 'API key saved for this tab' : 'API key cleared');
         keyPanel.classList.remove('is-open');
         if (apiKey.value.trim()) loadDiscover();
       });
+      saveKeyMobile.addEventListener('click', function () {
+        persistKey();
+        searchOverlay.classList.remove('is-open');
+        document.body.style.overflow = '';
+        if (apiKey.value.trim()) { setStatus('API key saved'); loadDiscover(); }
+        else setStatus('API key cleared');
+      });
       keyToggle.addEventListener('click', function () {
-        keyPanel.classList.toggle('is-open');
+        if (window.innerWidth <= 640) {
+          // On mobile: open the search overlay (which contains the API key section)
+          searchOverlay.classList.add('is-open');
+          document.body.style.overflow = 'hidden';
+          apiKeyMobile.value = apiKey.value;
+          setTimeout(function () { mobileKeySection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 120);
+        } else {
+          keyPanel.classList.toggle('is-open');
+        }
       });
 
       function setStatus(msg, isErr) {
@@ -6757,6 +6803,8 @@ var browseController = async (c) => {
       var searchBtnMobile = document.getElementById('searchBtnMobile');
       function openSearchOverlay() {
         searchOverlay.classList.add('is-open');
+        apiKeyMobile.value = apiKey.value;
+        if (apiKey.value.trim()) mobileKeySection.classList.add('key-set');
         setTimeout(function () { if (qMobile) qMobile.focus(); }, 80);
       }
       function closeSearchOverlay() {
