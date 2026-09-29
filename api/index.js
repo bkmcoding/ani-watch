@@ -2171,10 +2171,13 @@ var vttProxyController = async (c) => {
   if (parsed.protocol !== "https:") {
     throw new validationError("only https:// subtitle URLs are allowed");
   }
+  const referer = parsed.hostname.includes("aniwatchtv") || parsed.hostname.includes("zoko") ? "https://zokoanime.video/" : "https://megaplay.buzz/";
   const upstream = await fetch(parsed.href, {
     headers: {
       "User-Agent": UA3,
-      Accept: "text/vtt, text/plain, */*"
+      Accept: "text/vtt, text/plain, */*",
+      Referer: referer,
+      Origin: new URL(referer).origin
     },
     redirect: "follow",
     signal: AbortSignal.timeout(15e3)

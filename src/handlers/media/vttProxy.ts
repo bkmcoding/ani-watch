@@ -40,10 +40,19 @@ const vttProxyController = async (c: Context) => {
     throw new validationError('only https:// subtitle URLs are allowed');
   }
 
+  // CDN hosts (broforgotsave.online, etc.) enforce hotlink protection —
+  // they return 403 without a trusted Referer.  MegaPlay CDNs expect the
+  // embed origin; Zoko CDNs expect the Zoko player origin.
+  const referer = parsed.hostname.includes('aniwatchtv') || parsed.hostname.includes('zoko')
+    ? 'https://zokoanime.video/'
+    : 'https://megaplay.buzz/';
+
   const upstream = await fetch(parsed.href, {
     headers: {
       'User-Agent': UA,
       Accept: 'text/vtt, text/plain, */*',
+      Referer: referer,
+      Origin: new URL(referer).origin,
     },
     redirect: 'follow',
     signal: AbortSignal.timeout(15_000),
