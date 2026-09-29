@@ -2394,11 +2394,13 @@ var watchController = async (c) => {
     html, body { margin: 0; min-height: 100%; background: var(--bg0); color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; }
     body {
       min-height: 100dvh;
+      animation: fadein 0.3s ease both;
       background:
         radial-gradient(1200px 600px at 50% -10%, rgba(61, 214, 198, 0.12), transparent 55%),
         radial-gradient(900px 500px at 100% 100%, rgba(80, 110, 180, 0.1), transparent 50%),
         linear-gradient(180deg, #0d1118 0%, var(--bg0) 45%, #080a0e 100%);
     }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
     .page {
       min-height: 100dvh;
       display: grid;
@@ -2428,15 +2430,16 @@ var watchController = async (c) => {
     }
     .brand-by em { font-style: normal; color: var(--accent); font-weight: 600; }
     .ep-line {
-      margin: 2px 0 0;
-      font-size: 0.8rem;
+      margin: 3px 0 0;
+      font-size: 0.78rem;
       color: var(--muted);
-      max-width: min(420px, 70vw);
+      max-width: min(500px, 60vw);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      letter-spacing: 0.01em;
     }
-    .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
     .pill-toggle {
       display: inline-flex; padding: 4px; border-radius: 999px;
@@ -2778,24 +2781,18 @@ var watchController = async (c) => {
   <div class="page">
     <header>
       <div class="brand-wrap">
-        <h1 class="brand">ani<span>.</span>watch</h1>
-        <p class="brand-by">by <em>wab</em></p>
-        ${hasEpisodeMeta ? `<p class="ep-line" title="${subtitle}">${subtitle}</p>` : ""}
+        <h1 class="brand"><a href="/browse" style="color:inherit;text-decoration:none">ani<span>.</span>watch</a></h1>
+        ${hasEpisodeMeta ? `<p class="ep-line" title="${subtitle}">${subtitle}</p>` : '<p class="brand-by">by <em>wab</em></p>'}
       </div>
       <div class="header-right">
-        <a class="pill" href="/browse" title="Back to browse">Browse</a>
-        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? "" : "hidden"}>Episodes</button>
-        <div class="pill-toggle" id="epNav" ${hasNav ? "" : "hidden"}>
-          <a class="pill nav-pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? "" : "hidden"}>\u2190 Prev</a>
-          <a class="pill nav-pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? "" : "hidden"}>Next \u2192</a>
-        </div>
         <div class="pill-toggle" id="audioToggle" ${hasEither ? "" : "hidden"}>
           <button type="button" class="pill ${initial === "sub" ? "is-active" : ""}" data-track="sub" ${!hasSub ? 'disabled aria-disabled="true" title="Subtitled version unavailable"' : ""}>Sub</button>
           <button type="button" class="pill ${initial === "dub" ? "is-active" : ""}" data-track="dub" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ""}>Dub</button>
         </div>
         <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? "" : "hidden"}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? "" : "hidden"} aria-pressed="false">CC</button>
-        <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
+        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? "" : "hidden"}>Episodes</button>
+        <a class="pill" href="/browse" title="Back to browse" style="opacity:0.7">\u2190 Browse</a>
       </div>
     </header>
 
@@ -2926,8 +2923,8 @@ var watchController = async (c) => {
 
     <p class="err" id="err" hidden></p>
     <footer>
-      <span>${SITE_NAME} \xB7 by wab \xB7 Sub/Dub \xB7 CC \xB7 Episodes \xB7 Prev/Next<span id="footerProvider">${initialProviderLabel ? ` \xB7 ${escAttr(initialProviderLabel)}` : ""}</span><br />${NOTICE_SHORT}</span>
-      <a href="/browse">Browse</a>
+      <span>${SITE_NAME} \xB7 <a href="/browse">Browse</a></span>
+      <span style="color:var(--muted);font-size:0.75rem">${NOTICE_SHORT}</span>
     </footer>
   </div>
 
@@ -2963,7 +2960,6 @@ var watchController = async (c) => {
       var loopToggle = document.getElementById('loopToggle');
       var theaterToggle = document.getElementById('theaterToggle');
       var theaterBtn = document.getElementById('theaterBtn');
-      var theaterTop = document.getElementById('theaterTop');
       var ccToggle = document.getElementById('ccToggle');
       var ccBtn = document.getElementById('ccBtn');
       var ccTop = document.getElementById('ccTop');
@@ -3352,9 +3348,6 @@ var watchController = async (c) => {
           providerBadge.hidden = false;
           providerBadge.textContent = label;
         }
-        // Also update the footer subtext
-        var footerProv = document.getElementById('footerProvider');
-        if (footerProv) footerProv.textContent = label ? ' \xB7 ' + label : '';
       }
 
       function fillQuality() {
@@ -3657,10 +3650,6 @@ var watchController = async (c) => {
       }
       theaterBtn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
-        setTheater(!theater);
-      });
-      theaterTop.addEventListener('click', function (e) {
-        e.preventDefault();
         setTheater(!theater);
       });
       theaterToggle.addEventListener('click', function (e) {
@@ -4700,11 +4689,13 @@ var browseController = async (c) => {
     html, body { margin: 0; min-height: 100%; background: var(--bg0); color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; }
     body {
       min-height: 100dvh;
+      animation: fadein 0.3s ease both;
       background:
         radial-gradient(1100px 560px at 30% -12%, rgba(61, 214, 198, 0.14), transparent 55%),
         radial-gradient(900px 500px at 100% 70%, rgba(70, 100, 180, 0.12), transparent 50%),
         linear-gradient(180deg, #0d1219 0%, var(--bg0) 42%, #05070a 100%);
     }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
     .page {
       max-width: var(--max);
       margin: 0 auto;
@@ -4941,10 +4932,13 @@ var browseController = async (c) => {
       transition: transform 0.22s var(--ease), border-color 0.2s ease, box-shadow 0.22s ease;
     }
     .card:hover, .card:focus-visible {
-      transform: translateY(-4px);
-      border-color: rgba(61,214,198,0.4);
-      box-shadow: 0 18px 40px rgba(0,0,0,0.4);
+      transform: translateY(-5px) scale(1.01);
+      border-color: rgba(61,214,198,0.5);
+      box-shadow: 0 20px 44px rgba(0,0,0,0.45), 0 0 0 1px rgba(61,214,198,0.15);
       outline: none;
+    }
+    .card:hover .meta .title {
+      color: var(--accent);
     }
     .poster {
       aspect-ratio: 3 / 4.2;
@@ -4972,6 +4966,7 @@ var browseController = async (c) => {
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
+      transition: color 0.2s ease;
     }
     .meta .sub { color: var(--muted); font-size: 0.74rem; }
     .tick {

@@ -38,11 +38,13 @@ const browseController = async (c: Context) => {
     html, body { margin: 0; min-height: 100%; background: var(--bg0); color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; }
     body {
       min-height: 100dvh;
+      animation: fadein 0.3s ease both;
       background:
         radial-gradient(1100px 560px at 30% -12%, rgba(61, 214, 198, 0.14), transparent 55%),
         radial-gradient(900px 500px at 100% 70%, rgba(70, 100, 180, 0.12), transparent 50%),
         linear-gradient(180deg, #0d1219 0%, var(--bg0) 42%, #05070a 100%);
     }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
     .page {
       max-width: var(--max);
       margin: 0 auto;
@@ -279,10 +281,13 @@ const browseController = async (c: Context) => {
       transition: transform 0.22s var(--ease), border-color 0.2s ease, box-shadow 0.22s ease;
     }
     .card:hover, .card:focus-visible {
-      transform: translateY(-4px);
-      border-color: rgba(61,214,198,0.4);
-      box-shadow: 0 18px 40px rgba(0,0,0,0.4);
+      transform: translateY(-5px) scale(1.01);
+      border-color: rgba(61,214,198,0.5);
+      box-shadow: 0 20px 44px rgba(0,0,0,0.45), 0 0 0 1px rgba(61,214,198,0.15);
       outline: none;
+    }
+    .card:hover .meta .title {
+      color: var(--accent);
     }
     .poster {
       aspect-ratio: 3 / 4.2;
@@ -310,6 +315,7 @@ const browseController = async (c: Context) => {
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
+      transition: color 0.2s ease;
     }
     .meta .sub { color: var(--muted); font-size: 0.74rem; }
     .tick {

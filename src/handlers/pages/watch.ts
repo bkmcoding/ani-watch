@@ -229,11 +229,13 @@ const watchController = async (c: Context) => {
     html, body { margin: 0; min-height: 100%; background: var(--bg0); color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; }
     body {
       min-height: 100dvh;
+      animation: fadein 0.3s ease both;
       background:
         radial-gradient(1200px 600px at 50% -10%, rgba(61, 214, 198, 0.12), transparent 55%),
         radial-gradient(900px 500px at 100% 100%, rgba(80, 110, 180, 0.1), transparent 50%),
         linear-gradient(180deg, #0d1118 0%, var(--bg0) 45%, #080a0e 100%);
     }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
     .page {
       min-height: 100dvh;
       display: grid;
@@ -263,15 +265,16 @@ const watchController = async (c: Context) => {
     }
     .brand-by em { font-style: normal; color: var(--accent); font-weight: 600; }
     .ep-line {
-      margin: 2px 0 0;
-      font-size: 0.8rem;
+      margin: 3px 0 0;
+      font-size: 0.78rem;
       color: var(--muted);
-      max-width: min(420px, 70vw);
+      max-width: min(500px, 60vw);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      letter-spacing: 0.01em;
     }
-    .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
     .pill-toggle {
       display: inline-flex; padding: 4px; border-radius: 999px;
@@ -613,24 +616,18 @@ const watchController = async (c: Context) => {
   <div class="page">
     <header>
       <div class="brand-wrap">
-        <h1 class="brand">ani<span>.</span>watch</h1>
-        <p class="brand-by">by <em>wab</em></p>
-        ${hasEpisodeMeta ? `<p class="ep-line" title="${subtitle}">${subtitle}</p>` : ''}
+        <h1 class="brand"><a href="/browse" style="color:inherit;text-decoration:none">ani<span>.</span>watch</a></h1>
+        ${hasEpisodeMeta ? `<p class="ep-line" title="${subtitle}">${subtitle}</p>` : '<p class="brand-by">by <em>wab</em></p>'}
       </div>
       <div class="header-right">
-        <a class="pill" href="/browse" title="Back to browse">Browse</a>
-        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? '' : 'hidden'}>Episodes</button>
-        <div class="pill-toggle" id="epNav" ${hasNav ? '' : 'hidden'}>
-          <a class="pill nav-pill" id="prevEp" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'}>← Prev</a>
-          <a class="pill nav-pill" id="nextEp" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'}>Next →</a>
-        </div>
         <div class="pill-toggle" id="audioToggle" ${hasEither ? '' : 'hidden'}>
           <button type="button" class="pill ${initial === 'sub' ? 'is-active' : ''}" data-track="sub" ${!hasSub ? 'disabled aria-disabled="true" title="Subtitled version unavailable"' : ''}>Sub</button>
           <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ''}>Dub</button>
         </div>
         <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? '' : 'hidden'}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? '' : 'hidden'} aria-pressed="false">CC</button>
-        <button type="button" class="pill" id="theaterTop" title="Theater mode">Theater</button>
+        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? '' : 'hidden'}>Episodes</button>
+        <a class="pill" href="/browse" title="Back to browse" style="opacity:0.7">← Browse</a>
       </div>
     </header>
 
@@ -761,8 +758,8 @@ const watchController = async (c: Context) => {
 
     <p class="err" id="err" hidden></p>
     <footer>
-      <span>${SITE_NAME} · by wab · Sub/Dub · CC · Episodes · Prev/Next<span id="footerProvider">${initialProviderLabel ? ` · ${escAttr(initialProviderLabel)}` : ''}</span><br />${NOTICE_SHORT}</span>
-      <a href="/browse">Browse</a>
+      <span>${SITE_NAME} · <a href="/browse">Browse</a></span>
+      <span style="color:var(--muted);font-size:0.75rem">${NOTICE_SHORT}</span>
     </footer>
   </div>
 
@@ -798,7 +795,6 @@ const watchController = async (c: Context) => {
       var loopToggle = document.getElementById('loopToggle');
       var theaterToggle = document.getElementById('theaterToggle');
       var theaterBtn = document.getElementById('theaterBtn');
-      var theaterTop = document.getElementById('theaterTop');
       var ccToggle = document.getElementById('ccToggle');
       var ccBtn = document.getElementById('ccBtn');
       var ccTop = document.getElementById('ccTop');
@@ -1187,9 +1183,6 @@ const watchController = async (c: Context) => {
           providerBadge.hidden = false;
           providerBadge.textContent = label;
         }
-        // Also update the footer subtext
-        var footerProv = document.getElementById('footerProvider');
-        if (footerProv) footerProv.textContent = label ? ' · ' + label : '';
       }
 
       function fillQuality() {
@@ -1492,10 +1485,6 @@ const watchController = async (c: Context) => {
       }
       theaterBtn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
-        setTheater(!theater);
-      });
-      theaterTop.addEventListener('click', function (e) {
-        e.preventDefault();
         setTheater(!theater);
       });
       theaterToggle.addEventListener('click', function (e) {
