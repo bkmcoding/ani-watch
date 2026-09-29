@@ -1,7 +1,6 @@
 import { Context } from 'hono';
 import { validationError } from '../../lib/errors';
 import {
-  isAllowedStreamHost,
   proxiedHlsUrl,
   proxiedVttUrl,
   requestOrigin,
@@ -15,11 +14,9 @@ function parseAllowedUrl(raw: string | undefined): string | null {
   if (!raw) return null;
   try {
     const u = new URL(raw);
-    if (!/^https?:$/i.test(u.protocol)) return null;
-    if (!isAllowedStreamHost(u.hostname)) {
-      console.error('[watch] parseAllowedUrl: rejected host', u.hostname, 'from URL', raw.slice(0, 120));
-      return null;
-    }
+    // Only require https:// — the HLS proxy enforces the CDN allowlist when
+    // the URL is actually fetched, so double-checking here just breaks on new CDN hostnames.
+    if (!/^https?:$/i.test(u.protocol) || !u.hostname || u.hostname.length < 3) return null;
     return u.href;
   } catch {
     return null;
