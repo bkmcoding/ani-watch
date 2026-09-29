@@ -1763,13 +1763,11 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
   const hasPreferred = servers.some((s) => s.type === preferred);
   const hasOther = servers.some((s) => s.type === other);
   const neighborsPromise = wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
-  const SECONDARY_BUDGET_MS = 6e3;
-  const primaryPromise = hasPreferred ? resolveCategory(servers, preferred, server, episodeId) : Promise.resolve(null);
-  const secondaryPromise = hasOther ? withTimeout(resolveCategory(servers, other, server, episodeId), SECONDARY_BUDGET_MS) : Promise.resolve(null);
-  const [primary, secondary, neighbors] = await Promise.all([
-    primaryPromise,
-    secondaryPromise,
-    withTimeout(neighborsPromise, SECONDARY_BUDGET_MS)
+  const OTHER_CATEGORY_BUDGET_MS = 3500;
+  const primary = hasPreferred ? await resolveCategory(servers, preferred, server, episodeId) : null;
+  const [secondary, neighbors] = await Promise.all([
+    hasOther ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS) : Promise.resolve(null),
+    withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS)
   ]);
   const subTrack = preferred === "sub" ? primary : secondary;
   const dubTrack = preferred === "dub" ? primary : secondary;

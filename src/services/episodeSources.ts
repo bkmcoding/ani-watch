@@ -297,23 +297,20 @@ export async function resolveEpisodePlayback(
   const neighborsPromise =
     wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
 
-  // Start ALL three fetches in parallel — the secondary track and neighbors
-  // used to run after primary finished, eating their entire budget. Now primary
-  // and secondary race together; we just await primary first to get the redirect
-  // target, then collect secondary and neighbors together.
-  const SECONDARY_BUDGET_MS = 6_000;
+  // Resolve the primary (requested) track first — sequential to avoid hitting
+  // the upstream embed server with two parallel requests (causes rate-limiting).
+  const OTHER_CATEGORY_BUDGET_MS = 3_500;
 
-  const primaryPromise = hasPreferred
-    ? resolveCategory(servers, preferred, server, episodeId)
-    : Promise.resolve(null);
-  const secondaryPromise = hasOther
-    ? withTimeout(resolveCategory(servers, other, server, episodeId), SECONDARY_BUDGET_MS)
-    : Promise.resolve(null);
+  const primary = hasPreferred
+    ? await resolveCategory(servers, preferred, server, episodeId)
+    : null;
 
-  const [primary, secondary, neighbors] = await Promise.all([
-    primaryPromise,
-    secondaryPromise,
-    withTimeout(neighborsPromise, SECONDARY_BUDGET_MS),
+  // Best-effort secondary track + neighbors in parallel with a short budget.
+  const [secondary, neighbors] = await Promise.all([
+    hasOther
+      ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS)
+      : Promise.resolve(null),
+    withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS),
   ]);
 
   const subTrack = preferred === 'sub' ? primary : secondary;
