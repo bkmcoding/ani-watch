@@ -2864,18 +2864,31 @@ var watchController = async (c) => {
     }
     /* Small phone: 375\u2013480px */
     @media (max-width: 480px) {
-      .page { padding: 10px 12px 16px; gap: 12px; }
-      .brand { font-size: 1.25rem; }
-      .ep-line { max-width: calc(100vw - 160px); font-size: 0.75rem; }
-      .stage { border-radius: 10px; }
+      .page { padding: 10px 10px 16px; gap: 10px; }
+      .brand { font-size: 1.15rem; }
+      .ep-line { max-width: calc(100vw - 24px); font-size: 0.72rem; white-space: normal; line-height: 1.3; }
+      .stage { border-radius: 8px; }
       .menu { right: 8px; bottom: 56px; width: calc(100% - 16px); max-height: 70dvh; overflow-y: auto; }
       .ep-panel { left: 8px; bottom: 56px; width: calc(100% - 16px); }
-      .skip-btn { right: 10px; bottom: 76px; font-size: 13px; padding: 9px 14px; }
+      .skip-btn { right: 8px; bottom: 72px; font-size: 12px; padding: 8px 12px; }
       .big-btn { width: 60px; height: 60px; }
       .big-btn svg { width: 26px; height: 26px; }
       footer { font-size: 0.78rem; flex-direction: column; gap: 4px; }
-      /* Keep speed chip but smaller */
+      /* Speed chip smaller */
       .speed-chip { padding: 5px 7px; font-size: 0.72rem; min-width: 36px; }
+      /* Header: stack brand on top, controls below, smaller pills */
+      header { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .header-right { width: 100%; gap: 6px; flex-wrap: wrap; }
+      .header-right .pill { font-size: 0.78rem; padding: 7px 10px; min-height: 36px; }
+      /* Controls bar: two rows */
+      .row { flex-wrap: wrap; gap: 2px; }
+      /* Primary row: play, mute, time take up full width first */
+      .row .time { flex: 1; }
+      /* Nav pills and right-side controls wrap to second line */
+      .nav-pill { font-size: 0.78rem; padding: 6px 10px; }
+      /* Ensure seek bar is full width and easy to tap */
+      .seek { height: 10px; margin-bottom: 12px; }
+      .seek::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -5px; }
     }
     /* Landscape phone */
     @media (max-height: 500px) and (orientation: landscape) {
@@ -2884,6 +2897,13 @@ var watchController = async (c) => {
       .stage { aspect-ratio: auto; height: calc(100dvh - 72px); border-radius: 0; }
       .stage-wrap { min-height: 0; }
       footer { display: none; }
+    }
+    /* Very small phone: <360px */
+    @media (max-width: 360px) {
+      .provider-pill { display: none; }
+      .speed-chip { display: none; }
+      .header-right .pill { font-size: 0.74rem; padding: 6px 8px; }
+      .ctrl { width: 40px; height: 40px; }
     }
   </style>
 </head>
@@ -5201,7 +5221,7 @@ var browseController = async (c) => {
       display: grid;
       gap: 16px;
       min-height: 100dvh;
-      grid-template-rows: auto auto 1fr auto;
+      grid-template-rows: auto auto auto auto;
     }
     header {
       display: flex;

@@ -52,7 +52,7 @@ const browseController = async (c: Context) => {
       display: grid;
       gap: 16px;
       min-height: 100dvh;
-      grid-template-rows: auto auto 1fr auto;
+      grid-template-rows: auto auto auto auto;
     }
     header {
       display: flex;
