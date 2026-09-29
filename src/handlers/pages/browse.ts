@@ -351,13 +351,89 @@ const browseController = async (c: Context) => {
     .wl-btn:hover { transform: scale(1.15); }
 
     /* Continue watching progress bar */
-    .cw-card { text-decoration: none; }
+    .cw-card { text-decoration: none; display: grid; border-radius: 14px; overflow: hidden; }
+    .cw-card-wrap { position: relative; border-radius: 14px; overflow: hidden; cursor: pointer; }
+    .cw-remove-btn {
+      position: absolute; top: 5px; left: 5px;
+      appearance: none; border: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+      color: rgba(255,255,255,0.75); border-radius: 50%; width: 24px; height: 24px;
+      font-size: 0.7rem; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s ease, background 0.15s ease;
+      z-index: 3;
+    }
+    .cw-card-wrap:hover .cw-remove-btn { opacity: 1; }
+    .cw-remove-btn:hover { background: rgba(220, 60, 60, 0.8); color: #fff; }
     .cw-prog-bar {
       height: 3px; background: rgba(255,255,255,0.12); margin: 0;
     }
     .cw-prog-fill {
       height: 100%; background: var(--accent); border-radius: 0 2px 2px 0;
       transition: width 0.2s ease;
+    }
+
+    /* Mobile search: hidden dock, floating search button */
+    .search-fab {
+      display: none;
+    }
+    .search-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+      align-items: flex-start; justify-content: center;
+      padding: 16px;
+      padding-top: max(env(safe-area-inset-top, 16px), 16px);
+    }
+    .search-overlay.is-open { display: flex; }
+    .search-overlay-inner {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      width: 100%;
+      max-width: 480px;
+      display: grid;
+      gap: 12px;
+    }
+    .search-overlay-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .search-overlay-head h2 {
+      margin: 0; font-size: 1rem; font-family: Syne, sans-serif; letter-spacing: -0.02em;
+    }
+    .search-overlay-close {
+      appearance: none; border: 0; background: rgba(255,255,255,0.08);
+      color: var(--ink); border-radius: 50%; width: 32px; height: 32px;
+      font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    @media (max-width: 640px) {
+      .search-dock { display: none !important; }
+      .search-fab {
+        display: flex;
+        position: fixed; bottom: 20px; right: 16px; z-index: 50;
+        appearance: none; border: 1px solid rgba(61,214,198,0.5);
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 12px 18px;
+        font: inherit;
+        font-weight: 700;
+        font-size: 0.9rem;
+        gap: 8px;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+        transition: transform 0.2s var(--ease), box-shadow 0.2s ease;
+      }
+      .search-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.55); }
+      /* Show category pills inline at top of main on mobile instead */
+      .mobile-cat-bar {
+        display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px;
+        scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+      }
+      .mobile-cat-bar::-webkit-scrollbar { display: none; }
+      .mobile-cat-bar .pill { flex: 0 0 auto; scroll-snap-align: start; font-size: 0.8rem; padding: 7px 12px; }
     }
     .detail {
       display: grid;
@@ -646,6 +722,28 @@ const browseController = async (c: Context) => {
     <footer>${SITE_NAME} · ${SITE_TAGLINE} · watch opens in a new tab<br />${NOTICE_SHORT}</footer>
   </div>
 
+  <!-- Mobile search overlay (hidden on desktop via CSS) -->
+  <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-label="Search anime">
+    <div class="search-overlay-inner">
+      <div class="search-overlay-head">
+        <h2>Search</h2>
+        <button type="button" class="search-overlay-close" id="searchOverlayClose" aria-label="Close search">✕</button>
+      </div>
+      <div>
+        <div class="search-row" style="grid-template-columns: 1fr auto">
+          <input id="qMobile" type="search" placeholder="One Piece, Citrus…" autocomplete="off" />
+          <button type="button" class="btn" id="searchBtnMobile">Go</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile floating search button -->
+  <button type="button" class="search-fab" id="searchFab" aria-label="Open search">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    Search
+  </button>
+
   <script>
     (function () {
       var KEY = 'ani.apiKey';
@@ -932,6 +1030,12 @@ const browseController = async (c: Context) => {
       function readCw() {
         try { return JSON.parse(localStorage.getItem(CW_KEY) || '[]'); } catch (e) { return []; }
       }
+      function cwRemove(id) {
+        try {
+          var list = readCw().filter(function (x) { return x.id !== id; });
+          localStorage.setItem(CW_KEY, JSON.stringify(list));
+        } catch (e) {}
+      }
       function renderCwRail() {
         var list = readCw();
         if (!list.length) return null;
@@ -943,17 +1047,48 @@ const browseController = async (c: Context) => {
           '<div class="rail cw-rail"></div>';
         var rail = wrap.querySelector('.rail');
         list.slice(0, 12).forEach(function (entry) {
-          var btn = document.createElement('a');
-          btn.className = 'card cw-card';
-          btn.href = entry.href || '#';
+          // Try to get poster from stored anime meta (written by browse before opening player)
+          var posterStr = entry.poster || null;
+          if (!posterStr && entry.id) {
+            try {
+              var meta = JSON.parse(localStorage.getItem('ani.meta.' + entry.id) || 'null');
+              if (meta && meta.poster) posterStr = meta.poster;
+            } catch (e) {}
+          }
           var pct = (entry.dur && entry.dur > 0) ? Math.round(entry.t / entry.dur * 100) : 0;
-          var posterUrls = entry.poster ? [entry.poster] : [];
-          btn.innerHTML =
+          var posterUrls = posterStr ? [posterStr] : [];
+          var card = document.createElement('div');
+          card.className = 'card cw-card-wrap';
+          card.style.position = 'relative';
+          var link = document.createElement('a');
+          link.className = 'card cw-card';
+          link.href = entry.href || '#';
+          link.style.border = 'none';
+          link.style.borderRadius = '0';
+          link.innerHTML =
             posterImg(posterUrls, entry.name) +
             '<div class="cw-prog-bar"><div class="cw-prog-fill" style="width:' + pct + '%"></div></div>' +
             '<div class="meta"><div class="title">' + esc(entry.name || entry.id) + '</div>' +
             '<div class="tick"><span>EP ' + esc(String(entry.epNum || '?')) + '</span></div></div>';
-          rail.appendChild(btn);
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'cw-remove-btn';
+          removeBtn.setAttribute('aria-label', 'Remove from continue watching');
+          removeBtn.title = 'Remove';
+          removeBtn.textContent = '✕';
+          removeBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            cwRemove(entry.id);
+            card.remove();
+            // Hide the whole rail if empty
+            if (!rail.children.length) {
+              wrap.remove();
+            }
+          });
+          card.appendChild(link);
+          card.appendChild(removeBtn);
+          rail.appendChild(card);
         });
         return wrap;
       }
@@ -1012,6 +1147,35 @@ const browseController = async (c: Context) => {
         return wrap;
       }
 
+      function renderMobileCatBar(activeCat) {
+        var cats = [
+          { q: 'discover', label: 'Discover' },
+          { q: 'recently-updated', label: 'Updated' },
+          { q: 'recently-added', label: 'New' },
+          { q: 'top-airing', label: 'Airing' },
+          { q: 'most-popular', label: 'Popular' },
+          { q: 'most-favorite', label: 'Favorite' },
+          { q: 'top-upcoming', label: 'Upcoming' },
+          { q: 'movie', label: 'Movies' },
+          { q: 'tv', label: 'TV' },
+          { q: 'completed', label: 'Completed' },
+        ];
+        var bar = document.createElement('div');
+        bar.className = 'mobile-cat-bar';
+        cats.forEach(function (c) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pill' + (c.q === activeCat ? ' is-active' : '');
+          btn.textContent = c.label;
+          btn.addEventListener('click', function () {
+            if (c.q === 'discover') loadDiscover();
+            else loadList(c.q, c.label, 1);
+          });
+          bar.appendChild(btn);
+        });
+        return bar;
+      }
+
       function renderDiscover(home) {
         state.view = 'discover';
         state.source = 'discover';
@@ -1035,6 +1199,8 @@ const browseController = async (c: Context) => {
           return;
         }
         rails.forEach(function (el) { main.appendChild(el); });
+        // Mobile: prepend category scrollbar (search dock is hidden on mobile)
+        main.insertBefore(renderMobileCatBar('discover'), main.firstChild);
       }
 
       function renderList(animes, pageInfo) {
@@ -1056,6 +1222,8 @@ const browseController = async (c: Context) => {
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div><div class="pager" id="pager"></div>';
         fillGrid(document.getElementById('animeGrid'), animes);
+        // Mobile category bar above grid
+        main.insertBefore(renderMobileCatBar(state.listQuery || null), main.firstChild);
         var pager = document.getElementById('pager');
         var hasPrev = page > 1;
         var hasNext = pageInfo ? !!pageInfo.hasNextPage : false;
@@ -1396,6 +1564,17 @@ const browseController = async (c: Context) => {
             (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
             (data.sources && data.sources[0] && data.sources[0].url);
           if (!link) throw new Error('No watch link returned.');
+          // Save anime metadata so the watch page can store the poster in CW entries
+          if (state.anime && state.anime.id) {
+            try {
+              var posterVal = state.anime.poster;
+              var posterStr = Array.isArray(posterVal) ? posterVal[0] : (posterVal || null);
+              localStorage.setItem(
+                'ani.meta.' + state.anime.id,
+                JSON.stringify({ id: state.anime.id, name: state.anime.name || state.anime.id, poster: posterStr })
+              );
+            } catch (e) {}
+          }
           setStatus('Opening player…');
           window.open(link, '_blank', 'noopener');
         } catch (err) {
@@ -1420,6 +1599,41 @@ const browseController = async (c: Context) => {
       q.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') doSearch();
       });
+
+      // Mobile search FAB + overlay
+      var searchFab = document.getElementById('searchFab');
+      var searchOverlay = document.getElementById('searchOverlay');
+      var searchOverlayClose = document.getElementById('searchOverlayClose');
+      var qMobile = document.getElementById('qMobile');
+      var searchBtnMobile = document.getElementById('searchBtnMobile');
+      function openSearchOverlay() {
+        searchOverlay.classList.add('is-open');
+        setTimeout(function () { if (qMobile) qMobile.focus(); }, 80);
+      }
+      function closeSearchOverlay() {
+        searchOverlay.classList.remove('is-open');
+      }
+      if (searchFab) searchFab.addEventListener('click', openSearchOverlay);
+      if (searchOverlayClose) searchOverlayClose.addEventListener('click', closeSearchOverlay);
+      if (searchOverlay) {
+        searchOverlay.addEventListener('click', function (e) {
+          if (e.target === searchOverlay) closeSearchOverlay();
+        });
+      }
+      async function doMobileSearch() {
+        var keyword = (qMobile && qMobile.value.trim()) || '';
+        if (!keyword) return;
+        // Sync to desktop input
+        q.value = keyword;
+        closeSearchOverlay();
+        await doSearch();
+      }
+      if (searchBtnMobile) searchBtnMobile.addEventListener('click', doMobileSearch);
+      if (qMobile) {
+        qMobile.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') doMobileSearch();
+        });
+      }
 
       if (apiKey.value.trim()) loadDiscover();
       else q.focus();

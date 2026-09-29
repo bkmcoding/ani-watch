@@ -1044,6 +1044,12 @@ const watchController = async (c: Context) => {
           dur: Math.floor(d),
           ts: Date.now(),
           href: location.href,
+          poster: (function () {
+            try {
+              var meta = JSON.parse(localStorage.getItem('ani.meta.' + animeId) || 'null');
+              return (meta && meta.poster) || null;
+            } catch (e) { return null; }
+          })(),
         };
         try {
           var list = cwRead().filter(function (x) { return x.id !== animeId; });
