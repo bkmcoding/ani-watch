@@ -334,6 +334,31 @@ const browseController = async (c: Context) => {
       color: var(--muted);
     }
     .tick .sub { color: var(--accent); background: var(--accent-dim); }
+
+    /* Watchlist heart button on cards */
+    .card { position: relative; }
+    .wl-btn {
+      position: absolute; top: 6px; right: 6px;
+      appearance: none; border: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+      color: rgba(255,255,255,0.6); border-radius: 50%; width: 28px; height: 28px;
+      font-size: 0.85rem; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+      z-index: 2;
+    }
+    .card:hover .wl-btn, .card:focus-within .wl-btn, .wl-btn.is-wl { opacity: 1; }
+    .wl-btn.is-wl { color: #ff5f7e; }
+    .wl-btn:hover { transform: scale(1.15); }
+
+    /* Continue watching progress bar */
+    .cw-card { text-decoration: none; }
+    .cw-prog-bar {
+      height: 3px; background: rgba(255,255,255,0.12); margin: 0;
+    }
+    .cw-prog-fill {
+      height: 100%; background: var(--accent); border-radius: 0 2px 2px 0;
+      transition: width 0.2s ease;
+    }
     .detail {
       display: grid;
       grid-template-columns: 140px 1fr;
@@ -878,6 +903,69 @@ const browseController = async (c: Context) => {
         main.innerHTML = html + '</div>';
       }
 
+      // ── Watchlist ──────────────────────────────────────────────────────────
+      var WL_KEY = 'ani.watchlist';
+      function readWatchlist() {
+        try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch (e) { return []; }
+      }
+      function isInWatchlist(id) {
+        return readWatchlist().some(function (x) { return x.id === id; });
+      }
+      function toggleWatchlist(a, heartBtn) {
+        var list = readWatchlist();
+        var idx = list.findIndex(function (x) { return x.id === a.id; });
+        if (idx >= 0) {
+          list.splice(idx, 1);
+        } else {
+          list.unshift({ id: a.id, name: a.name, poster: Array.isArray(a.poster) ? a.poster[0] : a.poster });
+          if (list.length > 200) list = list.slice(0, 200);
+        }
+        try { localStorage.setItem(WL_KEY, JSON.stringify(list)); } catch (e) {}
+        var inWl = idx < 0; // we just added it
+        heartBtn.textContent = inWl ? '♥' : '♡';
+        heartBtn.classList.toggle('is-wl', inWl);
+        heartBtn.setAttribute('aria-label', inWl ? 'Remove from watchlist' : 'Add to watchlist');
+      }
+
+      // ── Continue watching ──────────────────────────────────────────────────
+      var CW_KEY = 'ani.cw';
+      function readCw() {
+        try { return JSON.parse(localStorage.getItem(CW_KEY) || '[]'); } catch (e) { return []; }
+      }
+      function renderCwRail() {
+        var list = readCw();
+        if (!list.length) return null;
+        var wrap = document.createElement('section');
+        wrap.className = 'rail-block';
+        wrap.innerHTML =
+          '<div class="rail-head"><h2>Continue Watching</h2>' +
+          '<span class="hint-inline">Pick up where you left off</span></div>' +
+          '<div class="rail cw-rail"></div>';
+        var rail = wrap.querySelector('.rail');
+        list.slice(0, 12).forEach(function (entry) {
+          var btn = document.createElement('a');
+          btn.className = 'card cw-card';
+          btn.href = entry.href || '#';
+          var pct = (entry.dur && entry.dur > 0) ? Math.round(entry.t / entry.dur * 100) : 0;
+          var posterUrls = entry.poster ? [entry.poster] : [];
+          btn.innerHTML =
+            posterImg(posterUrls, entry.name) +
+            '<div class="cw-prog-bar"><div class="cw-prog-fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="meta"><div class="title">' + esc(entry.name || entry.id) + '</div>' +
+            '<div class="tick"><span>EP ' + esc(String(entry.epNum || '?')) + '</span></div></div>';
+          rail.appendChild(btn);
+        });
+        return wrap;
+      }
+      function renderWatchlistRail() {
+        var list = readWatchlist();
+        if (!list.length) return null;
+        var items = list.slice(0, 18).map(function (x) {
+          return { id: x.id, name: x.name, poster: x.poster ? [x.poster] : [], episodes: {} };
+        });
+        return renderRail('My Watchlist', items, 'Your saved titles');
+      }
+
       function animeCard(a) {
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -891,11 +979,19 @@ const browseController = async (c: Context) => {
         if (eps.eps != null && eps.sub == null && eps.dub == null) {
           ticks += '<span>EP ' + esc(eps.eps) + '</span>';
         }
+        var inWl = isInWatchlist(a.id);
         btn.innerHTML =
           posterImg(a.poster, a.name) +
           '<div class="meta"><div class="title">' + esc(a.name || a.id) + '</div>' +
-          '<div class="tick">' + ticks + '</div></div>';
+          '<div class="tick">' + ticks + '</div></div>' +
+          '<button type="button" class="wl-btn' + (inWl ? ' is-wl' : '') + '" aria-label="' + (inWl ? 'Remove from watchlist' : 'Add to watchlist') + '" data-wl-id="' + esc(a.id) + '" title="Watchlist">' +
+          (inWl ? '♥' : '♡') + '</button>';
         btn.addEventListener('click', function () { loadEpisodes(a); });
+        // Watchlist heart click (stop propagation so card click doesn't fire)
+        btn.querySelector('.wl-btn').addEventListener('click', function (e) {
+          e.stopPropagation();
+          toggleWatchlist(a, this);
+        });
         return btn;
       }
 
@@ -926,6 +1022,8 @@ const browseController = async (c: Context) => {
         setCrumbs([{ label: 'Discover' }]);
         main.innerHTML = '';
         var rails = [
+          renderCwRail(),
+          renderWatchlistRail(),
           renderRail('Trending', takeList(home.trending), 'Hot now'),
           renderRail('Latest episodes', takeList(home.latestEpisode), 'Just dropped'),
           renderRail('Newly added', takeList(home.newAdded), 'Fresh titles'),

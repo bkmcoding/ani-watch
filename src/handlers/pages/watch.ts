@@ -456,6 +456,33 @@ const watchController = async (c: Context) => {
     .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
       opacity: 1;
     }
+    /* Auto-play next episode overlay */
+    .ap-overlay {
+      position: absolute; inset: 0; z-index: 7;
+      display: flex; align-items: flex-end; justify-content: flex-end;
+      padding: 0 16px 72px; pointer-events: none;
+    }
+    .ap-overlay:not([hidden]) { display: flex; }
+    .ap-card {
+      background: rgba(0,0,0,0.72); backdrop-filter: blur(12px);
+      border: 1px solid var(--line); border-radius: 14px;
+      padding: 14px 16px; min-width: 180px; pointer-events: all;
+      animation: apIn 0.25s var(--ease);
+    }
+    @keyframes apIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .ap-label { margin: 0 0 4px; font-size: 0.78rem; color: var(--muted); }
+    .ap-count {
+      display: block; font-size: 2rem; font-weight: 700; color: var(--accent);
+      line-height: 1; text-align: center; margin-bottom: 4px;
+    }
+
+    /* Episode progress dots */
+    .ep-item.is-watched .ep-n::before {
+      content: ''; display: inline-block; width: 6px; height: 6px;
+      border-radius: 50%; background: var(--accent); margin-right: 5px;
+      vertical-align: middle; opacity: 0.7;
+    }
+
     .spinner {
       width: 42px; height: 42px; border-radius: 50%;
       border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent);
@@ -526,9 +553,11 @@ const watchController = async (c: Context) => {
     .menu {
       position: absolute; right: 12px; bottom: 58px;
       width: min(300px, calc(100% - 24px));
+      max-height: min(80dvh, 600px); overflow-y: auto; overflow-x: hidden;
       background: var(--panel); border: 1px solid var(--line);
       border-radius: 14px; padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
       display: none; z-index: 5; backdrop-filter: blur(16px);
+      overscroll-behavior: contain;
     }
     .menu.is-open { display: block; }
     .menu h3 {
@@ -714,6 +743,17 @@ const watchController = async (c: Context) => {
         </div>
         <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
 
+        <div class="ap-overlay" id="autoplayOverlay" hidden>
+          <div class="ap-card">
+            <p class="ap-label">Next episode in</p>
+            <span class="ap-count">12</span>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button type="button" class="pill ap-now" id="apNow" style="flex:1;padding:8px">Play now</button>
+              <button type="button" class="pill ap-cancel" id="apCancel" style="flex:1;padding:8px;background:rgba(255,255,255,0.06)">Cancel</button>
+            </div>
+          </div>
+        </div>
+
         <div class="ep-panel" id="epPanel" role="dialog" aria-label="Episode list" hidden>
           <div class="ep-panel-head">
             <h3>Episodes</h3>
@@ -895,8 +935,10 @@ const watchController = async (c: Context) => {
       var skips = ${JSON.stringify(skips)};
       var providers = ${JSON.stringify(providers)};
       var animeId = ${JSON.stringify(animeId)};
+      var animeName = ${JSON.stringify(animeTitle || '')};
       var playCategory = ${JSON.stringify(category)};
       var currentEpNum = ${JSON.stringify(epNum)};
+      var currentEpTitle = ${JSON.stringify(epTitle || '')};
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
       var track = ${JSON.stringify(initial)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -963,6 +1005,75 @@ const watchController = async (c: Context) => {
       var ccFetchToken = 0;
       var activeCueText = '';
       var draggingCc = false;
+
+      // ── Continue-watching & history ───────────────────────────────────────
+      var CW_KEY = 'ani.cw';
+      var HIST_KEY = 'ani.hist';
+      var CW_MAX = 30;
+      var cwSaveTimer = null;
+      function cwRead() {
+        try { return JSON.parse(localStorage.getItem(CW_KEY) || '[]'); } catch (e) { return []; }
+      }
+      function cwSave(t) {
+        if (!animeId || !currentEpNum) return;
+        var d = video.duration;
+        if (!isFinite(d) || d < 30) return; // skip very short / unloaded
+        var pct = d > 0 ? t / d : 0;
+        // Mark watched if >85% through
+        if (pct > 0.85 && animeId && currentEpNum) {
+          try {
+            var watched = JSON.parse(localStorage.getItem('ani.watched.' + animeId) || '[]');
+            if (watched.indexOf(String(currentEpNum)) < 0) {
+              watched.push(String(currentEpNum));
+              localStorage.setItem('ani.watched.' + animeId, JSON.stringify(watched));
+              // refresh progress dots in episode panel
+              document.querySelectorAll('.ep-item[data-epn]').forEach(function (el) {
+                if (el.getAttribute('data-epn') === String(currentEpNum)) {
+                  el.classList.add('is-watched');
+                }
+              });
+            }
+          } catch (e) {}
+        }
+        var entry = {
+          id: animeId,
+          name: animeName || animeId,
+          epNum: currentEpNum,
+          epTitle: currentEpTitle || null,
+          t: Math.floor(t),
+          dur: Math.floor(d),
+          ts: Date.now(),
+          href: location.href,
+        };
+        try {
+          var list = cwRead().filter(function (x) { return x.id !== animeId; });
+          list.unshift(entry);
+          if (list.length > CW_MAX) list = list.slice(0, CW_MAX);
+          localStorage.setItem(CW_KEY, JSON.stringify(list));
+        } catch (e) {}
+      }
+      function cwThrottle(t) {
+        if (cwSaveTimer) return;
+        cwSaveTimer = setTimeout(function () {
+          cwSaveTimer = null;
+          cwSave(t);
+        }, 5000);
+      }
+      // Remove from continue-watching when finished
+      function cwRemove() {
+        try {
+          var list = cwRead().filter(function (x) { return x.id !== animeId; });
+          localStorage.setItem(CW_KEY, JSON.stringify(list));
+        } catch (e) {}
+      }
+      window.addEventListener('pagehide', function () { cwSave(video.currentTime || 0); });
+
+      // ── Quality selector state ─────────────────────────────────────────────
+      var qualityManual = -1; // -1 = auto
+
+      // ── Auto-play countdown ────────────────────────────────────────────────
+      var autoplayTimer = null;
+      var autoplayCancelled = false;
 
       var ICONS = {
         play: '<path d="M8 5v14l11-7z"/>',
@@ -1464,6 +1575,22 @@ const watchController = async (c: Context) => {
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, function () {
             hlsNetworkRetries = 0;
+            // Populate quality select
+            try {
+              quality.innerHTML = '<option value="-1">Auto</option>';
+              hls.levels.forEach(function (lvl, i) {
+                var opt = document.createElement('option');
+                opt.value = String(i);
+                var label = lvl.height ? lvl.height + 'p' : ('Level ' + (i + 1));
+                if (lvl.bitrate) label += ' (' + Math.round(lvl.bitrate / 1000) + 'k)';
+                opt.textContent = label;
+                quality.appendChild(opt);
+              });
+              if (qualityManual >= 0 && qualityManual < hls.levels.length) {
+                quality.value = String(qualityManual);
+                hls.currentLevel = qualityManual;
+              }
+            } catch (e) {}
             finishReady();
           });
           hls.on(Hls.Events.ERROR, function (_e, data) {
@@ -1569,6 +1696,14 @@ const watchController = async (c: Context) => {
           if (n && n === cur) {
             btn.className += ' is-current';
             currentEl = btn;
+          }
+          if (n) btn.setAttribute('data-epn', n);
+          // Mark as watched if in localStorage
+          if (n && animeId) {
+            try {
+              var _watched = JSON.parse(localStorage.getItem('ani.watched.' + animeId) || '[]');
+              if (_watched.indexOf(n) >= 0) btn.className += ' is-watched';
+            } catch (e) {}
           }
           btn.innerHTML =
             '<span class="ep-n">' + (n || '—') + '</span>' +
@@ -1836,7 +1971,29 @@ const watchController = async (c: Context) => {
         if (!hls) return;
         var v = Number(quality.value);
         hls.currentLevel = v;
+        qualityManual = v;
       });
+
+      // Auto-play overlay buttons
+      (function () {
+        var apNow = document.getElementById('apNow');
+        var apCancel = document.getElementById('apCancel');
+        if (apNow) {
+          apNow.addEventListener('click', function () {
+            clearInterval(autoplayTimer);
+            var nextHref = document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
+            if (nextHref) location.href = nextHref;
+          });
+        }
+        if (apCancel) {
+          apCancel.addEventListener('click', function () {
+            autoplayCancelled = true;
+            clearInterval(autoplayTimer);
+            var overlay = document.getElementById('autoplayOverlay');
+            if (overlay) overlay.hidden = true;
+          });
+        }
+      })();
 
       document.querySelectorAll('[data-track]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -1877,10 +2034,44 @@ const watchController = async (c: Context) => {
         updateProgress();
         updateSkip();
         renderCcAt(video.currentTime || 0);
+        cwThrottle(video.currentTime || 0);
       });
       video.addEventListener('seeked', function () {
         updateSkip();
         renderCcAt(video.currentTime || 0);
+      });
+      video.addEventListener('ended', function () {
+        cwRemove(); // finished — remove from continue watching
+        // Mark watched
+        if (animeId && currentEpNum) {
+          try {
+            var watched = JSON.parse(localStorage.getItem('ani.watched.' + animeId) || '[]');
+            if (watched.indexOf(String(currentEpNum)) < 0) {
+              watched.push(String(currentEpNum));
+              localStorage.setItem('ani.watched.' + animeId, JSON.stringify(watched));
+            }
+          } catch (e) {}
+        }
+        // Auto-play next episode
+        var nextHref = (document.getElementById('nextEpBar') || {}).getAttribute && document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
+        if (!nextHref) return;
+        autoplayCancelled = false;
+        var overlay = document.getElementById('autoplayOverlay');
+        if (!overlay) return;
+        var countEl = overlay.querySelector('.ap-count');
+        var secs = 12;
+        overlay.hidden = false;
+        if (countEl) countEl.textContent = String(secs);
+        autoplayTimer = setInterval(function () {
+          if (autoplayCancelled) { clearInterval(autoplayTimer); overlay.hidden = true; return; }
+          secs--;
+          if (countEl) countEl.textContent = String(secs);
+          if (secs <= 0) {
+            clearInterval(autoplayTimer);
+            overlay.hidden = true;
+            location.href = nextHref;
+          }
+        }, 1000);
       });
       video.addEventListener('loadedmetadata', function () {
         updateProgress();
