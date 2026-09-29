@@ -55,52 +55,48 @@ async function resolveCategory(
   episodeId: string
 ): Promise<ResolvedTrack | null> {
   const cacheKey = `stream:${episodeId}:${category}:${server}`;
-  const cachedHit = scrapeCache.get(cacheKey) as ResolvedTrack | undefined;
-  if (cachedHit) return cachedHit;
 
-  const mega = pickMegaPlay(servers, category, server);
-  if (mega) {
-    try {
-      const stream = await resolveMegaPlaySources(mega.embedUrl);
-      const m3u8 = stream.sources[0]?.url;
-      if (m3u8) {
-        const track: ResolvedTrack = {
-          category,
-          provider: 'megaplay',
-          server: mega.serverName.toLowerCase().replace(/\s+/g, '-'),
-          m3u8,
-          stream,
-        };
-        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
-        return track;
+  return scrapeCache.getOrSet(cacheKey, STREAM_TTL_MS, async () => {
+    const mega = pickMegaPlay(servers, category, server);
+    if (mega) {
+      try {
+        const stream = await resolveMegaPlaySources(mega.embedUrl);
+        const m3u8 = stream.sources[0]?.url;
+        if (m3u8) {
+          return {
+            category,
+            provider: 'megaplay' as const,
+            server: mega.serverName.toLowerCase().replace(/\s+/g, '-'),
+            m3u8,
+            stream,
+          };
+        }
+      } catch {
+        // fall through to Zoko
       }
-    } catch {
-      // fall through to Zoko
     }
-  }
 
-  const zoko = pickZoko(servers, category);
-  if (zoko) {
-    try {
-      const stream = await resolveZokoSources(zoko.embedUrl);
-      const m3u8 = stream.sources[0]?.url;
-      if (m3u8) {
-        const track: ResolvedTrack = {
-          category,
-          provider: 'zoko',
-          server: zoko.serverName.toLowerCase().replace(/\s+/g, '-'),
-          m3u8,
-          stream,
-        };
-        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
-        return track;
+    const zoko = pickZoko(servers, category);
+    if (zoko) {
+      try {
+        const stream = await resolveZokoSources(zoko.embedUrl);
+        const m3u8 = stream.sources[0]?.url;
+        if (m3u8) {
+          return {
+            category,
+            provider: 'zoko' as const,
+            server: zoko.serverName.toLowerCase().replace(/\s+/g, '-'),
+            m3u8,
+            stream,
+          };
+        }
+      } catch {
+        // fall through
       }
-    } catch {
-      return null;
     }
-  }
 
-  return null;
+    return null as unknown as ResolvedTrack; // getOrSet requires non-undefined; null cached fine
+  }) as Promise<ResolvedTrack | null>;
 }
 
 function normalizeEpisodeId(raw: string): string {

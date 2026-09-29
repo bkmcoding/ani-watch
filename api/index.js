@@ -391,10 +391,8 @@ var extractHomepage = (html) => {
 
 // src/handlers/catalog/home.ts
 var homepageController = async () => {
-  console.log("Fetching homepage data from external API...");
   const result = await axiosInstance("/home", { cacheTtlMs: 12e4 });
   if (!result.success || !result.data) {
-    console.error("Homepage fetch failed:", result.message);
     throw new validationError(result.message || "Failed to fetch homepage");
   }
   return extractHomepage(result.data);
@@ -1118,13 +1116,15 @@ function animeSlugFromEpisodeId(episodeId) {
 }
 async function fetchTheme(path, refererPath) {
   const referer = refererPath ? `${config_default.baseurl}${refererPath.startsWith("/") ? refererPath : `/${refererPath}`}` : `${config_default.baseurl}/`;
+  const isEpisodeList = path.startsWith("episode/list");
+  const ttl = isEpisodeList ? 6e5 : 12e4;
   return axiosInstance(`/api/theme/${path.replace(/^\//, "")}`, {
     headers: {
       Referer: referer,
       "X-Requested-With": "XMLHttpRequest",
       Accept: "application/json, text/javascript, */*; q=0.01"
     },
-    cacheTtlMs: 12e4
+    cacheTtlMs: ttl
   });
 }
 
@@ -1606,48 +1606,43 @@ function pickZoko(servers, category) {
 }
 async function resolveCategory(servers, category, server, episodeId) {
   const cacheKey = `stream:${episodeId}:${category}:${server}`;
-  const cachedHit = scrapeCache.get(cacheKey);
-  if (cachedHit) return cachedHit;
-  const mega = pickMegaPlay(servers, category, server);
-  if (mega) {
-    try {
-      const stream = await resolveMegaPlaySources(mega.embedUrl);
-      const m3u8 = stream.sources[0]?.url;
-      if (m3u8) {
-        const track = {
-          category,
-          provider: "megaplay",
-          server: mega.serverName.toLowerCase().replace(/\s+/g, "-"),
-          m3u8,
-          stream
-        };
-        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
-        return track;
+  return scrapeCache.getOrSet(cacheKey, STREAM_TTL_MS, async () => {
+    const mega = pickMegaPlay(servers, category, server);
+    if (mega) {
+      try {
+        const stream = await resolveMegaPlaySources(mega.embedUrl);
+        const m3u8 = stream.sources[0]?.url;
+        if (m3u8) {
+          return {
+            category,
+            provider: "megaplay",
+            server: mega.serverName.toLowerCase().replace(/\s+/g, "-"),
+            m3u8,
+            stream
+          };
+        }
+      } catch {
       }
-    } catch {
     }
-  }
-  const zoko = pickZoko(servers, category);
-  if (zoko) {
-    try {
-      const stream = await resolveZokoSources(zoko.embedUrl);
-      const m3u8 = stream.sources[0]?.url;
-      if (m3u8) {
-        const track = {
-          category,
-          provider: "zoko",
-          server: zoko.serverName.toLowerCase().replace(/\s+/g, "-"),
-          m3u8,
-          stream
-        };
-        scrapeCache.set(cacheKey, track, STREAM_TTL_MS);
-        return track;
+    const zoko = pickZoko(servers, category);
+    if (zoko) {
+      try {
+        const stream = await resolveZokoSources(zoko.embedUrl);
+        const m3u8 = stream.sources[0]?.url;
+        if (m3u8) {
+          return {
+            category,
+            provider: "zoko",
+            server: zoko.serverName.toLowerCase().replace(/\s+/g, "-"),
+            m3u8,
+            stream
+          };
+        }
+      } catch {
       }
-    } catch {
-      return null;
     }
-  }
-  return null;
+    return null;
+  });
 }
 function normalizeEpisodeId(raw) {
   return raw.includes("::") ? raw.replace("::", "?") : raw;
@@ -1913,6 +1908,7 @@ var sources_default = sourcesController;
 
 // src/handlers/media/hlsProxy.ts
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+var PLAYLIST_TTL_MS = 3e4;
 function stripPngWrapper(buf) {
   if (buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
     const iend = buf.indexOf(Buffer.from("IEND"));
@@ -1965,21 +1961,37 @@ var hlsProxyController = async (c) => {
     originHeader = new URL(referer).origin;
   } catch {
   }
-  const upstream = await fetch(parsed.href, {
-    headers: {
-      "User-Agent": UA,
-      Referer: referer,
-      Origin: originHeader,
-      Accept: "*/*"
-    },
-    redirect: "follow"
-  });
+  const fetchHeaders = {
+    "User-Agent": UA,
+    Referer: referer,
+    Origin: originHeader,
+    Accept: "*/*"
+  };
+  const proxyBase = hlsProxyBase(requestOrigin(c));
+  const looksLikePlaylist = /\.m3u8(\?|$)/i.test(parsed.pathname);
+  if (looksLikePlaylist) {
+    const cacheKey = `hls:pl:${parsed.href}`;
+    const rewritten = await cached(cacheKey, PLAYLIST_TTL_MS, async () => {
+      const upstream2 = await fetch(parsed.href, { headers: fetchHeaders, redirect: "follow" });
+      if (!upstream2.ok) throw new Error(`Upstream ${upstream2.status}`);
+      const text = await upstream2.text();
+      return rewritePlaylist(text, parsed.href, proxyBase);
+    });
+    return new Response(rewritten, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.apple.mpegurl",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
+  }
+  const upstream = await fetch(parsed.href, { headers: fetchHeaders, redirect: "follow" });
   if (!upstream.ok) {
     return c.text(`Upstream ${upstream.status}`, 502);
   }
   const ct = (upstream.headers.get("content-type") || "").toLowerCase();
-  const isPlaylist = ct.includes("mpegurl") || ct.includes("m3u8") || /\.m3u8(\?|$)/i.test(parsed.pathname);
-  const proxyBase = hlsProxyBase(requestOrigin(c));
+  const isPlaylist = ct.includes("mpegurl") || ct.includes("m3u8");
   if (isPlaylist) {
     const text = await upstream.text();
     const rewritten = rewritePlaylist(text, parsed.href, proxyBase);

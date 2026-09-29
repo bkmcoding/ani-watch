@@ -8,9 +8,15 @@ import {
   refererForStreamUrl,
   requestOrigin,
 } from '../../lib/streamUrls';
+import { cached } from '../../lib/ttlCache';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
+
+// Cache rewritten m3u8 playlists for 30 seconds — HLS.js polls them repeatedly
+// (once per segment duration, typically every 2–10s). Segments (.ts/.png) are
+// never cached: each fetch is a unique one-time-use URL slice of the stream.
+const PLAYLIST_TTL_MS = 30_000;
 
 function stripPngWrapper(buf: Buffer): Buffer {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
@@ -75,15 +81,40 @@ const hlsProxyController = async (c: Context) => {
     // keep default
   }
 
-  const upstream = await fetch(parsed.href, {
-    headers: {
-      'User-Agent': UA,
-      Referer: referer,
-      Origin: originHeader,
-      Accept: '*/*',
-    },
-    redirect: 'follow',
-  });
+  const fetchHeaders = {
+    'User-Agent': UA,
+    Referer: referer,
+    Origin: originHeader,
+    Accept: '*/*',
+  };
+
+  const proxyBase = hlsProxyBase(requestOrigin(c));
+
+  // Detect playlist by URL alone (before fetching) to decide if we can cache.
+  const looksLikePlaylist = /\.m3u8(\?|$)/i.test(parsed.pathname);
+
+  if (looksLikePlaylist) {
+    // Cache rewritten playlists: HLS.js polls them every few seconds.
+    // The upstream fetch is INSIDE the loader so cache hits skip it entirely.
+    const cacheKey = `hls:pl:${parsed.href}`;
+    const rewritten = await cached<string>(cacheKey, PLAYLIST_TTL_MS, async () => {
+      const upstream = await fetch(parsed.href, { headers: fetchHeaders, redirect: 'follow' });
+      if (!upstream.ok) throw new Error(`Upstream ${upstream.status}`);
+      const text = await upstream.text();
+      return rewritePlaylist(text, parsed.href, proxyBase);
+    });
+    return new Response(rewritten, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
+
+  // Non-playlist: always fetch upstream fresh (segments, VTT, etc.)
+  const upstream = await fetch(parsed.href, { headers: fetchHeaders, redirect: 'follow' });
 
   if (!upstream.ok) {
     return c.text(`Upstream ${upstream.status}`, 502);
@@ -92,12 +123,10 @@ const hlsProxyController = async (c: Context) => {
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
   const isPlaylist =
     ct.includes('mpegurl') ||
-    ct.includes('m3u8') ||
-    /\.m3u8(\?|$)/i.test(parsed.pathname);
-
-  const proxyBase = hlsProxyBase(requestOrigin(c));
+    ct.includes('m3u8');
 
   if (isPlaylist) {
+    // Content-type says playlist but URL didn't look like one — rewrite without caching.
     const text = await upstream.text();
     const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
     return new Response(rewritten, {

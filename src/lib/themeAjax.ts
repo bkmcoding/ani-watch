@@ -38,11 +38,17 @@ export function animeSlugFromEpisodeId(episodeId: string): string | null {
   return slug || null;
 }
 
-/** Theme AJAX — cached ~2 minutes (episode lists / servers change slowly). */
+/** Theme AJAX — cached per endpoint:
+ *  - episode/list: 10 minutes (changes weekly for airing, never for completed)
+ *  - everything else: 2 minutes
+ */
 export async function fetchTheme(path: string, refererPath?: string) {
   const referer = refererPath
     ? `${config.baseurl}${refererPath.startsWith('/') ? refererPath : `/${refererPath}`}`
     : `${config.baseurl}/`;
+
+  const isEpisodeList = path.startsWith('episode/list');
+  const ttl = isEpisodeList ? 600_000 : 120_000;
 
   return axiosInstance(`/api/theme/${path.replace(/^\//, '')}`, {
     headers: {
@@ -50,6 +56,6 @@ export async function fetchTheme(path: string, refererPath?: string) {
       'X-Requested-With': 'XMLHttpRequest',
       Accept: 'application/json, text/javascript, */*; q=0.01',
     },
-    cacheTtlMs: 120_000,
+    cacheTtlMs: ttl,
   });
 }
