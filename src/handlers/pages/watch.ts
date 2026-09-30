@@ -209,7 +209,7 @@ const watchController = async (c: Context) => {
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Inter:wght@400;500;600&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <style>
     :root {
@@ -344,7 +344,7 @@ const watchController = async (c: Context) => {
       bottom: var(--cc-y, 16%);
       top: auto;
       transform: translateX(-50%);
-      max-width: min(92%, 920px);
+      max-width: min(68%, 860px);
       width: max-content;
       text-align: center;
       pointer-events: auto;
@@ -356,11 +356,11 @@ const watchController = async (c: Context) => {
       /* bg/color set dynamically via --cc-bg and --cc-color */
       background: var(--cc-bg, rgba(0,0,0,0.72));
       color: var(--cc-color, #fff);
-      font-family: "DM Sans", system-ui, sans-serif;
+      font-family: var(--cc-font, "Inter", system-ui, sans-serif);
       font-size: var(--cc-size, 28px);
-      font-weight: var(--cc-weight, 600);
-      line-height: 1.4;
-      letter-spacing: 0.01em;
+      font-weight: var(--cc-weight, 500);
+      line-height: 1.35;
+      letter-spacing: var(--cc-letter, 0.01em);
       text-shadow: var(--cc-shadow, 0 1px 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7));
       -webkit-text-stroke: var(--cc-stroke, 0px transparent);
       white-space: pre-wrap;
@@ -822,10 +822,10 @@ const watchController = async (c: Context) => {
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
                   <label>Font</label>
                   <div class="pos-row" id="ccFontRow" style="flex-wrap:wrap">
-                    <button type="button" class="pill" data-cc-font="sans" style="font-family:system-ui,sans-serif">Sans</button>
-                    <button type="button" class="pill is-active" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
+                    <button type="button" class="pill is-active" data-cc-font="inter" style="font-family:'Inter',system-ui,sans-serif">Inter</button>
+                    <button type="button" class="pill" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
+                    <button type="button" class="pill" data-cc-font="opensans" style="font-family:'Open Sans',sans-serif">Open Sans</button>
                     <button type="button" class="pill" data-cc-font="serif" style="font-family:Georgia,serif">Serif</button>
-                    <button type="button" class="pill" data-cc-font="mono" style="font-family:'Courier New',monospace">Mono</button>
                   </div>
                 </div>
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
@@ -854,6 +854,13 @@ const watchController = async (c: Context) => {
                   <input class="menu-slider" id="ccOpacity" type="range" min="30" max="100" step="5" value="100" aria-label="Caption opacity" />
                 </div>
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <label for="ccLetter">Letter Spacing</label>
+                    <span class="hint" id="ccLetterLabel">0.01em</span>
+                  </div>
+                  <input class="menu-slider" id="ccLetter" type="range" min="-2" max="8" step="1" value="1" aria-label="Caption letter spacing" />
+                </div>
+                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
                   <label>Position</label>
                   <div class="pos-row" id="ccPosRow">
                     <button type="button" class="pill" data-cc-pos="top">Top</button>
@@ -861,6 +868,9 @@ const watchController = async (c: Context) => {
                     <button type="button" class="pill is-active" data-cc-pos="bottom">Bottom</button>
                   </div>
                   <p class="hint" style="margin:0">Or drag the captions on the video.</p>
+                </div>
+                <div class="menu-row" style="padding-top:4px">
+                  <button type="button" class="pill" id="ccResetBtn" style="width:100%;text-align:center;opacity:0.7">↺ Reset to defaults</button>
                 </div>
               </div>
               <p class="hint" id="ccHint" style="margin-top:8px;${hasAnyCc ? 'display:none' : ''}">No English softsubs for this episode.</p>
@@ -991,6 +1001,9 @@ const watchController = async (c: Context) => {
       var ccSizeLabel = document.getElementById('ccSizeLabel');
       var ccOpacityEl = document.getElementById('ccOpacity');
       var ccOpacityLabel = document.getElementById('ccOpacityLabel');
+      var ccLetterEl = document.getElementById('ccLetter');
+      var ccLetterLabel = document.getElementById('ccLetterLabel');
+      var ccResetBtn = document.getElementById('ccResetBtn');
       var pipBtn = document.getElementById('pipBtn');
       var skipBtn = document.getElementById('skipBtn');
       var providerBadge = document.getElementById('providerBadge');
@@ -1012,11 +1025,12 @@ const watchController = async (c: Context) => {
       var ccY = Number(localStorage.getItem('ani.ccY') || 'NaN');
       var CC_STYLES = ['box', 'outline', 'raised', 'drop'];
       var CC_COLORS = { white: '#fff', yellow: '#ffe066', cyan: '#3dd6c6', lime: '#86efac' };
-      var CC_FONTS = { sans: 'system-ui,sans-serif', dm: '"DM Sans",sans-serif', serif: 'Georgia,serif', mono: '"Courier New",monospace' };
+      var CC_FONTS = { inter: '"Inter",system-ui,sans-serif', dm: '"DM Sans",sans-serif', opensans: '"Open Sans",sans-serif', serif: 'Georgia,serif' };
       var ccStyle = CC_STYLES.indexOf(localStorage.getItem('ani.ccStyle') || '') >= 0 ? localStorage.getItem('ani.ccStyle') : 'outline';
       var ccColorKey = CC_COLORS[localStorage.getItem('ani.ccColor')] ? localStorage.getItem('ani.ccColor') : 'white';
-      var ccFontKey = CC_FONTS[localStorage.getItem('ani.ccFont')] ? localStorage.getItem('ani.ccFont') : 'dm';
+      var ccFontKey = CC_FONTS[localStorage.getItem('ani.ccFont')] ? localStorage.getItem('ani.ccFont') : 'inter';
       var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
+      var ccLetterSpacing = Math.min(8, Math.max(-2, Number(localStorage.getItem('ani.ccLetter') || '1') || 1)); // in units of 0.01em
       var ccCollapsed = localStorage.getItem('ani.ccCollapsed') !== '0'; // collapsed by default unless user explicitly opened it
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 16;
@@ -1295,15 +1309,18 @@ const watchController = async (c: Context) => {
         ccBox.style.setProperty('--cc-size', ccSizePx + 'px');
         ccBox.style.setProperty('--cc-x', ccX + '%');
         ccBox.style.setProperty('--cc-y', ccY + '%');
-        // Font
-        ccBox.style.fontFamily = CC_FONTS[ccFontKey] || 'system-ui,sans-serif';
+        // Font via CSS variable
+        ccBox.style.setProperty('--cc-font', CC_FONTS[ccFontKey] || '"Inter",system-ui,sans-serif');
         // Style preset
         ccBox.setAttribute('data-style', ccStyle);
         // Color
         var color = CC_COLORS[ccColorKey] || '#fff';
         ccBox.style.setProperty('--cc-color', color);
-        // Weight
-        ccBox.style.setProperty('--cc-weight', '600');
+        // Weight — BBC recommends 400-500, not 700
+        ccBox.style.setProperty('--cc-weight', '500');
+        // Letter spacing (stored as integer units of 0.01em)
+        var letterEm = (ccLetterSpacing * 0.01).toFixed(2) + 'em';
+        ccBox.style.setProperty('--cc-letter', letterEm);
         // Opacity
         ccBox.style.opacity = String(ccOpacity / 100);
         // Sync size slider
@@ -1312,6 +1329,9 @@ const watchController = async (c: Context) => {
         // Sync opacity slider
         if (ccOpacityEl) ccOpacityEl.value = String(ccOpacity);
         if (ccOpacityLabel) ccOpacityLabel.textContent = ccOpacity + '%';
+        // Sync letter spacing slider
+        if (ccLetterEl) ccLetterEl.value = String(ccLetterSpacing);
+        if (ccLetterLabel) ccLetterLabel.textContent = letterEm;
         // Sync pos buttons
         document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
           var pos = btn.getAttribute('data-cc-pos');
@@ -1343,6 +1363,7 @@ const watchController = async (c: Context) => {
         localStorage.setItem('ani.ccColor', ccColorKey);
         localStorage.setItem('ani.ccFont', ccFontKey);
         localStorage.setItem('ani.ccOpacity', String(ccOpacity));
+        localStorage.setItem('ani.ccLetter', String(ccLetterSpacing));
       }
 
       function setCcPos(preset) {
@@ -1871,11 +1892,38 @@ const watchController = async (c: Context) => {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
-          ccFontKey = btn.getAttribute('data-cc-font') || 'sans';
+          ccFontKey = btn.getAttribute('data-cc-font') || 'inter';
           applyCcStyle();
           persistCcLayout();
         });
       });
+      // Letter-spacing slider
+      if (ccLetterEl) {
+        ccLetterEl.addEventListener('input', function (e) {
+          e.stopPropagation();
+          ccLetterSpacing = Number(ccLetterEl.value) || 0;
+          applyCcStyle();
+          persistCcLayout();
+        });
+        ccLetterEl.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+      // Reset to defaults
+      if (ccResetBtn) {
+        ccResetBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          ccSizePx = 30;
+          ccStyle = 'outline';
+          ccColorKey = 'white';
+          ccFontKey = 'inter';
+          ccOpacity = 100;
+          ccLetterSpacing = 1;
+          ccX = 50;
+          ccY = 16;
+          applyCcStyle();
+          persistCcLayout();
+        });
+      }
       // CC section collapse
       var ccCollapseBtn = document.getElementById('ccCollapseBtn');
       var ccBody = document.getElementById('ccBody');
