@@ -341,7 +341,7 @@ const watchController = async (c: Context) => {
     .cc-box {
       position: absolute;
       left: var(--cc-x, 50%);
-      bottom: var(--cc-y, 12%);
+      bottom: var(--cc-y, 16%);
       top: auto;
       transform: translateX(-50%);
       max-width: min(92%, 920px);
@@ -1008,8 +1008,8 @@ const watchController = async (c: Context) => {
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
       var ccSizePx = Math.min(56, Math.max(16, Number(localStorage.getItem('ani.ccSize') || '30') || 30));
-      var ccX = Number(localStorage.getItem('ani.ccX'));
-      var ccY = Number(localStorage.getItem('ani.ccY'));
+      var ccX = Number(localStorage.getItem('ani.ccX') || 'NaN');
+      var ccY = Number(localStorage.getItem('ani.ccY') || 'NaN');
       var CC_STYLES = ['box', 'outline', 'raised', 'drop'];
       var CC_COLORS = { white: '#fff', yellow: '#ffe066', cyan: '#3dd6c6', lime: '#86efac' };
       var CC_FONTS = { sans: 'system-ui,sans-serif', dm: '"DM Sans",sans-serif', serif: 'Georgia,serif', mono: '"Courier New",monospace' };
@@ -1019,12 +1019,14 @@ const watchController = async (c: Context) => {
       var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
       var ccCollapsed = localStorage.getItem('ani.ccCollapsed') !== '0'; // collapsed by default unless user explicitly opened it
       if (!isFinite(ccX)) ccX = 50;
-      if (!isFinite(ccY)) ccY = 12;
+      if (!isFinite(ccY)) ccY = 16;
       var ccCues = [];
       var ccSrcLoaded = '';
       var ccFetchToken = 0;
       var activeCueText = '';
       var draggingCc = false;
+      var ccDragOffsetX = 0; // pointer offset within box at drag start (% of stage width)
+      var ccDragOffsetY = 0;
 
       // ── Continue-watching & history ───────────────────────────────────────
       var CW_KEY = 'ani.cw';
@@ -1910,14 +1912,24 @@ const watchController = async (c: Context) => {
           draggingCc = true;
           ccBox.classList.add('is-dragging');
           ccBox.setPointerCapture(e.pointerId);
+          // Record where within the box the pointer landed (as % of stage)
+          var rect = stage.getBoundingClientRect();
+          if (rect.width && rect.height) {
+            var pctX = ((e.clientX - rect.left) / rect.width) * 100;
+            var pctY = ((rect.bottom - e.clientY) / rect.height) * 100;
+            ccDragOffsetX = pctX - ccX;
+            ccDragOffsetY = pctY - ccY;
+          }
         });
         ccBox.addEventListener('pointermove', function (e) {
           if (!draggingCc) return;
           e.preventDefault();
           var rect = stage.getBoundingClientRect();
           if (!rect.width || !rect.height) return;
-          ccX = Math.min(92, Math.max(8, ((e.clientX - rect.left) / rect.width) * 100));
-          ccY = Math.min(90, Math.max(4, ((rect.bottom - e.clientY) / rect.height) * 100));
+          var pctX = ((e.clientX - rect.left) / rect.width) * 100;
+          var pctY = ((rect.bottom - e.clientY) / rect.height) * 100;
+          ccX = Math.min(92, Math.max(8, pctX - ccDragOffsetX));
+          ccY = Math.min(90, Math.max(4, pctY - ccDragOffsetY));
           applyCcStyle();
         });
         function endCcDrag(e) {
