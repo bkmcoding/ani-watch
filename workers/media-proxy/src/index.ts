@@ -125,10 +125,20 @@ function stripPngWrapper(buf: Uint8Array): Uint8Array {
   return buf;
 }
 
+/** True when a URL looks like a subtitle file (VTT or ASS). */
+function isSubtitleUrl(url: string): boolean {
+  try {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(new URL(url).pathname);
+  } catch {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(url);
+  }
+}
+
 function rewritePlaylist(
   body: string,
   playlistUrl: string,
   proxyBase: string,
+  vttBase: string,
   secret: string | null
 ): string {
   return body
@@ -139,6 +149,11 @@ function rewritePlaylist(
         return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
           try {
             const abs = new URL(uri, playlistUrl).href;
+            // Subtitle playlist/segment URIs go through /vtt (no auth needed);
+            // everything else (video segments, key files) goes through /hls.
+            if (isSubtitleUrl(abs)) {
+              return `URI="${vttBase}?url=${encodeURIComponent(abs)}"`;
+            }
             return `URI="${buildProxyUrl(proxyBase, abs, secret)}"`;
           } catch {
             return `URI="${uri}"`;
@@ -147,6 +162,10 @@ function rewritePlaylist(
       }
       try {
         const abs = new URL(trimmed, playlistUrl).href;
+        // Plain segment lines: subtitle VTTs go through /vtt, everything else /hls
+        if (isSubtitleUrl(abs)) {
+          return `${vttBase}?url=${encodeURIComponent(abs)}`;
+        }
         return buildProxyUrl(proxyBase, abs, secret);
       } catch {
         return line;
@@ -250,11 +269,12 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
     /\.m3u8(\?|$)/i.test(parsed.pathname);
 
   const proxyBase = `${workerOrigin}/hls`;
+  const vttBase = `${workerOrigin}/vtt`;
   const secret = (env.MEDIA_PROXY_SECRET || '').trim() || null;
 
   if (isPlaylist) {
     const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, secret);
+    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, vttBase, secret);
     return new Response(rewritten, {
       status: 200,
       headers: corsHeaders({
@@ -265,8 +285,12 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
   }
 
   const isVtt =
-    ct.includes('text/vtt') || ct.includes('vtt') || /\.vtt(\?|$)/i.test(parsed.pathname);
-  const isAss = /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes('ass');
+    ct.includes('text/vtt') || ct.includes('vtt') ||
+    /\.vtt(\?|$)/i.test(parsed.pathname) ||
+    /\.vtt(\?|$)/i.test(new URL(target).pathname);
+  const isAss =
+    /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes('ass') ||
+    /\.ass(\?|$)/i.test(new URL(target).pathname);
 
   if (isVtt || isAss) {
     const text = await upstream.text();
