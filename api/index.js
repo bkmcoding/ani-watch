@@ -1908,7 +1908,6 @@ var sources_default = sourcesController;
 
 // src/handlers/media/hlsProxy.ts
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
-var PLAYLIST_TTL_MS = 3e4;
 function stripPngWrapper(buf) {
   if (buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
     const iend = buf.indexOf(Buffer.from("IEND"));
@@ -1970,13 +1969,10 @@ var hlsProxyController = async (c) => {
   const proxyBase = hlsProxyBase(requestOrigin(c));
   const looksLikePlaylist = /\.m3u8(\?|$)/i.test(parsed.pathname);
   if (looksLikePlaylist) {
-    const cacheKey = `hls:pl:${parsed.href}`;
-    const rewritten = await cached(cacheKey, PLAYLIST_TTL_MS, async () => {
-      const upstream2 = await fetch(parsed.href, { headers: fetchHeaders, redirect: "follow" });
-      if (!upstream2.ok) throw new Error(`Upstream ${upstream2.status}`);
-      const text = await upstream2.text();
-      return rewritePlaylist(text, parsed.href, proxyBase);
-    });
+    const upstream2 = await fetch(parsed.href, { headers: fetchHeaders, redirect: "follow" });
+    if (!upstream2.ok) return c.text(`Upstream ${upstream2.status}`, 502);
+    const text = await upstream2.text();
+    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
     return new Response(rewritten, {
       status: 200,
       headers: {
