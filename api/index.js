@@ -2521,7 +2521,7 @@ var watchController = async (c) => {
       bottom: var(--cc-y, 16%);
       top: auto;
       transform: translateX(-50%);
-      max-width: min(68%, 860px);
+      max-width: min(80%, 960px);
       width: max-content;
       text-align: center;
       pointer-events: auto;
@@ -3215,6 +3215,8 @@ var watchController = async (c) => {
       var ccSrcLoaded = '';
       var ccFetchToken = 0;
       var activeCueText = '';
+      var ccRafId = 0;          // requestAnimationFrame handle for subtitle render loop
+      var ccDebounceTimer = 0;  // debounce timer for CC toggle spam
       var draggingCc = false;
       var ccDragOffsetX = 0; // pointer offset within box at drag start (% of stage width)
       var ccDragOffsetY = 0;
@@ -3456,27 +3458,45 @@ var watchController = async (c) => {
 
       function parseVtt(text) {
         var cues = [];
-        var blocks = String(text || '').replace(/\\r/g, '').split(/\\n\\n+/);
+        var blocks = String(text || '').replace(/\r/g, '').split(/
+
++/);
+        // Parse X-TIMESTAMP-MAP offset (HLS VTT sync header).
+        // Format: X-TIMESTAMP-MAP=MPEGTS:<pts>,LOCAL:<local_time>
+        // Without this, cues from HLS sources can be off by up to 10s.
+        var tsOffset = 0;
+        var headerBlock = blocks[0] || '';
+        var tsMapMatch = headerBlock.match(/X-TIMESTAMP-MAPs*=s*MPEGTSs*:s*(d+)s*,s*LOCALs*:s*([d:.]+)/i);
+        if (tsMapMatch) {
+          var mpegTs = parseInt(tsMapMatch[1], 10);
+          var localSecs = parseTs(tsMapMatch[2]);
+          // MPEG-TS ticks at 90kHz; convert to seconds and subtract local offset
+          tsOffset = (mpegTs / 90000) - localSecs;
+          // Clamp: a PTS of 900000 = 10s offset, very common. Reject nonsense values.
+          if (!isFinite(tsOffset) || Math.abs(tsOffset) > 3600) tsOffset = 0;
+        }
         for (var i = 0; i < blocks.length; i++) {
           var block = blocks[i].trim();
-          if (!block || /^WEBVTT/i.test(block) || /^NOTE\\b/i.test(block) || /^STYLE\\b/i.test(block)) continue;
-          var lines = block.split('\\n');
+          if (!block || /^WEBVTT/i.test(block) || /^NOTE\b/i.test(block) || /^STYLE\b/i.test(block)) continue;
+          var lines = block.split('
+');
           var timeIdx = -1;
           for (var j = 0; j < lines.length; j++) {
             if (lines[j].indexOf('-->') >= 0) { timeIdx = j; break; }
           }
           if (timeIdx < 0) continue;
-          var m = lines[timeIdx].match(/([\\d:.]+)\\s*-->\\s*([\\d:.]+)/);
+          var m = lines[timeIdx].match(/([d:.]+)s*-->s*([d:.]+)/);
           if (!m) continue;
-          var body = lines.slice(timeIdx + 1).join('\\n')
-            .replace(/<\\/?[^>]+>/g, '')
+          var body = lines.slice(timeIdx + 1).join('
+')
+            .replace(/</?[^>]+>/g, '')
             .replace(/&nbsp;/g, ' ')
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .trim();
           if (!body) continue;
-          cues.push({ start: parseTs(m[1]), end: parseTs(m[2]), text: body });
+          cues.push({ start: parseTs(m[1]) - tsOffset, end: parseTs(m[2]) - tsOffset, text: body });
         }
         return cues;
       }
@@ -3563,6 +3583,7 @@ var watchController = async (c) => {
         ccFetchToken += 1;
         ccCues = [];
         ccSrcLoaded = '';
+        stopCcRaf();
         hideCcText();
         if (ccLayer) ccLayer.classList.remove('is-on');
         // Also disable any leftover native tracks from older sessions
@@ -3596,6 +3617,20 @@ var watchController = async (c) => {
         ccBox.classList.add('is-visible');
       }
 
+      // rAF-based subtitle render loop \u2014 runs at display refresh rate (~60fps)
+      // so subtitle onset is within one frame (~16ms) rather than up to 250ms late.
+      function startCcRaf() {
+        if (ccRafId) return; // already running
+        function tick() {
+          if (ccOn && ccCues.length) renderCcAt(video.currentTime || 0);
+          ccRafId = requestAnimationFrame(tick);
+        }
+        ccRafId = requestAnimationFrame(tick);
+      }
+      function stopCcRaf() {
+        if (ccRafId) { cancelAnimationFrame(ccRafId); ccRafId = 0; }
+      }
+
       function applyCaptions() {
         var src = captions[track];
         syncCcButtons();
@@ -3607,6 +3642,7 @@ var watchController = async (c) => {
         if (ccLayer) ccLayer.classList.add('is-on');
         applyCcStyle();
         if (ccSrcLoaded === src && ccCues.length) {
+          startCcRaf();
           renderCcAt(video.currentTime || 0);
           return;
         }
@@ -3622,6 +3658,7 @@ var watchController = async (c) => {
             if (token !== ccFetchToken) return;
             ccCues = parseVtt(text);
             ccSrcLoaded = src;
+            startCcRaf();
             renderCcAt(video.currentTime || 0);
           })
           .catch(function () {
@@ -3633,10 +3670,17 @@ var watchController = async (c) => {
       }
 
       function setCc(on) {
+        // Debounce: rapid CC toggles cancel the previous pending call so only
+        // the final state fires \u2014 prevents racing fetches when spamming the button.
+        if (ccDebounceTimer) { clearTimeout(ccDebounceTimer); ccDebounceTimer = 0; }
         ccOn = !!on;
         localStorage.setItem('ani.cc', ccOn ? '1' : '0');
-        if (!ccOn) unloadCaptions();
-        applyCaptions();
+        syncCcButtons();
+        if (!ccOn) { unloadCaptions(); return; }
+        ccDebounceTimer = setTimeout(function () {
+          ccDebounceTimer = 0;
+          applyCaptions();
+        }, 80);
       }
 
       function setRate(next) {
@@ -4290,7 +4334,7 @@ var watchController = async (c) => {
       video.addEventListener('timeupdate', function () {
         updateProgress();
         updateSkip();
-        renderCcAt(video.currentTime || 0);
+        // CC rendering moved to rAF loop (startCcRaf/stopCcRaf) for 60fps accuracy
         cwThrottle(video.currentTime || 0);
       });
       video.addEventListener('seeked', function () {
