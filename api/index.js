@@ -2382,10 +2382,7 @@ var watchController = async (c) => {
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Non-render-blocking font load: page and HLS.js execute immediately; fonts swap in when ready -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Inter:wght@400;500;600&family=Open+Sans:wght@400;500;600&display=swap" />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Inter:wght@400;500;600&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Inter:wght@400;500;600&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" /></noscript>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <style>
     :root {
@@ -2520,7 +2517,7 @@ var watchController = async (c) => {
       bottom: var(--cc-y, 16%);
       top: auto;
       transform: translateX(-50%);
-      max-width: min(80%, 960px);
+      max-width: min(92%, 920px);
       width: max-content;
       text-align: center;
       pointer-events: auto;
@@ -2532,11 +2529,11 @@ var watchController = async (c) => {
       /* bg/color set dynamically via --cc-bg and --cc-color */
       background: var(--cc-bg, rgba(0,0,0,0.72));
       color: var(--cc-color, #fff);
-      font-family: var(--cc-font, "Inter", system-ui, sans-serif);
+      font-family: "DM Sans", system-ui, sans-serif;
       font-size: var(--cc-size, 28px);
-      font-weight: var(--cc-weight, 500);
-      line-height: 1.35;
-      letter-spacing: var(--cc-letter, 0.01em);
+      font-weight: var(--cc-weight, 600);
+      line-height: 1.4;
+      letter-spacing: 0.01em;
       text-shadow: var(--cc-shadow, 0 1px 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7));
       -webkit-text-stroke: var(--cc-stroke, 0px transparent);
       white-space: pre-wrap;
@@ -2998,10 +2995,10 @@ var watchController = async (c) => {
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
                   <label>Font</label>
                   <div class="pos-row" id="ccFontRow" style="flex-wrap:wrap">
-                    <button type="button" class="pill is-active" data-cc-font="inter" style="font-family:'Inter',system-ui,sans-serif">Inter</button>
-                    <button type="button" class="pill" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
-                    <button type="button" class="pill" data-cc-font="opensans" style="font-family:'Open Sans',sans-serif">Open Sans</button>
+                    <button type="button" class="pill" data-cc-font="sans" style="font-family:system-ui,sans-serif">Sans</button>
+                    <button type="button" class="pill is-active" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
                     <button type="button" class="pill" data-cc-font="serif" style="font-family:Georgia,serif">Serif</button>
+                    <button type="button" class="pill" data-cc-font="mono" style="font-family:'Courier New',monospace">Mono</button>
                   </div>
                 </div>
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
@@ -3030,13 +3027,6 @@ var watchController = async (c) => {
                   <input class="menu-slider" id="ccOpacity" type="range" min="30" max="100" step="5" value="100" aria-label="Caption opacity" />
                 </div>
                 <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
-                  <div style="display:flex;justify-content:space-between;align-items:center">
-                    <label for="ccLetter">Letter Spacing</label>
-                    <span class="hint" id="ccLetterLabel">0.01em</span>
-                  </div>
-                  <input class="menu-slider" id="ccLetter" type="range" min="-2" max="8" step="1" value="1" aria-label="Caption letter spacing" />
-                </div>
-                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
                   <label>Position</label>
                   <div class="pos-row" id="ccPosRow">
                     <button type="button" class="pill" data-cc-pos="top">Top</button>
@@ -3044,9 +3034,6 @@ var watchController = async (c) => {
                     <button type="button" class="pill is-active" data-cc-pos="bottom">Bottom</button>
                   </div>
                   <p class="hint" style="margin:0">Or drag the captions on the video.</p>
-                </div>
-                <div class="menu-row" style="padding-top:4px">
-                  <button type="button" class="pill" id="ccResetBtn" style="width:100%;text-align:center;opacity:0.7">\u21BA Reset to defaults</button>
                 </div>
               </div>
               <p class="hint" id="ccHint" style="margin-top:8px;${hasAnyCc ? "display:none" : ""}">No English softsubs for this episode.</p>
@@ -3177,9 +3164,6 @@ var watchController = async (c) => {
       var ccSizeLabel = document.getElementById('ccSizeLabel');
       var ccOpacityEl = document.getElementById('ccOpacity');
       var ccOpacityLabel = document.getElementById('ccOpacityLabel');
-      var ccLetterEl = document.getElementById('ccLetter');
-      var ccLetterLabel = document.getElementById('ccLetterLabel');
-      var ccResetBtn = document.getElementById('ccResetBtn');
       var pipBtn = document.getElementById('pipBtn');
       var skipBtn = document.getElementById('skipBtn');
       var providerBadge = document.getElementById('providerBadge');
@@ -3201,12 +3185,11 @@ var watchController = async (c) => {
       var ccY = Number(localStorage.getItem('ani.ccY') || 'NaN');
       var CC_STYLES = ['box', 'outline', 'raised', 'drop'];
       var CC_COLORS = { white: '#fff', yellow: '#ffe066', cyan: '#3dd6c6', lime: '#86efac' };
-      var CC_FONTS = { inter: '"Inter",system-ui,sans-serif', dm: '"DM Sans",sans-serif', opensans: '"Open Sans",sans-serif', serif: 'Georgia,serif' };
+      var CC_FONTS = { sans: 'system-ui,sans-serif', dm: '"DM Sans",sans-serif', serif: 'Georgia,serif', mono: '"Courier New",monospace' };
       var ccStyle = CC_STYLES.indexOf(localStorage.getItem('ani.ccStyle') || '') >= 0 ? localStorage.getItem('ani.ccStyle') : 'outline';
       var ccColorKey = CC_COLORS[localStorage.getItem('ani.ccColor')] ? localStorage.getItem('ani.ccColor') : 'white';
-      var ccFontKey = CC_FONTS[localStorage.getItem('ani.ccFont')] ? localStorage.getItem('ani.ccFont') : 'inter';
+      var ccFontKey = CC_FONTS[localStorage.getItem('ani.ccFont')] ? localStorage.getItem('ani.ccFont') : 'dm';
       var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
-      var ccLetterSpacing = Math.min(8, Math.max(-2, Number(localStorage.getItem('ani.ccLetter') || '1') || 1)); // in units of 0.01em
       var ccCollapsed = localStorage.getItem('ani.ccCollapsed') !== '0'; // collapsed by default unless user explicitly opened it
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 16;
@@ -3214,8 +3197,6 @@ var watchController = async (c) => {
       var ccSrcLoaded = '';
       var ccFetchToken = 0;
       var activeCueText = '';
-      var ccRafId = 0;          // requestAnimationFrame handle for subtitle render loop
-      var ccDebounceTimer = 0;  // debounce timer for CC toggle spam
       var draggingCc = false;
       var ccDragOffsetX = 0; // pointer offset within box at drag start (% of stage width)
       var ccDragOffsetY = 0;
@@ -3457,45 +3438,27 @@ var watchController = async (c) => {
 
       function parseVtt(text) {
         var cues = [];
-        var blocks = String(text || '').replace(/\r/g, '').split(/
-
-+/);
-        // Parse X-TIMESTAMP-MAP offset (HLS VTT sync header).
-        // Format: X-TIMESTAMP-MAP=MPEGTS:<pts>,LOCAL:<local_time>
-        // Without this, cues from HLS sources can be off by up to 10s.
-        var tsOffset = 0;
-        var headerBlock = blocks[0] || '';
-        var tsMapMatch = headerBlock.match(/X-TIMESTAMP-MAPs*=s*MPEGTSs*:s*(d+)s*,s*LOCALs*:s*([d:.]+)/i);
-        if (tsMapMatch) {
-          var mpegTs = parseInt(tsMapMatch[1], 10);
-          var localSecs = parseTs(tsMapMatch[2]);
-          // MPEG-TS ticks at 90kHz; convert to seconds and subtract local offset
-          tsOffset = (mpegTs / 90000) - localSecs;
-          // Clamp: a PTS of 900000 = 10s offset, very common. Reject nonsense values.
-          if (!isFinite(tsOffset) || Math.abs(tsOffset) > 3600) tsOffset = 0;
-        }
+        var blocks = String(text || '').replace(/\\r/g, '').split(/\\n\\n+/);
         for (var i = 0; i < blocks.length; i++) {
           var block = blocks[i].trim();
-          if (!block || /^WEBVTT/i.test(block) || /^NOTE\b/i.test(block) || /^STYLE\b/i.test(block)) continue;
-          var lines = block.split('
-');
+          if (!block || /^WEBVTT/i.test(block) || /^NOTE\\b/i.test(block) || /^STYLE\\b/i.test(block)) continue;
+          var lines = block.split('\\n');
           var timeIdx = -1;
           for (var j = 0; j < lines.length; j++) {
             if (lines[j].indexOf('-->') >= 0) { timeIdx = j; break; }
           }
           if (timeIdx < 0) continue;
-          var m = lines[timeIdx].match(/([d:.]+)s*-->s*([d:.]+)/);
+          var m = lines[timeIdx].match(/([\\d:.]+)\\s*-->\\s*([\\d:.]+)/);
           if (!m) continue;
-          var body = lines.slice(timeIdx + 1).join('
-')
-            .replace(/</?[^>]+>/g, '')
+          var body = lines.slice(timeIdx + 1).join('\\n')
+            .replace(/<\\/?[^>]+>/g, '')
             .replace(/&nbsp;/g, ' ')
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .trim();
           if (!body) continue;
-          cues.push({ start: parseTs(m[1]) - tsOffset, end: parseTs(m[2]) - tsOffset, text: body });
+          cues.push({ start: parseTs(m[1]), end: parseTs(m[2]), text: body });
         }
         return cues;
       }
@@ -3505,18 +3468,15 @@ var watchController = async (c) => {
         ccBox.style.setProperty('--cc-size', ccSizePx + 'px');
         ccBox.style.setProperty('--cc-x', ccX + '%');
         ccBox.style.setProperty('--cc-y', ccY + '%');
-        // Font via CSS variable
-        ccBox.style.setProperty('--cc-font', CC_FONTS[ccFontKey] || '"Inter",system-ui,sans-serif');
+        // Font
+        ccBox.style.fontFamily = CC_FONTS[ccFontKey] || 'system-ui,sans-serif';
         // Style preset
         ccBox.setAttribute('data-style', ccStyle);
         // Color
         var color = CC_COLORS[ccColorKey] || '#fff';
         ccBox.style.setProperty('--cc-color', color);
-        // Weight \u2014 BBC recommends 400-500, not 700
-        ccBox.style.setProperty('--cc-weight', '500');
-        // Letter spacing (stored as integer units of 0.01em)
-        var letterEm = (ccLetterSpacing * 0.01).toFixed(2) + 'em';
-        ccBox.style.setProperty('--cc-letter', letterEm);
+        // Weight
+        ccBox.style.setProperty('--cc-weight', '600');
         // Opacity
         ccBox.style.opacity = String(ccOpacity / 100);
         // Sync size slider
@@ -3525,9 +3485,6 @@ var watchController = async (c) => {
         // Sync opacity slider
         if (ccOpacityEl) ccOpacityEl.value = String(ccOpacity);
         if (ccOpacityLabel) ccOpacityLabel.textContent = ccOpacity + '%';
-        // Sync letter spacing slider
-        if (ccLetterEl) ccLetterEl.value = String(ccLetterSpacing);
-        if (ccLetterLabel) ccLetterLabel.textContent = letterEm;
         // Sync pos buttons
         document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
           var pos = btn.getAttribute('data-cc-pos');
@@ -3559,7 +3516,6 @@ var watchController = async (c) => {
         localStorage.setItem('ani.ccColor', ccColorKey);
         localStorage.setItem('ani.ccFont', ccFontKey);
         localStorage.setItem('ani.ccOpacity', String(ccOpacity));
-        localStorage.setItem('ani.ccLetter', String(ccLetterSpacing));
       }
 
       function setCcPos(preset) {
@@ -3582,7 +3538,6 @@ var watchController = async (c) => {
         ccFetchToken += 1;
         ccCues = [];
         ccSrcLoaded = '';
-        stopCcRaf();
         hideCcText();
         if (ccLayer) ccLayer.classList.remove('is-on');
         // Also disable any leftover native tracks from older sessions
@@ -3616,20 +3571,6 @@ var watchController = async (c) => {
         ccBox.classList.add('is-visible');
       }
 
-      // rAF-based subtitle render loop \u2014 runs at display refresh rate (~60fps)
-      // so subtitle onset is within one frame (~16ms) rather than up to 250ms late.
-      function startCcRaf() {
-        if (ccRafId) return; // already running
-        function tick() {
-          if (ccOn && ccCues.length) renderCcAt(video.currentTime || 0);
-          ccRafId = requestAnimationFrame(tick);
-        }
-        ccRafId = requestAnimationFrame(tick);
-      }
-      function stopCcRaf() {
-        if (ccRafId) { cancelAnimationFrame(ccRafId); ccRafId = 0; }
-      }
-
       function applyCaptions() {
         var src = captions[track];
         syncCcButtons();
@@ -3641,7 +3582,6 @@ var watchController = async (c) => {
         if (ccLayer) ccLayer.classList.add('is-on');
         applyCcStyle();
         if (ccSrcLoaded === src && ccCues.length) {
-          startCcRaf();
           renderCcAt(video.currentTime || 0);
           return;
         }
@@ -3657,7 +3597,6 @@ var watchController = async (c) => {
             if (token !== ccFetchToken) return;
             ccCues = parseVtt(text);
             ccSrcLoaded = src;
-            startCcRaf();
             renderCcAt(video.currentTime || 0);
           })
           .catch(function () {
@@ -3669,17 +3608,10 @@ var watchController = async (c) => {
       }
 
       function setCc(on) {
-        // Debounce: rapid CC toggles cancel the previous pending call so only
-        // the final state fires \u2014 prevents racing fetches when spamming the button.
-        if (ccDebounceTimer) { clearTimeout(ccDebounceTimer); ccDebounceTimer = 0; }
         ccOn = !!on;
         localStorage.setItem('ani.cc', ccOn ? '1' : '0');
-        syncCcButtons();
-        if (!ccOn) { unloadCaptions(); return; }
-        ccDebounceTimer = setTimeout(function () {
-          ccDebounceTimer = 0;
-          applyCaptions();
-        }, 80);
+        if (!ccOn) unloadCaptions();
+        applyCaptions();
       }
 
       function setRate(next) {
@@ -4112,38 +4044,11 @@ var watchController = async (c) => {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
-          ccFontKey = btn.getAttribute('data-cc-font') || 'inter';
+          ccFontKey = btn.getAttribute('data-cc-font') || 'sans';
           applyCcStyle();
           persistCcLayout();
         });
       });
-      // Letter-spacing slider
-      if (ccLetterEl) {
-        ccLetterEl.addEventListener('input', function (e) {
-          e.stopPropagation();
-          ccLetterSpacing = Number(ccLetterEl.value) || 0;
-          applyCcStyle();
-          persistCcLayout();
-        });
-        ccLetterEl.addEventListener('click', function (e) { e.stopPropagation(); });
-      }
-      // Reset to defaults
-      if (ccResetBtn) {
-        ccResetBtn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          ccSizePx = 30;
-          ccStyle = 'outline';
-          ccColorKey = 'white';
-          ccFontKey = 'inter';
-          ccOpacity = 100;
-          ccLetterSpacing = 1;
-          ccX = 50;
-          ccY = 16;
-          applyCcStyle();
-          persistCcLayout();
-        });
-      }
       // CC section collapse
       var ccCollapseBtn = document.getElementById('ccCollapseBtn');
       var ccBody = document.getElementById('ccBody');
@@ -4333,7 +4238,7 @@ var watchController = async (c) => {
       video.addEventListener('timeupdate', function () {
         updateProgress();
         updateSkip();
-        // CC rendering moved to rAF loop (startCcRaf/stopCcRaf) for 60fps accuracy
+        renderCcAt(video.currentTime || 0);
         cwThrottle(video.currentTime || 0);
       });
       video.addEventListener('seeked', function () {
