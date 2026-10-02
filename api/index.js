@@ -2382,7 +2382,7 @@ var watchController = async (c) => {
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Rosario:wght@700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <style>
     :root {
@@ -2514,58 +2514,77 @@ var watchController = async (c) => {
     .cc-box {
       position: absolute;
       left: var(--cc-x, 50%);
-      bottom: var(--cc-y, 16%);
+      bottom: var(--cc-y, 10%);
       top: auto;
       transform: translateX(-50%);
-      max-width: min(92%, 920px);
+      max-width: min(88%, 860px);
       width: max-content;
       text-align: center;
       pointer-events: auto;
       cursor: grab;
       user-select: none;
       touch-action: none;
-      padding: var(--cc-pad, 0.3em 0.65em);
-      border-radius: 10px;
-      /* bg/color set dynamically via --cc-bg and --cc-color */
-      background: var(--cc-bg, rgba(0,0,0,0.72));
+      padding: 0.15em 0.4em;
+      border-radius: 6px;
+      /* default: no background (outline style) */
+      background: var(--cc-bg, transparent);
       color: var(--cc-color, #fff);
-      font-family: "DM Sans", system-ui, sans-serif;
-      font-size: var(--cc-size, 28px);
-      font-weight: var(--cc-weight, 600);
-      line-height: 1.4;
+      font-family: var(--cc-font-family, "DM Sans", system-ui, sans-serif);
+      font-size: var(--cc-size, 34px);
+      font-weight: var(--cc-weight, 700);
+      line-height: 1.35;
       letter-spacing: 0.01em;
-      text-shadow: var(--cc-shadow, 0 1px 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7));
-      -webkit-text-stroke: var(--cc-stroke, 0px transparent);
+      /* Strong anime-style outline: thick stroke + deep multi-layer shadow */
+      -webkit-text-stroke: var(--cc-stroke, 2.5px #000);
+      paint-order: stroke fill;
+      text-shadow: var(--cc-shadow,
+        0 0 6px rgba(0,0,0,1),
+        0 2px 6px rgba(0,0,0,1),
+        0 4px 12px rgba(0,0,0,0.85),
+        2px 2px 0 rgba(0,0,0,0.7),
+        -2px 2px 0 rgba(0,0,0,0.7)
+      );
       white-space: pre-wrap;
       word-break: break-word;
       opacity: 0;
-      transition: opacity 0.12s ease;
+      transition: opacity 0.1s ease;
     }
-    .cc-box.is-visible { opacity: 1; }
+    .cc-box.is-visible { opacity: var(--cc-opacity, 1); }
     .cc-box.is-dragging { cursor: grabbing; transition: none; }
     .cc-box:empty { display: none; }
-    /* Caption style presets */
+    /* Caption edge/style presets */
     .cc-box[data-style="outline"] {
-      background: transparent;
-      -webkit-text-stroke: 1.5px rgba(0,0,0,0.9);
-      text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.8);
-      padding: 0.2em 0.5em;
+      background: var(--cc-bg, transparent);
+      -webkit-text-stroke: var(--cc-stroke, 2.5px #000);
+      text-shadow: var(--cc-shadow,
+        0 0 6px rgba(0,0,0,1),
+        0 2px 6px rgba(0,0,0,1),
+        0 4px 12px rgba(0,0,0,0.85),
+        2px 2px 0 rgba(0,0,0,0.6),
+        -2px 2px 0 rgba(0,0,0,0.6)
+      );
     }
     .cc-box[data-style="raised"] {
-      background: transparent;
-      text-shadow: 2px 2px 0 rgba(0,0,0,0.9), -1px -1px 0 rgba(0,0,0,0.5);
-      padding: 0.2em 0.5em;
+      background: var(--cc-bg, transparent);
+      -webkit-text-stroke: var(--cc-stroke, 1px rgba(0,0,0,0.8));
+      text-shadow: 3px 3px 0 rgba(0,0,0,0.95), -1px -1px 0 rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.9);
     }
     .cc-box[data-style="drop"] {
-      background: transparent;
-      text-shadow: 0 3px 8px rgba(0,0,0,1), 0 1px 3px rgba(0,0,0,0.9);
-      padding: 0.2em 0.5em;
+      background: var(--cc-bg, transparent);
+      -webkit-text-stroke: var(--cc-stroke, 1px rgba(0,0,0,0.5));
+      text-shadow: 0 4px 10px rgba(0,0,0,1), 0 1px 3px rgba(0,0,0,0.9), 2px 4px 8px rgba(0,0,0,0.8);
     }
     .cc-box[data-style="box"] {
-      background: rgba(0,0,0,0.82);
+      background: var(--cc-bg, rgba(0,0,0,0.82));
+      -webkit-text-stroke: 0px transparent;
       text-shadow: none;
-      padding: 0.3em 0.7em;
+      padding: 0.25em 0.65em;
       border-radius: 6px;
+    }
+    .cc-box[data-style="none"] {
+      background: var(--cc-bg, transparent);
+      -webkit-text-stroke: 0px transparent;
+      text-shadow: none;
     }
     .menu-slider {
       width: 100%;
@@ -2581,6 +2600,26 @@ var watchController = async (c) => {
     }
     .pos-row { display: flex; gap: 6px; flex-wrap: wrap; }
     .pos-row .pill { flex: 1; text-align: center; padding: 8px 6px; }
+    /* CC settings redesign */
+    .cc-setting-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .cc-setting-row:last-child { border-bottom: none; }
+    .cc-label { font-size: 0.8rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .cc-swatch-row { gap: 8px; }
+    .cc-swatch {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15); cursor: pointer;
+      transition: transform 0.12s, border-color 0.12s; flex-shrink: 0;
+    }
+    .cc-swatch:hover { transform: scale(1.18); }
+    .cc-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); transform: scale(1.12); }
+    .cc-font-row { gap: 5px; flex-wrap: wrap; }
+    .cc-font-btn {
+      flex: 1; min-width: 70px; text-align: center; padding: 7px 6px; font-size: 0.78rem;
+      background: var(--surface2, rgba(255,255,255,0.06)); border: 1px solid var(--line);
+      border-radius: 8px; color: var(--ink); cursor: pointer; transition: background 0.12s, border-color 0.12s;
+    }
+    .cc-font-btn:hover { background: rgba(255,255,255,0.12); }
+    .cc-font-btn.is-active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
     .overlay {
       position: absolute; inset: 0; display: grid; place-items: center;
       pointer-events: none;
@@ -2985,56 +3024,97 @@ var watchController = async (c) => {
                 <button type="button" class="switch" id="ccToggle" aria-pressed="false" ${hasAnyCc ? "" : "disabled"}></button>
               </div>
               <div id="ccControls" ${hasAnyCc ? "" : "hidden"}>
-                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px">
+
+                <!-- Font Color -->
+                <div class="menu-row cc-setting-row">
+                  <span class="cc-label">Font Color</span>
+                  <div class="pos-row cc-swatch-row" id="ccColorRow">
+                    <button type="button" class="cc-swatch is-active" data-cc-color="white" style="background:#fff" title="White"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="yellow" style="background:#ffe066" title="Yellow"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="cyan" style="background:#3dd6c6" title="Cyan"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="lime" style="background:#86efac" title="Lime"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="orange" style="background:#fb923c" title="Orange"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="pink" style="background:#f472b6" title="Pink"></button>
+                  </div>
+                </div>
+
+                <!-- Font Opacity -->
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
                   <div style="display:flex;justify-content:space-between;align-items:center">
-                    <label for="ccSize">Size</label>
-                    <span class="hint" id="ccSizeLabel">30px</span>
-                  </div>
-                  <input class="menu-slider" id="ccSize" type="range" min="16" max="56" step="1" value="30" aria-label="Caption size" />
-                </div>
-                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
-                  <label>Font</label>
-                  <div class="pos-row" id="ccFontRow" style="flex-wrap:wrap">
-                    <button type="button" class="pill" data-cc-font="sans" style="font-family:system-ui,sans-serif">Sans</button>
-                    <button type="button" class="pill is-active" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
-                    <button type="button" class="pill" data-cc-font="serif" style="font-family:Georgia,serif">Serif</button>
-                    <button type="button" class="pill" data-cc-font="mono" style="font-family:'Courier New',monospace">Mono</button>
-                  </div>
-                </div>
-                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
-                  <label>Style</label>
-                  <div class="pos-row" id="ccStyleRow">
-                    <button type="button" class="pill" data-cc-style="box">Box</button>
-                    <button type="button" class="pill is-active" data-cc-style="outline">Outline</button>
-                    <button type="button" class="pill" data-cc-style="raised">Raised</button>
-                    <button type="button" class="pill" data-cc-style="drop">Drop</button>
-                  </div>
-                </div>
-                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
-                  <label>Color</label>
-                  <div class="pos-row" id="ccColorRow">
-                    <button type="button" class="pill is-active" data-cc-color="white" style="color:#fff">White</button>
-                    <button type="button" class="pill" data-cc-color="yellow" style="color:#ffe066">Yellow</button>
-                    <button type="button" class="pill" data-cc-color="cyan" style="color:#3dd6c6">Cyan</button>
-                    <button type="button" class="pill" data-cc-color="lime" style="color:#86efac">Lime</button>
-                  </div>
-                </div>
-                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
-                  <div style="display:flex;justify-content:space-between;align-items:center">
-                    <label for="ccOpacity">Opacity</label>
+                    <span class="cc-label">Font Opacity</span>
                     <span class="hint" id="ccOpacityLabel">100%</span>
                   </div>
                   <input class="menu-slider" id="ccOpacity" type="range" min="30" max="100" step="5" value="100" aria-label="Caption opacity" />
                 </div>
-                <div class="menu-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-top:4px">
-                  <label>Position</label>
+
+                <!-- Font Size -->
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <span class="cc-label">Font Size</span>
+                    <span class="hint" id="ccSizeLabel">34px</span>
+                  </div>
+                  <input class="menu-slider" id="ccSize" type="range" min="16" max="60" step="1" value="34" aria-label="Caption size" />
+                </div>
+
+                <!-- Font Family -->
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <span class="cc-label">Font Family</span>
+                  <div class="pos-row cc-font-row" id="ccFontRow">
+                    <button type="button" class="cc-font-btn is-active" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="trebuchet" style="font-family:'Trebuchet MS',sans-serif">Trebuchet</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="rosario" style="font-family:'Rosario',sans-serif">Rosario</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="sans" style="font-family:system-ui,sans-serif">System</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="serif" style="font-family:Georgia,serif">Serif</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="mono" style="font-family:'Courier New',monospace">Mono</button>
+                  </div>
+                </div>
+
+                <!-- Character Edge (style) -->
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <span class="cc-label">Character Edge</span>
+                  <div class="pos-row" id="ccStyleRow">
+                    <button type="button" class="pill is-active" data-cc-style="outline">Outline</button>
+                    <button type="button" class="pill" data-cc-style="raised">Raised</button>
+                    <button type="button" class="pill" data-cc-style="drop">Drop</button>
+                    <button type="button" class="pill" data-cc-style="box">Box</button>
+                    <button type="button" class="pill" data-cc-style="none">None</button>
+                  </div>
+                </div>
+
+                <!-- Edge / Stroke Color -->
+                <div class="menu-row cc-setting-row">
+                  <span class="cc-label">Edge Color</span>
+                  <div class="pos-row cc-swatch-row" id="ccEdgeRow">
+                    <button type="button" class="cc-swatch is-active" data-cc-edge="black" style="background:#000;border:2px solid rgba(255,255,255,0.25)" title="Black"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="darkgray" style="background:#374151" title="Dark Gray"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="white" style="background:#fff;border:2px solid rgba(255,255,255,0.25)" title="White"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="red" style="background:#dc2626" title="Red"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="blue" style="background:#3b82f6" title="Blue"></button>
+                  </div>
+                </div>
+
+                <!-- Background Color -->
+                <div class="menu-row cc-setting-row">
+                  <span class="cc-label">Background</span>
+                  <div class="pos-row" id="ccBgRow">
+                    <button type="button" class="pill is-active" data-cc-bg="none">None</button>
+                    <button type="button" class="pill" data-cc-bg="dark">Dark</button>
+                    <button type="button" class="pill" data-cc-bg="semi">Semi</button>
+                    <button type="button" class="pill" data-cc-bg="solid">Solid</button>
+                  </div>
+                </div>
+
+                <!-- Position -->
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <span class="cc-label">Position</span>
                   <div class="pos-row" id="ccPosRow">
                     <button type="button" class="pill" data-cc-pos="top">Top</button>
                     <button type="button" class="pill" data-cc-pos="middle">Mid</button>
                     <button type="button" class="pill is-active" data-cc-pos="bottom">Bottom</button>
                   </div>
-                  <p class="hint" style="margin:0">Or drag the captions on the video.</p>
+                  <p class="hint" style="margin:0;font-size:0.72rem">Drag captions on the video to reposition.</p>
                 </div>
+
               </div>
               <p class="hint" id="ccHint" style="margin-top:8px;${hasAnyCc ? "display:none" : ""}">No English softsubs for this episode.</p>
             </div>
@@ -3180,19 +3260,23 @@ var watchController = async (c) => {
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
-      var ccSizePx = Math.min(56, Math.max(16, Number(localStorage.getItem('ani.ccSize') || '30') || 30));
+      var ccSizePx = Math.min(60, Math.max(16, Number(localStorage.getItem('ani.ccSize') || '34') || 34));
       var ccX = Number(localStorage.getItem('ani.ccX') || 'NaN');
       var ccY = Number(localStorage.getItem('ani.ccY') || 'NaN');
-      var CC_STYLES = ['box', 'outline', 'raised', 'drop'];
-      var CC_COLORS = { white: '#fff', yellow: '#ffe066', cyan: '#3dd6c6', lime: '#86efac' };
-      var CC_FONTS = { sans: 'system-ui,sans-serif', dm: '"DM Sans",sans-serif', serif: 'Georgia,serif', mono: '"Courier New",monospace' };
+      var CC_STYLES = ['box', 'outline', 'raised', 'drop', 'none'];
+      var CC_COLORS = { white: '#fff', yellow: '#ffe066', cyan: '#3dd6c6', lime: '#86efac', orange: '#fb923c', pink: '#f472b6' };
+      var CC_FONTS = { dm: '"DM Sans",sans-serif', trebuchet: '"Trebuchet MS","Trebuchet",sans-serif', rosario: '"Rosario",sans-serif', sans: 'system-ui,sans-serif', serif: 'Georgia,serif', mono: '"Courier New",monospace' };
+      var CC_EDGES = { black: '#000', darkgray: '#374151', white: '#fff', red: '#dc2626', blue: '#3b82f6' };
+      var CC_BGS = { none: 'transparent', dark: 'rgba(0,0,0,0.82)', semi: 'rgba(0,0,0,0.55)', solid: '#000' };
       var ccStyle = CC_STYLES.indexOf(localStorage.getItem('ani.ccStyle') || '') >= 0 ? localStorage.getItem('ani.ccStyle') : 'outline';
       var ccColorKey = CC_COLORS[localStorage.getItem('ani.ccColor')] ? localStorage.getItem('ani.ccColor') : 'white';
       var ccFontKey = CC_FONTS[localStorage.getItem('ani.ccFont')] ? localStorage.getItem('ani.ccFont') : 'dm';
+      var ccEdgeKey = CC_EDGES[localStorage.getItem('ani.ccEdge')] ? localStorage.getItem('ani.ccEdge') : 'black';
+      var ccBgKey = CC_BGS[localStorage.getItem('ani.ccBg')] ? localStorage.getItem('ani.ccBg') : 'none';
       var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
       var ccCollapsed = localStorage.getItem('ani.ccCollapsed') !== '0'; // collapsed by default unless user explicitly opened it
       if (!isFinite(ccX)) ccX = 50;
-      if (!isFinite(ccY)) ccY = 16;
+      if (!isFinite(ccY)) ccY = 10;
       var ccCues = [];
       var ccSrcLoaded = '';
       var ccFetchToken = 0;
@@ -3468,17 +3552,29 @@ var watchController = async (c) => {
         ccBox.style.setProperty('--cc-size', ccSizePx + 'px');
         ccBox.style.setProperty('--cc-x', ccX + '%');
         ccBox.style.setProperty('--cc-y', ccY + '%');
+        ccBox.style.setProperty('--cc-opacity', String(ccOpacity / 100));
         // Font
-        ccBox.style.fontFamily = CC_FONTS[ccFontKey] || 'system-ui,sans-serif';
+        var fontStack = CC_FONTS[ccFontKey] || '"DM Sans",sans-serif';
+        ccBox.style.setProperty('--cc-font-family', fontStack);
+        ccBox.style.fontFamily = fontStack;
         // Style preset
         ccBox.setAttribute('data-style', ccStyle);
-        // Color
+        // Text color
         var color = CC_COLORS[ccColorKey] || '#fff';
         ccBox.style.setProperty('--cc-color', color);
-        // Weight
-        ccBox.style.setProperty('--cc-weight', '600');
-        // Opacity
-        ccBox.style.opacity = String(ccOpacity / 100);
+        // Edge / stroke color
+        var edgeColor = CC_EDGES[ccEdgeKey] || '#000';
+        var strokePx = (ccStyle === 'none' || ccStyle === 'box') ? '0px transparent' : '2.5px ' + edgeColor;
+        ccBox.style.setProperty('--cc-stroke', strokePx);
+        // Background
+        var bgVal = CC_BGS[ccBgKey] || 'transparent';
+        // If style is 'box' and bg is 'none', force dark box background
+        var effectiveBg = ccStyle === 'box' ? (bgVal === 'transparent' ? 'rgba(0,0,0,0.82)' : bgVal) : bgVal;
+        ccBox.style.setProperty('--cc-bg', effectiveBg);
+        // Weight: Trebuchet and Rosario look best at 700
+        ccBox.style.setProperty('--cc-weight', '700');
+        // Opacity handled via --cc-opacity CSS var now (applied on .is-visible)
+        ccBox.style.opacity = '';
         // Sync size slider
         if (ccSize) ccSize.value = String(ccSizePx);
         if (ccSizeLabel) ccSizeLabel.textContent = ccSizePx + 'px';
@@ -3498,9 +3594,17 @@ var watchController = async (c) => {
         document.querySelectorAll('[data-cc-style]').forEach(function (btn) {
           btn.classList.toggle('is-active', btn.getAttribute('data-cc-style') === ccStyle);
         });
-        // Sync color buttons
+        // Sync color swatches
         document.querySelectorAll('[data-cc-color]').forEach(function (btn) {
           btn.classList.toggle('is-active', btn.getAttribute('data-cc-color') === ccColorKey);
+        });
+        // Sync edge swatches
+        document.querySelectorAll('[data-cc-edge]').forEach(function (btn) {
+          btn.classList.toggle('is-active', btn.getAttribute('data-cc-edge') === ccEdgeKey);
+        });
+        // Sync background buttons
+        document.querySelectorAll('[data-cc-bg]').forEach(function (btn) {
+          btn.classList.toggle('is-active', btn.getAttribute('data-cc-bg') === ccBgKey);
         });
         // Sync font buttons
         document.querySelectorAll('[data-cc-font]').forEach(function (btn) {
@@ -3515,6 +3619,8 @@ var watchController = async (c) => {
         localStorage.setItem('ani.ccStyle', ccStyle);
         localStorage.setItem('ani.ccColor', ccColorKey);
         localStorage.setItem('ani.ccFont', ccFontKey);
+        localStorage.setItem('ani.ccEdge', ccEdgeKey);
+        localStorage.setItem('ani.ccBg', ccBgKey);
         localStorage.setItem('ani.ccOpacity', String(ccOpacity));
       }
 
@@ -4045,6 +4151,24 @@ var watchController = async (c) => {
           e.preventDefault();
           e.stopPropagation();
           ccFontKey = btn.getAttribute('data-cc-font') || 'sans';
+          applyCcStyle();
+          persistCcLayout();
+        });
+      });
+      document.querySelectorAll('[data-cc-edge]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          ccEdgeKey = btn.getAttribute('data-cc-edge') || 'black';
+          applyCcStyle();
+          persistCcLayout();
+        });
+      });
+      document.querySelectorAll('[data-cc-bg]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          ccBgKey = btn.getAttribute('data-cc-bg') || 'none';
           applyCcStyle();
           persistCcLayout();
         });
