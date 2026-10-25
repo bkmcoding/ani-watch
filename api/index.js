@@ -1908,6 +1908,22 @@ var sources_default = sourcesController;
 
 // src/handlers/media/hlsProxy.ts
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+var inFlightPlaylists = /* @__PURE__ */ new Map();
+async function fetchPlaylistCoalesced(url, headers) {
+  const existing = inFlightPlaylists.get(url);
+  if (existing) return existing;
+  const promise = (async () => {
+    try {
+      const upstream = await fetch(url, { headers, redirect: "follow" });
+      const text = upstream.ok ? await upstream.text() : "";
+      return { ok: upstream.ok, status: upstream.status, text };
+    } finally {
+      inFlightPlaylists.delete(url);
+    }
+  })();
+  inFlightPlaylists.set(url, promise);
+  return promise;
+}
 function stripPngWrapper(buf) {
   if (buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
     const iend = buf.indexOf(Buffer.from("IEND"));
@@ -1918,13 +1934,23 @@ function stripPngWrapper(buf) {
   }
   return buf;
 }
-function rewritePlaylist(body, playlistUrl, proxyBase) {
+function isSubtitleUrl(url) {
+  try {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(new URL(url).pathname);
+  } catch {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(url);
+  }
+}
+function rewritePlaylist(body, playlistUrl, proxyBase, vttBase) {
   return body.split(/\r?\n/).map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) {
       return line.replace(/URI="([^"]+)"/gi, (_, uri) => {
         try {
           const abs = new URL(uri, playlistUrl).href;
+          if (vttBase && (line.includes("TYPE=SUBTITLES") || isSubtitleUrl(abs))) {
+            return `URI="${vttBase}?url=${encodeURIComponent(abs)}"`;
+          }
           return `URI="${buildMediaProxyUrl(proxyBase, abs)}"`;
         } catch {
           return `URI="${uri}"`;
@@ -1933,6 +1959,9 @@ function rewritePlaylist(body, playlistUrl, proxyBase) {
     }
     try {
       const abs = new URL(trimmed, playlistUrl).href;
+      if (vttBase && isSubtitleUrl(abs)) {
+        return `${vttBase}?url=${encodeURIComponent(abs)}`;
+      }
       return buildMediaProxyUrl(proxyBase, abs);
     } catch {
       return line;
@@ -1966,13 +1995,14 @@ var hlsProxyController = async (c) => {
     Origin: originHeader,
     Accept: "*/*"
   };
-  const proxyBase = hlsProxyBase(requestOrigin(c));
+  const origin = requestOrigin(c);
+  const proxyBase = hlsProxyBase(origin);
+  const vttBase = vttProxyBase(origin);
   const looksLikePlaylist = /\.m3u8(\?|$)/i.test(parsed.pathname);
   if (looksLikePlaylist) {
-    const upstream2 = await fetch(parsed.href, { headers: fetchHeaders, redirect: "follow" });
+    const upstream2 = await fetchPlaylistCoalesced(parsed.href, fetchHeaders);
     if (!upstream2.ok) return c.text(`Upstream ${upstream2.status}`, 502);
-    const text = await upstream2.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
+    const rewritten = rewritePlaylist(upstream2.text, parsed.href, proxyBase, vttBase);
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -1990,7 +2020,7 @@ var hlsProxyController = async (c) => {
   const isPlaylist = ct.includes("mpegurl") || ct.includes("m3u8");
   if (isPlaylist) {
     const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
+    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, vttBase);
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -3025,6 +3055,15 @@ var watchController = async (c) => {
               </div>
               <div id="ccControls" ${hasAnyCc ? "" : "hidden"}>
 
+                <!-- Presets -->
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <span class="cc-label">Presets</span>
+                  <div class="pos-row" id="ccPresetRow">
+                    <button type="button" class="pill" data-cc-preset="anime">Anime Outline</button>
+                    <button type="button" class="pill" data-cc-preset="box">SubRip Box</button>
+                  </div>
+                </div>
+
                 <!-- Font Color -->
                 <div class="menu-row cc-setting-row">
                   <span class="cc-label">Font Color</span>
@@ -3367,9 +3406,26 @@ var watchController = async (c) => {
         muted: '<path d="M5 9v6h4l5 5V4L9 9H5zm12.5 1.5 1.8-1.8 1.4 1.4-1.8 1.8 1.8 1.8-1.4 1.4-1.8-1.8-1.8 1.8-1.4-1.4 1.8-1.8-1.8-1.8 1.4-1.4 1.8 1.8z"/>'
       };
 
-      function fail(msg) {
+      function fail(msg, fallbackTrack) {
         err.hidden = false;
-        err.textContent = msg;
+        err.innerHTML = '';
+        var span = document.createElement('span');
+        span.textContent = msg;
+        err.appendChild(span);
+        if (fallbackTrack && streams[fallbackTrack]) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pill is-active';
+          btn.style.marginLeft = '12px';
+          btn.style.padding = '4px 10px';
+          btn.style.fontSize = '12px';
+          btn.textContent = 'Switch to ' + fallbackTrack.toUpperCase();
+          btn.onclick = function () {
+            clearErr();
+            loadTrack(fallbackTrack, true);
+          };
+          err.appendChild(btn);
+        }
         stage.classList.remove('is-loading');
         switching = false;
       }
@@ -3609,6 +3665,13 @@ var watchController = async (c) => {
         // Sync font buttons
         document.querySelectorAll('[data-cc-font]').forEach(function (btn) {
           btn.classList.toggle('is-active', btn.getAttribute('data-cc-font') === ccFontKey);
+        });
+        // Sync presets
+        var isAnime = ccStyle === 'outline' && (ccFontKey === 'rosario' || ccFontKey === 'trebuchet') && ccBgKey === 'none';
+        var isBox = ccStyle === 'box' && ccBgKey === 'dark';
+        document.querySelectorAll('[data-cc-preset]').forEach(function (btn) {
+          var p = btn.getAttribute('data-cc-preset');
+          btn.classList.toggle('is-active', (p === 'anime' && isAnime) || (p === 'box' && isBox));
         });
       }
 
@@ -3866,6 +3929,7 @@ var watchController = async (c) => {
 
         if (window.Hls && Hls.isSupported()) {
           var hlsNetworkRetries = 0;
+          var hlsMediaRetries = 0;
           hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
@@ -3888,6 +3952,7 @@ var watchController = async (c) => {
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, function () {
             hlsNetworkRetries = 0;
+            hlsMediaRetries = 0;
             // Restore manual quality level if user already picked one
             if (qualityManual >= 0 && qualityManual < hls.levels.length) {
               hls.currentLevel = qualityManual;
@@ -3902,8 +3967,19 @@ var watchController = async (c) => {
                 hlsNetworkRetries++;
                 try { hls.startLoad(); return; } catch (e) {}
               }
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              if (hlsMediaRetries < 2) {
+                hlsMediaRetries++;
+                try { hls.recoverMediaError(); return; } catch (e) {}
+              }
             }
-            fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try the other track.');
+            var alt = next === 'sub' ? 'dub' : 'sub';
+            var hasAlt = Boolean(streams[alt]);
+            if (hasAlt) {
+              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + ').', alt);
+            } else {
+              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try another server.');
+            }
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
@@ -4128,6 +4204,28 @@ var watchController = async (c) => {
         });
         ccOpacityEl.addEventListener('click', function (e) { e.stopPropagation(); });
       }
+      document.querySelectorAll('[data-cc-preset]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var preset = btn.getAttribute('data-cc-preset');
+          if (preset === 'anime') {
+            ccStyle = 'outline';
+            ccFontKey = 'rosario';
+            ccColorKey = 'white';
+            ccEdgeKey = 'black';
+            ccBgKey = 'none';
+          } else if (preset === 'box') {
+            ccStyle = 'box';
+            ccFontKey = 'dm';
+            ccColorKey = 'white';
+            ccEdgeKey = 'black';
+            ccBgKey = 'dark';
+          }
+          applyCcStyle();
+          persistCcLayout();
+        });
+      });
       document.querySelectorAll('[data-cc-style]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();

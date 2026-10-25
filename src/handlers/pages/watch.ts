@@ -852,6 +852,15 @@ const watchController = async (c: Context) => {
               </div>
               <div id="ccControls" ${hasAnyCc ? '' : 'hidden'}>
 
+                <!-- Presets -->
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <span class="cc-label">Presets</span>
+                  <div class="pos-row" id="ccPresetRow">
+                    <button type="button" class="pill" data-cc-preset="anime">Anime Outline</button>
+                    <button type="button" class="pill" data-cc-preset="box">SubRip Box</button>
+                  </div>
+                </div>
+
                 <!-- Font Color -->
                 <div class="menu-row cc-setting-row">
                   <span class="cc-label">Font Color</span>
@@ -1194,9 +1203,26 @@ const watchController = async (c: Context) => {
         muted: '<path d="M5 9v6h4l5 5V4L9 9H5zm12.5 1.5 1.8-1.8 1.4 1.4-1.8 1.8 1.8 1.8-1.4 1.4-1.8-1.8-1.8 1.8-1.4-1.4 1.8-1.8-1.8-1.8 1.4-1.4 1.8 1.8z"/>'
       };
 
-      function fail(msg) {
+      function fail(msg, fallbackTrack) {
         err.hidden = false;
-        err.textContent = msg;
+        err.innerHTML = '';
+        var span = document.createElement('span');
+        span.textContent = msg;
+        err.appendChild(span);
+        if (fallbackTrack && streams[fallbackTrack]) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pill is-active';
+          btn.style.marginLeft = '12px';
+          btn.style.padding = '4px 10px';
+          btn.style.fontSize = '12px';
+          btn.textContent = 'Switch to ' + fallbackTrack.toUpperCase();
+          btn.onclick = function () {
+            clearErr();
+            loadTrack(fallbackTrack, true);
+          };
+          err.appendChild(btn);
+        }
         stage.classList.remove('is-loading');
         switching = false;
       }
@@ -1436,6 +1462,13 @@ const watchController = async (c: Context) => {
         // Sync font buttons
         document.querySelectorAll('[data-cc-font]').forEach(function (btn) {
           btn.classList.toggle('is-active', btn.getAttribute('data-cc-font') === ccFontKey);
+        });
+        // Sync presets
+        var isAnime = ccStyle === 'outline' && (ccFontKey === 'rosario' || ccFontKey === 'trebuchet') && ccBgKey === 'none';
+        var isBox = ccStyle === 'box' && ccBgKey === 'dark';
+        document.querySelectorAll('[data-cc-preset]').forEach(function (btn) {
+          var p = btn.getAttribute('data-cc-preset');
+          btn.classList.toggle('is-active', (p === 'anime' && isAnime) || (p === 'box' && isBox));
         });
       }
 
@@ -1693,6 +1726,7 @@ const watchController = async (c: Context) => {
 
         if (window.Hls && Hls.isSupported()) {
           var hlsNetworkRetries = 0;
+          var hlsMediaRetries = 0;
           hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
@@ -1715,6 +1749,7 @@ const watchController = async (c: Context) => {
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, function () {
             hlsNetworkRetries = 0;
+            hlsMediaRetries = 0;
             // Restore manual quality level if user already picked one
             if (qualityManual >= 0 && qualityManual < hls.levels.length) {
               hls.currentLevel = qualityManual;
@@ -1729,8 +1764,19 @@ const watchController = async (c: Context) => {
                 hlsNetworkRetries++;
                 try { hls.startLoad(); return; } catch (e) {}
               }
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              if (hlsMediaRetries < 2) {
+                hlsMediaRetries++;
+                try { hls.recoverMediaError(); return; } catch (e) {}
+              }
             }
-            fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try the other track.');
+            var alt = next === 'sub' ? 'dub' : 'sub';
+            var hasAlt = Boolean(streams[alt]);
+            if (hasAlt) {
+              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + ').', alt);
+            } else {
+              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try another server.');
+            }
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
@@ -1955,6 +2001,28 @@ const watchController = async (c: Context) => {
         });
         ccOpacityEl.addEventListener('click', function (e) { e.stopPropagation(); });
       }
+      document.querySelectorAll('[data-cc-preset]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var preset = btn.getAttribute('data-cc-preset');
+          if (preset === 'anime') {
+            ccStyle = 'outline';
+            ccFontKey = 'rosario';
+            ccColorKey = 'white';
+            ccEdgeKey = 'black';
+            ccBgKey = 'none';
+          } else if (preset === 'box') {
+            ccStyle = 'box';
+            ccFontKey = 'dm';
+            ccColorKey = 'white';
+            ccEdgeKey = 'black';
+            ccBgKey = 'dark';
+          }
+          applyCcStyle();
+          persistCcLayout();
+        });
+      });
       document.querySelectorAll('[data-cc-style]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();

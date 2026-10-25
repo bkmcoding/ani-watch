@@ -7,13 +7,39 @@ import {
   mediaProxyAuthOk,
   refererForStreamUrl,
   requestOrigin,
+  vttProxyBase,
 } from '../../lib/streamUrls';
+
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
 // NOTE: m3u8 playlist caching was removed. CDN segment URLs inside playlists
 // are presigned and expire in seconds — a 30s cache returns stale segment URLs
 // which causes HLS.js to buffer permanently after the first cache hit.
+// We use in-flight request deduplication instead of storage caching.
+
+const inFlightPlaylists = new Map<string, Promise<{ ok: boolean; status: number; text: string }>>();
+
+export async function fetchPlaylistCoalesced(
+  url: string,
+  headers: Record<string, string>
+): Promise<{ ok: boolean; status: number; text: string }> {
+  const existing = inFlightPlaylists.get(url);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      const upstream = await fetch(url, { headers, redirect: 'follow' });
+      const text = upstream.ok ? await upstream.text() : '';
+      return { ok: upstream.ok, status: upstream.status, text };
+    } finally {
+      inFlightPlaylists.delete(url);
+    }
+  })();
+
+  inFlightPlaylists.set(url, promise);
+  return promise;
+}
 
 function stripPngWrapper(buf: Buffer): Buffer {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
@@ -26,7 +52,20 @@ function stripPngWrapper(buf: Buffer): Buffer {
   return buf;
 }
 
-function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): string {
+export function isSubtitleUrl(url: string): boolean {
+  try {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(new URL(url).pathname);
+  } catch {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(url);
+  }
+}
+
+export function rewritePlaylist(
+  body: string,
+  playlistUrl: string,
+  proxyBase: string,
+  vttBase?: string
+): string {
   return body
     .split(/\r?\n/)
     .map((line) => {
@@ -35,6 +74,9 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
         return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
           try {
             const abs = new URL(uri, playlistUrl).href;
+            if (vttBase && (line.includes('TYPE=SUBTITLES') || isSubtitleUrl(abs))) {
+              return `URI="${vttBase}?url=${encodeURIComponent(abs)}"`;
+            }
             return `URI="${buildMediaProxyUrl(proxyBase, abs)}"`;
           } catch {
             return `URI="${uri}"`;
@@ -43,6 +85,9 @@ function rewritePlaylist(body: string, playlistUrl: string, proxyBase: string): 
       }
       try {
         const abs = new URL(trimmed, playlistUrl).href;
+        if (vttBase && isSubtitleUrl(abs)) {
+          return `${vttBase}?url=${encodeURIComponent(abs)}`;
+        }
         return buildMediaProxyUrl(proxyBase, abs);
       } catch {
         return line;
@@ -85,18 +130,17 @@ const hlsProxyController = async (c: Context) => {
     Accept: '*/*',
   };
 
-  const proxyBase = hlsProxyBase(requestOrigin(c));
+  const origin = requestOrigin(c);
+  const proxyBase = hlsProxyBase(origin);
+  const vttBase = vttProxyBase(origin);
 
   // Detect playlist by URL alone (before fetching).
   const looksLikePlaylist = /\.m3u8(\?|$)/i.test(parsed.pathname);
 
   if (looksLikePlaylist) {
-    // Always fetch fresh — CDN segment URLs inside playlists are presigned and
-    // expire within seconds, so caching the rewritten playlist causes stale URLs.
-    const upstream = await fetch(parsed.href, { headers: fetchHeaders, redirect: 'follow' });
+    const upstream = await fetchPlaylistCoalesced(parsed.href, fetchHeaders);
     if (!upstream.ok) return c.text(`Upstream ${upstream.status}`, 502);
-    const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
+    const rewritten = rewritePlaylist(upstream.text, parsed.href, proxyBase, vttBase);
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -107,7 +151,7 @@ const hlsProxyController = async (c: Context) => {
     });
   }
 
-  // Non-playlist: always fetch upstream fresh (segments, VTT, etc.)
+  // Non-playlist: fetch upstream fresh
   const upstream = await fetch(parsed.href, { headers: fetchHeaders, redirect: 'follow' });
 
   if (!upstream.ok) {
@@ -115,14 +159,11 @@ const hlsProxyController = async (c: Context) => {
   }
 
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
-  const isPlaylist =
-    ct.includes('mpegurl') ||
-    ct.includes('m3u8');
+  const isPlaylist = ct.includes('mpegurl') || ct.includes('m3u8');
 
   if (isPlaylist) {
-    // Content-type says playlist but URL didn't look like one — rewrite without caching.
     const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase);
+    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, vttBase);
     return new Response(rewritten, {
       status: 200,
       headers: {
