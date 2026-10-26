@@ -2412,8 +2412,10 @@ var watchController = async (c) => {
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Rosario:wght@700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" /></noscript>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" defer></script>
   <style>
     :root {
       --bg0: #0a0c10;
@@ -2424,7 +2426,12 @@ var watchController = async (c) => {
       --danger: #ff7b72;
       --line: rgba(255, 255, 255, 0.12);
       --panel: rgba(14, 18, 26, 0.94);
-      --radius: 18px;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+      --radius-pill: 999px;
+      --radius: var(--radius-xl);
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
       --stage-max: 1120px;
     }
@@ -2435,7 +2442,7 @@ var watchController = async (c) => {
       animation: fadein 0.3s ease both;
       background:
         radial-gradient(1200px 600px at 50% -10%, rgba(61, 214, 198, 0.12), transparent 55%),
-        radial-gradient(900px 500px at 100% 100%, rgba(80, 110, 180, 0.1), transparent 50%),
+        radial-gradient(900px 500px at 100% 100%, rgba(70, 100, 180, 0.12), transparent 50%),
         linear-gradient(180deg, #0d1118 0%, var(--bg0) 45%, #080a0e 100%);
     }
     @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
@@ -2444,6 +2451,10 @@ var watchController = async (c) => {
       display: grid;
       grid-template-rows: auto 1fr auto;
       padding: clamp(16px, 3vw, 28px);
+      padding-top: max(clamp(16px, 3vw, 28px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(16px, 3vw, 28px), env(safe-area-inset-bottom));
+      padding-left: max(clamp(16px, 3vw, 28px), env(safe-area-inset-left));
+      padding-right: max(clamp(16px, 3vw, 28px), env(safe-area-inset-right));
       gap: 18px;
       transition: padding 0.35s var(--ease);
     }
@@ -2453,11 +2464,11 @@ var watchController = async (c) => {
       transition: opacity 0.3s ease, transform 0.3s ease;
     }
     .brand {
-      font-family: Syne, sans-serif; font-weight: 700;
-      font-size: clamp(1.35rem, 2.4vw, 1.75rem); letter-spacing: -0.03em; margin: 0;
+      font-family: Syne, sans-serif; font-weight: 800;
+      font-size: clamp(1.55rem, 3vw, 2.05rem); letter-spacing: -0.035em; margin: 0;
     }
     .brand span { color: var(--accent); }
-    .brand-wrap { display: flex; flex-direction: column; gap: 2px; }
+    .brand-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .brand-by {
       margin: 0;
       font-size: 0.72rem;
@@ -2477,7 +2488,7 @@ var watchController = async (c) => {
       text-overflow: ellipsis;
       letter-spacing: 0.01em;
     }
-    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
     .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
     .pill-toggle {
       display: inline-flex; padding: 4px; border-radius: 999px;
@@ -2517,6 +2528,33 @@ var watchController = async (c) => {
     }
     .pill.provider-pill[hidden] { display: none !important; }
     a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
+    /* Accessible focus rings */
+    .pill:focus-visible,
+    .ctrl:focus-visible,
+    .big-btn:focus-visible,
+    .skip-btn:focus-visible,
+    .speed-chip:focus-visible,
+    .switch:focus-visible,
+    .cc-font-btn:focus-visible,
+    .cc-swatch:focus-visible,
+    .menu select:focus-visible,
+    .menu-slider:focus-visible,
+    .ep-item:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .seek:focus-visible,
+    .vol:focus-visible {
+      outline: none;
+    }
+    .seek:focus-visible::-webkit-slider-thumb,
+    .vol:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 4px var(--accent-dim), 0 0 0 2px var(--accent);
+    }
+    .seek:focus-visible::-moz-range-thumb,
+    .vol:focus-visible::-moz-range-thumb {
+      box-shadow: 0 0 0 4px var(--accent-dim), 0 0 0 2px var(--accent);
+    }
     .stage-wrap { display: grid; place-items: center; width: 100%; min-height: 0; }
     .stage {
       position: relative;
@@ -2633,20 +2671,24 @@ var watchController = async (c) => {
     /* CC settings redesign */
     .cc-setting-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
     .cc-setting-row:last-child { border-bottom: none; }
-    .cc-label { font-size: 0.8rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .cc-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .cc-swatch-row { gap: 8px; }
     .cc-swatch {
-      width: 22px; height: 22px; border-radius: 50%;
+      width: 28px; height: 28px; border-radius: 50%;
       border: 2px solid rgba(255,255,255,0.15); cursor: pointer;
       transition: transform 0.12s, border-color 0.12s; flex-shrink: 0;
+      position: relative;
     }
-    .cc-swatch:hover { transform: scale(1.18); }
-    .cc-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); transform: scale(1.12); }
+    .cc-swatch::after {
+      content: ""; position: absolute; inset: -8px; border-radius: 50%;
+    }
+    .cc-swatch:hover { transform: scale(1.15); }
+    .cc-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); transform: scale(1.1); }
     .cc-font-row { gap: 5px; flex-wrap: wrap; }
     .cc-font-btn {
       flex: 1; min-width: 70px; text-align: center; padding: 7px 6px; font-size: 0.78rem;
       background: var(--surface2, rgba(255,255,255,0.06)); border: 1px solid var(--line);
-      border-radius: 8px; color: var(--ink); cursor: pointer; transition: background 0.12s, border-color 0.12s;
+      border-radius: var(--radius-sm, 6px); color: var(--ink); cursor: pointer; transition: background 0.12s, border-color 0.12s;
     }
     .cc-font-btn:hover { background: rgba(255,255,255,0.12); }
     .cc-font-btn.is-active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
@@ -2714,7 +2756,7 @@ var watchController = async (c) => {
     @keyframes apIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
     .ap-label { margin: 0 0 4px; font-size: 0.78rem; color: var(--muted); }
     .ap-count {
-      display: block; font-size: 2rem; font-weight: 700; color: var(--accent);
+      display: block; font-family: Syne, sans-serif; font-size: 2.05rem; font-weight: 800; color: var(--accent);
       line-height: 1; text-align: center; margin-bottom: 4px;
     }
 
@@ -2764,7 +2806,7 @@ var watchController = async (c) => {
     .row .spacer { flex: 1; min-width: 8px; }
     .ctrl {
       appearance: none; border: 0; background: transparent; color: var(--ink);
-      width: 40px; height: 40px; border-radius: 10px;
+      width: 40px; height: 40px; border-radius: var(--radius-md, 12px);
       display: grid; place-items: center; cursor: pointer; position: relative;
       transition: background 0.2s ease;
     }
@@ -2789,7 +2831,7 @@ var watchController = async (c) => {
     .speed-chip {
       appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.04);
       color: var(--muted); font: inherit; font-size: 0.75rem; font-weight: 600;
-      padding: 6px 8px; border-radius: 8px; cursor: pointer; min-width: 42px;
+      padding: 6px 10px; border-radius: var(--radius-pill, 999px); cursor: pointer; min-width: 42px;
     }
     .speed-chip:hover, .speed-chip.is-active { color: var(--accent); border-color: rgba(61,214,198,0.4); background: var(--accent-dim); }
     .menu {
@@ -2797,7 +2839,7 @@ var watchController = async (c) => {
       width: min(300px, calc(100% - 24px));
       max-height: min(80dvh, 600px); overflow-y: auto; overflow-x: hidden;
       background: var(--panel); border: 1px solid var(--line);
-      border-radius: 14px; padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      border-radius: var(--radius-lg, 14px); padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
       display: none; z-index: 5; backdrop-filter: blur(16px);
       overscroll-behavior: contain;
     }
@@ -2818,7 +2860,7 @@ var watchController = async (c) => {
     }
     .menu select {
       appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.04);
-      color: var(--ink); border-radius: 10px; padding: 8px 10px; font: inherit;
+      color: var(--ink); border-radius: var(--radius-md, 12px); padding: 8px 10px; font: inherit;
     }
     .speed-row { display: flex; flex-wrap: wrap; gap: 6px; }
     .switch {
@@ -2838,7 +2880,7 @@ var watchController = async (c) => {
     }
     footer {
       max-width: var(--stage-max); width: 100%; margin: 0 auto;
-      color: var(--muted); font-size: 0.8rem;
+      color: var(--muted); font-size: 0.75rem;
       transition: opacity 0.3s ease;
       display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     }
@@ -2871,8 +2913,10 @@ var watchController = async (c) => {
       appearance: none; border: 0; background: transparent; color: var(--ink);
       font: inherit; text-align: left; cursor: pointer;
       display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
-      padding: 8px 10px; border-radius: 10px; width: 100%;
+      padding: 8px 10px; border-radius: var(--radius-md, 12px); width: 100%;
       transition: background 0.15s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: auto 36px;
     }
     .ep-item:hover { background: rgba(255,255,255,0.06); }
     .ep-item.is-current { background: var(--accent-dim); color: var(--accent); }
@@ -2883,12 +2927,19 @@ var watchController = async (c) => {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .ep-item.is-filler .ep-n::after {
-      content: "F"; margin-left: 4px; font-size: 0.65rem; opacity: 0.7;
+      content: "F"; margin-left: 4px; font-size: 0.72rem; opacity: 0.7;
     }
 
     /* Theater mode */
     body.theater { background: #000; }
-    body.theater .page { padding: 0; gap: 0; }
+    body.theater .page {
+      padding: 0;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      gap: 0;
+    }
     body.theater header,
     body.theater footer { opacity: 0; pointer-events: none; height: 0; overflow: hidden; margin: 0; padding: 0; }
     body.theater .stage-wrap { min-height: 100dvh; }
@@ -2914,61 +2965,435 @@ var watchController = async (c) => {
       opacity: 1;
     }
     #ccBody.is-collapsed { max-height: 0; opacity: 0; pointer-events: none; }
-
-    @media (max-width: 720px) {
-      .vol { display: none; }
-      .hint { display: none; }
-      .time { min-width: auto; }
-      .stage { aspect-ratio: 16 / 9; border-radius: 12px; }
-      .big-btn { width: 68px; height: 68px; }
-      /* Bigger touch targets for controls */
-      .ctrl { width: 44px; height: 44px; }
-      .pill { padding: 10px 14px; font-size: 0.86rem; min-height: 40px; }
-      header { gap: 10px; }
-      .header-right { gap: 8px; }
+    .shortcuts-row {
+      flex-direction: column; align-items: flex-start; gap: 6px;
+      padding-top: 6px; border-top: 1px solid var(--line); margin-top: 4px;
     }
-    /* Small phone: 375\u2013480px */
-    @media (max-width: 480px) {
-      .page { padding: 10px 10px 16px; gap: 10px; }
-      .brand { font-size: 1.15rem; }
-      .ep-line { max-width: calc(100vw - 24px); font-size: 0.72rem; white-space: normal; line-height: 1.3; }
-      .stage { border-radius: 8px; }
-      .menu { right: 8px; bottom: 56px; width: calc(100% - 16px); max-height: 70dvh; overflow-y: auto; }
-      .ep-panel { left: 8px; bottom: 56px; width: calc(100% - 16px); }
-      .skip-btn { right: 8px; bottom: 72px; font-size: 12px; padding: 8px 12px; }
-      .big-btn { width: 60px; height: 60px; }
-      .big-btn svg { width: 26px; height: 26px; }
-      footer { font-size: 0.78rem; flex-direction: column; gap: 4px; }
-      /* Speed chip smaller */
-      .speed-chip { padding: 5px 7px; font-size: 0.72rem; min-width: 36px; }
-      /* Header: stack brand on top, controls below, smaller pills */
-      header { flex-direction: column; align-items: flex-start; gap: 8px; }
-      .header-right { width: 100%; gap: 6px; flex-wrap: wrap; }
-      .header-right .pill { font-size: 0.78rem; padding: 7px 10px; min-height: 36px; }
-      /* Controls bar: two rows */
-      .row { flex-wrap: wrap; gap: 2px; }
-      /* Primary row: play, mute, time take up full width first */
-      .row .time { flex: 1; }
-      /* Nav pills and right-side controls wrap to second line */
-      .nav-pill { font-size: 0.78rem; padding: 6px 10px; }
-      /* Ensure seek bar is full width and easy to tap */
-      .seek { height: 10px; margin-bottom: 12px; }
-      .seek::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -5px; }
+    .shortcuts-label {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600;
+    }
+    .shortcuts-grid {
+      display: grid; grid-template-columns: auto 1fr; gap: 4px 10px;
+      font-size: 0.78rem; color: var(--muted); width: 100%;
+    }
+    .shortcuts-grid kbd {
+      font-family: monospace; background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line); border-radius: var(--radius-sm, 6px);
+      padding: 1px 5px; font-size: 0.75rem; text-align: center;
+    }
+
+    /* Sheet & Gesture shared styles */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s var(--ease);
+    }
+    .sheet-backdrop.is-active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .sheet-handle {
+      display: none;
+    }
+    .sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .sheet-head h3 {
+      margin: 0;
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .sheet-close {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: color 0.15s ease, background 0.15s ease;
+      padding: 0;
+    }
+    .sheet-close:hover {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .menu-body {
+      display: flex;
+      flex-direction: column;
+    }
+    .gesture-indicator {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 38%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 6;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .gesture-left {
+      left: 0;
+      border-radius: 0 100px 100px 0;
+      background: radial-gradient(circle at 25% 50%, rgba(61, 214, 198, 0.28), transparent 75%);
+    }
+    .gesture-right {
+      right: 0;
+      border-radius: 100px 0 0 100px;
+      background: radial-gradient(circle at 75% 50%, rgba(61, 214, 198, 0.28), transparent 75%);
+    }
+    .gesture-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--accent);
+      font-family: Syne, sans-serif;
+      font-weight: 800;
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      transform: scale(0.85);
+      transition: transform 0.25s var(--ease);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    }
+    .gesture-indicator.is-active {
+      opacity: 1;
+    }
+    .gesture-indicator.is-active .gesture-icon {
+      transform: scale(1.15);
+    }
+    .mobile-nav-pill {
+      display: none;
+    }
+
+    /* Mobile Cinema Player Overhaul (<= 720px) */
+    @media (max-width: 720px) {
+      .page {
+        display: flex;
+        flex-direction: column;
+        padding: 0 0 24px 0;
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+        gap: 12px;
+        min-height: 100dvh;
+      }
+      .stage-wrap {
+        order: 1;
+        position: sticky;
+        top: 0;
+        z-index: 80;
+        width: 100vw;
+        background: #000;
+      }
+      .stage {
+        width: 100vw;
+        max-width: 100vw;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        aspect-ratio: 16 / 9;
+      }
+      header {
+        order: 2;
+        padding: 0 clamp(12px, 3.5vw, 18px);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        width: 100%;
+        margin: 0;
+      }
+      .brand-wrap {
+        width: 100%;
+      }
+      .brand {
+        font-size: 1.25rem;
+      }
+      .ep-line {
+        max-width: 100%;
+        font-size: 0.8rem;
+        white-space: normal;
+        line-height: 1.35;
+        color: var(--ink);
+        opacity: 0.88;
+      }
+      .header-right {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .header-right .pill-toggle {
+        flex-shrink: 0;
+      }
+      .header-right .pill {
+        min-height: 40px;
+        font-size: 0.82rem;
+        padding: 8px 12px;
+      }
+      .mobile-nav-pill {
+        display: inline-flex;
+        background: var(--accent-dim);
+        color: var(--accent);
+        border: 1px solid rgba(61, 214, 198, 0.35);
+      }
+      .err {
+        order: 3;
+        margin: 0 clamp(12px, 3.5vw, 18px);
+        width: calc(100% - clamp(24px, 7vw, 36px));
+      }
+      footer {
+        order: 4;
+        padding: 8px clamp(12px, 3.5vw, 18px) 0;
+        font-size: 0.75rem;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-start;
+      }
+
+      /* Compacted Controls HUD: 64px Height, Single Row */
+      .controls {
+        padding: 24px 12px 8px;
+        background: linear-gradient(transparent 0%, rgba(0, 0, 0, 0.88) 60%);
+      }
+      .seek {
+        height: 8px;
+        margin-bottom: 8px;
+      }
+      .seek::-webkit-slider-thumb {
+        width: 18px;
+        height: 18px;
+        margin-top: -5px;
+      }
+      .row {
+        flex-wrap: nowrap !important;
+        gap: 6px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #theaterBtn,
+      #speedBtn,
+      #prevEpBar,
+      #nextEpBar,
+      .vol,
+      .hint,
+      .row .spacer {
+        display: none !important;
+      }
+      .ctrl {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        flex-shrink: 0;
+      }
+      .time {
+        min-width: auto;
+        font-size: 0.78rem;
+        padding: 0 4px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .big-btn {
+        width: 64px;
+        height: 64px;
+      }
+      .big-btn svg {
+        width: 28px;
+        height: 28px;
+      }
+      .skip-btn {
+        right: 12px;
+        bottom: 104px;
+        font-size: 13px;
+        padding: 8px 14px;
+      }
+
+      /* Subtitles bounds on mobile */
+      .cc-box {
+        font-size: var(--cc-size, clamp(15px, 4.2vw, 22px)) !important;
+        max-width: min(92%, 520px) !important;
+        line-height: 1.3 !important;
+        -webkit-text-stroke: 1.5px #000 !important;
+      }
+
+      /* Native Bottom Sheets for Settings & Episodes */
+      .menu, .ep-panel {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        top: auto !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: 85dvh !important;
+        border-radius: 20px 20px 0 0 !important;
+        border: none !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+        background: rgba(14, 18, 26, 0.98) !important;
+        backdrop-filter: blur(24px) !important;
+        -webkit-backdrop-filter: blur(24px) !important;
+        box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.8) !important;
+        z-index: 1000 !important;
+        padding: 0 !important;
+        transform: translateY(100%);
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        display: flex !important;
+        flex-direction: column !important;
+        visibility: hidden;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        visibility: visible !important;
+        transform: translateY(0) !important;
+      }
+      .sheet-handle {
+        display: block !important;
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.35);
+        margin: 10px auto 4px;
+        flex-shrink: 0;
+      }
+      .sheet-head {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px 12px !important;
+        border-bottom: 1px solid var(--line) !important;
+        margin-bottom: 0 !important;
+        flex-shrink: 0;
+      }
+      .sheet-head h3 {
+        margin: 0;
+        font-size: 0.85rem !important;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink);
+        font-weight: 700 !important;
+      }
+      .sheet-close {
+        appearance: none;
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--ink);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      .sheet-close:hover {
+        background: rgba(255, 255, 255, 0.16);
+      }
+      .menu-body {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding: 14px 16px 28px;
+        flex: 1;
+      }
+      .ep-panel-head {
+        padding: 10px 16px 12px !important;
+        flex-shrink: 0;
+      }
+      .ep-panel-head h3 {
+        font-size: 0.85rem !important;
+        font-weight: 700 !important;
+        color: var(--ink) !important;
+      }
+      .ep-panel-head .pill {
+        min-height: 36px;
+        padding: 6px 14px;
+      }
+      .ep-list {
+        flex: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding: 8px 12px 28px !important;
+      }
+      .ep-item {
+        min-height: 48px;
+        padding: 10px 12px !important;
+        align-items: center;
+      }
+      .shortcuts-row {
+        display: none !important;
+      }
     }
     /* Landscape phone */
     @media (max-height: 500px) and (orientation: landscape) {
-      .page { padding: 6px; gap: 6px; }
-      header { display: none; }
-      .stage { aspect-ratio: auto; height: calc(100dvh - 72px); border-radius: 0; }
-      .stage-wrap { min-height: 0; }
-      footer { display: none; }
+      .page {
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+      header, footer { display: none !important; }
+      .stage-wrap {
+        height: 100dvh;
+        min-height: 100dvh;
+      }
+      .stage {
+        aspect-ratio: auto;
+        height: 100dvh;
+        width: 100vw;
+        border-radius: 0;
+      }
     }
-    /* Very small phone: <360px */
-    @media (max-width: 360px) {
-      .provider-pill { display: none; }
-      .speed-chip { display: none; }
-      .header-right .pill { font-size: 0.74rem; padding: 6px 8px; }
-      .ctrl { width: 40px; height: 40px; }
+    /* Touch / Coarse pointer adaptations */
+    @media (pointer: coarse) {
+      .ctrl { min-width: 44px; min-height: 44px; }
+      .pill { min-height: 44px; }
+      .speed-chip { min-height: 42px; padding: 10px 14px; font-size: 0.85rem; }
+      .cc-swatch { width: 34px; height: 34px; }
+      .cc-swatch::after { inset: -6px; }
+      .seek { height: 10px; }
+      .seek::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -6px; }
+      .seek::-moz-range-thumb { width: 22px; height: 22px; }
+      .menu-slider { height: 10px; }
+      .menu-slider::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -6px; }
+      .menu-slider::-moz-range-thumb { width: 22px; height: 22px; }
+      .shortcuts-row { display: none !important; }
+    }
+    /* Small phone: <380px */
+    @media (max-width: 380px) {
+      .provider-pill { display: none !important; }
+      .header-right .pill { font-size: 0.74rem; padding: 6px 10px; min-height: 36px; }
+      .ctrl { width: 42px; height: 42px; }
+    }
+    /* Motion sensitivity */
+    @media (prefers-reduced-motion: reduce) {
+      html, body, .page, header, footer, .stage, .controls, .menu, .ep-panel, .skip-btn, .ap-card, .switch::after {
+        transition-duration: 0.05s !important;
+        animation-duration: 0.05s !important;
+      }
+      .spinner {
+        animation: none !important;
+        border-top-color: var(--accent) !important;
+        opacity: 0.85;
+      }
     }
   </style>
 </head>
@@ -2986,7 +3411,9 @@ var watchController = async (c) => {
         </div>
         <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? "" : "hidden"}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? "" : "hidden"} aria-pressed="false">CC</button>
-        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? "" : "hidden"}>Episodes</button>
+        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? "" : "hidden"} aria-haspopup="dialog" aria-expanded="false" aria-controls="epPanel">Episodes</button>
+        <a class="pill mobile-nav-pill" id="prevEpHeader" title="Previous episode" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true"'} ${prevPlaySafe ? "" : "hidden"}>\u2190 Prev</a>
+        <a class="pill mobile-nav-pill" id="nextEpHeader" title="Next episode" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true"'} ${nextPlaySafe ? "" : "hidden"}>Next \u2192</a>
         <a class="pill" href="/browse" title="Back to browse" style="opacity:0.7">\u2190 Browse</a>
       </div>
     </header>
@@ -2997,6 +3424,19 @@ var watchController = async (c) => {
         <div class="cc-layer" id="ccLayer" aria-live="polite">
           <div class="cc-box" id="ccBox" title="Drag to move"></div>
         </div>
+        <div class="gesture-indicator gesture-left" id="gestureLeft" aria-hidden="true">
+          <div class="gesture-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+            <span>-10s</span>
+          </div>
+        </div>
+        <div class="gesture-indicator gesture-right" id="gestureRight" aria-hidden="true">
+          <div class="gesture-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6-8.5-6z"/></svg>
+            <span>+10s</span>
+          </div>
+        </div>
+        <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
         <div class="overlay">
           <button type="button" class="big-btn" id="bigPlay" aria-label="Play">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -3016,7 +3456,8 @@ var watchController = async (c) => {
           </div>
         </div>
 
-        <div class="ep-panel" id="epPanel" role="dialog" aria-label="Episode list" hidden>
+        <div class="ep-panel" id="epPanel" role="dialog" aria-modal="true" aria-label="Episode list" hidden>
+          <div class="sheet-handle" aria-hidden="true"></div>
           <div class="ep-panel-head">
             <h3>Episodes</h3>
             <button type="button" class="pill" id="epPanelClose" style="padding:6px 10px">Close</button>
@@ -3025,7 +3466,15 @@ var watchController = async (c) => {
           <div class="ep-list" id="epList" hidden></div>
         </div>
 
-        <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
+        <div class="menu" id="settingsMenu" role="dialog" aria-modal="true" aria-label="Player settings">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-head">
+            <h3>Settings</h3>
+            <button type="button" class="sheet-close" id="settingsClose" aria-label="Close settings">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          <div class="menu-body">
           <div class="menu-section">
             <h3>Audio</h3>
             <div class="pill-toggle" id="audioToggleMenu" ${hasEither ? "" : "hidden"} style="width:100%;justify-content:stretch">
@@ -3040,7 +3489,7 @@ var watchController = async (c) => {
               <a class="pill" style="flex:1;text-align:center" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true"'} ${prevPlaySafe ? "" : "hidden"}>Previous</a>
               <a class="pill" style="flex:1;text-align:center" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true"'} ${nextPlaySafe ? "" : "hidden"}>Next</a>
             </div>
-            <button type="button" class="pill" id="epListBtnMenu" style="width:100%;margin-top:8px;justify-content:center" ${hasAnime ? "" : "hidden"}>All episodes</button>
+            <button type="button" class="pill" id="epListBtnMenu" style="width:100%;margin-top:8px;justify-content:center" ${hasAnime ? "" : "hidden"} aria-haspopup="dialog" aria-expanded="false" aria-controls="epPanel">All episodes</button>
             <p class="hint" style="margin-top:8px">${epIndex && epTotal ? escAttr(`Episode ${epIndex} of ${epTotal}`) : "Jump with Prev / Next or the episode list."}</p>
           </div>
           <div class="menu-section" id="ccSection">
@@ -3050,8 +3499,8 @@ var watchController = async (c) => {
             </div>
             <div id="ccBody">
               <div class="menu-row">
-                <label for="ccToggle">English CC</label>
-                <button type="button" class="switch" id="ccToggle" aria-pressed="false" ${hasAnyCc ? "" : "disabled"}></button>
+                <label id="ccLabel" for="ccToggle">English CC</label>
+                <button type="button" class="switch" id="ccToggle" role="switch" aria-labelledby="ccLabel" aria-checked="false" aria-pressed="false" ${hasAnyCc ? "" : "disabled"}></button>
               </div>
               <div id="ccControls" ${hasAnyCc ? "" : "hidden"}>
 
@@ -3068,12 +3517,12 @@ var watchController = async (c) => {
                 <div class="menu-row cc-setting-row">
                   <span class="cc-label">Font Color</span>
                   <div class="pos-row cc-swatch-row" id="ccColorRow">
-                    <button type="button" class="cc-swatch is-active" data-cc-color="white" style="background:#fff" title="White"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="yellow" style="background:#ffe066" title="Yellow"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="cyan" style="background:#3dd6c6" title="Cyan"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="lime" style="background:#86efac" title="Lime"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="orange" style="background:#fb923c" title="Orange"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="pink" style="background:#f472b6" title="Pink"></button>
+                    <button type="button" class="cc-swatch is-active" data-cc-color="white" style="background:#fff" title="White" aria-label="White text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="yellow" style="background:#ffe066" title="Yellow" aria-label="Yellow text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="cyan" style="background:#3dd6c6" title="Cyan" aria-label="Cyan text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="lime" style="background:#86efac" title="Lime" aria-label="Lime text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="orange" style="background:#fb923c" title="Orange" aria-label="Orange text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="pink" style="background:#f472b6" title="Pink" aria-label="Pink text color"></button>
                   </div>
                 </div>
 
@@ -3099,12 +3548,12 @@ var watchController = async (c) => {
                 <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
                   <span class="cc-label">Font Family</span>
                   <div class="pos-row cc-font-row" id="ccFontRow">
-                    <button type="button" class="cc-font-btn is-active" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="trebuchet" style="font-family:'Trebuchet MS',sans-serif">Trebuchet</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="rosario" style="font-family:'Rosario',sans-serif">Rosario</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="sans" style="font-family:system-ui,sans-serif">System</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="serif" style="font-family:Georgia,serif">Serif</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="mono" style="font-family:'Courier New',monospace">Mono</button>
+                    <button type="button" class="cc-font-btn is-active" data-cc-font="dm" style="font-family: 'DM Sans', sans-serif;">DM Sans</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="trebuchet" style="font-family: 'Trebuchet MS', sans-serif;">Trebuchet</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="rosario" style="font-family: 'Rosario', sans-serif;">Rosario</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="sans" style="font-family: system-ui, sans-serif;">System</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="serif" style="font-family: Georgia, serif;">Serif</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="mono" style="font-family: 'Courier New', monospace;">Mono</button>
                   </div>
                 </div>
 
@@ -3124,11 +3573,11 @@ var watchController = async (c) => {
                 <div class="menu-row cc-setting-row">
                   <span class="cc-label">Edge Color</span>
                   <div class="pos-row cc-swatch-row" id="ccEdgeRow">
-                    <button type="button" class="cc-swatch is-active" data-cc-edge="black" style="background:#000;border:2px solid rgba(255,255,255,0.25)" title="Black"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="darkgray" style="background:#374151" title="Dark Gray"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="white" style="background:#fff;border:2px solid rgba(255,255,255,0.25)" title="White"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="red" style="background:#dc2626" title="Red"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="blue" style="background:#3b82f6" title="Blue"></button>
+                    <button type="button" class="cc-swatch is-active" data-cc-edge="black" style="background:#000;border:2px solid rgba(255,255,255,0.25)" title="Black" aria-label="Black edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="darkgray" style="background:#374151" title="Dark Gray" aria-label="Dark Gray edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="white" style="background:#fff;border:2px solid rgba(255,255,255,0.25)" title="White" aria-label="White edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="red" style="background:#dc2626" title="Red" aria-label="Red edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="blue" style="background:#3b82f6" title="Blue" aria-label="Blue edge"></button>
                   </div>
                 </div>
 
@@ -3170,12 +3619,12 @@ var watchController = async (c) => {
           </div>
           <div class="menu-section">
             <div class="menu-row">
-              <label for="loopToggle">Loop</label>
-              <button type="button" class="switch" id="loopToggle" aria-pressed="false"></button>
+              <label id="loopLabel" for="loopToggle">Loop</label>
+              <button type="button" class="switch" id="loopToggle" role="switch" aria-labelledby="loopLabel" aria-checked="false" aria-pressed="false"></button>
             </div>
             <div class="menu-row">
-              <label for="theaterToggle">Theater mode</label>
-              <button type="button" class="switch" id="theaterToggle" aria-pressed="false"></button>
+              <label id="theaterLabel" for="theaterToggle">Theater mode</label>
+              <button type="button" class="switch" id="theaterToggle" role="switch" aria-labelledby="theaterLabel" aria-checked="false" aria-pressed="false"></button>
             </div>
             <div class="menu-row">
               <label>Picture in picture</label>
@@ -3185,19 +3634,21 @@ var watchController = async (c) => {
               <label>Cast to TV</label>
               <button type="button" class="pill" id="castBtn" style="padding:6px 10px" title="Cast to a nearby screen or smart TV">\u{1F4FA} Cast</button>
             </div>
-            <div class="menu-row" style="flex-direction:column;align-items:flex-start;gap:6px;padding-top:4px;border-top:1px solid var(--line);margin-top:4px">
-              <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">Keyboard shortcuts</label>
-              <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:0.78rem;color:var(--muted);width:100%">
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">Space</kbd><span>Play / Pause</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">\u2190 \u2192</kbd><span>Seek \xB110s</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">[ ]</kbd><span>Prev / Next episode</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">F</kbd><span>Fullscreen</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">T</kbd><span>Theater mode</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">C</kbd><span>Captions on/off</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">M</kbd><span>Mute</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">, .</kbd><span>Speed down / up</span>
+            <div class="menu-row shortcuts-row">
+              <label class="shortcuts-label">Keyboard shortcuts</label>
+              <div class="shortcuts-grid">
+                <kbd>Space</kbd><span>Play / Pause</span>
+                <kbd>\u2190 \u2192</kbd><span>Seek \xB110s</span>
+                <kbd>\u2191 \u2193</kbd><span>Volume \xB15%</span>
+                <kbd>[ ]</kbd><span>Prev / Next episode</span>
+                <kbd>F</kbd><span>Fullscreen</span>
+                <kbd>T</kbd><span>Theater mode</span>
+                <kbd>C</kbd><span>Captions on/off</span>
+                <kbd>M</kbd><span>Mute</span>
+                <kbd>, .</kbd><span>Speed down / up</span>
               </div>
             </div>
+          </div>
           </div>
         </div>
 
@@ -3213,13 +3664,13 @@ var watchController = async (c) => {
             <input class="vol" id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
             <span class="time" id="time">0:00 / 0:00</span>
             <button type="button" class="speed-chip" id="speedBtn" title="Playback speed">1x</button>
-            <a class="pill nav-pill" id="prevEpBar" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? "" : "hidden"} style="padding:6px 10px;min-width:auto">\u2190 Prev</a>
-            <a class="pill nav-pill" id="nextEpBar" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? "" : "hidden"} style="padding:6px 10px;min-width:auto">Next \u2192</a>
+            <a class="pill nav-pill" id="prevEpBar" title="Previous episode ([)" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? "" : "hidden"} style="padding:6px 10px;min-width:auto">\u2190 Prev</a>
+            <a class="pill nav-pill" id="nextEpBar" title="Next episode (])" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? "" : "hidden"} style="padding:6px 10px;min-width:auto">Next \u2192</a>
             <button type="button" class="ctrl" id="ccBtn" aria-label="English captions" title="English CC (C)" ${hasAnyCc ? "" : "hidden"}>
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-8.5 10.5c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7H9.5v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 0.7 1 1.3 0 1-.9 1.4-2.1 1.4zm7 0c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7h-.7v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 .7 1 1.3 0 1-.9 1.4-2.1 1.4z"/></svg>
             </button>
             <span class="spacer"></span>
-            <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings">
+            <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsMenu">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.89 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
             <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode">
@@ -3292,6 +3743,10 @@ var watchController = async (c) => {
       var epPanelClose = document.getElementById('epPanelClose');
       var epPanelStatus = document.getElementById('epPanelStatus');
       var epList = document.getElementById('epList');
+      var sheetBackdrop = document.getElementById('sheetBackdrop');
+      var settingsClose = document.getElementById('settingsClose');
+      var gestureLeft = document.getElementById('gestureLeft');
+      var gestureRight = document.getElementById('gestureRight');
       var hideTimer = null;
       var hls = null;
       var switching = false;
@@ -3317,6 +3772,7 @@ var watchController = async (c) => {
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 10;
       var ccCues = [];
+      var ccMaxDuration = 0;
       var ccSrcLoaded = '';
       var ccFetchToken = 0;
       var activeCueText = '';
@@ -3425,6 +3881,19 @@ var watchController = async (c) => {
             loadTrack(fallbackTrack, true);
           };
           err.appendChild(btn);
+        } else {
+          var retryBtn = document.createElement('button');
+          retryBtn.type = 'button';
+          retryBtn.className = 'pill';
+          retryBtn.style.marginLeft = '12px';
+          retryBtn.style.padding = '4px 10px';
+          retryBtn.style.fontSize = '12px';
+          retryBtn.textContent = 'Retry stream';
+          retryBtn.onclick = function () {
+            clearErr();
+            loadTrack(track, true);
+          };
+          err.appendChild(retryBtn);
         }
         stage.classList.remove('is-loading');
         switching = false;
@@ -3446,11 +3915,27 @@ var watchController = async (c) => {
         playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
         bigPlay.setAttribute('aria-label', playing ? 'Pause' : 'Play');
         bigPlay.querySelector('svg').innerHTML = playing ? ICONS.pause : ICONS.play;
+        if ('mediaSession' in navigator) {
+          try {
+            navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+          } catch (e) {}
+        }
       }
 
       function setMuted(muted) {
         muteIcon.innerHTML = muted || video.volume === 0 ? ICONS.muted : ICONS.vol;
         muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+      }
+
+      function applyVolume(val) {
+        var v = Math.max(0, Math.min(1, Number(val)));
+        if (!isFinite(v)) v = 1;
+        video.volume = v;
+        video.muted = v === 0;
+        vol.value = String(v);
+        vol.style.setProperty('--vol', (v * 100) + '%');
+        setMuted(video.muted);
+        try { localStorage.setItem('ani.vol', String(v)); } catch (e) {}
       }
 
       function updateProgress() {
@@ -3459,6 +3944,15 @@ var watchController = async (c) => {
         if (!seek.matches(':active')) seek.value = String(d ? (t / d) * 1000 : 0);
         seek.style.setProperty('--progress', (d ? (t / d) * 100 : 0) + '%');
         timeEl.textContent = fmt(t) + ' / ' + fmt(d);
+        if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession && isFinite(d) && d > 0 && isFinite(t)) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: d,
+              playbackRate: video.playbackRate || 1,
+              position: Math.min(Math.max(t, 0), d),
+            });
+          } catch (e) {}
+        }
       }
 
       function currentSkip() {
@@ -3512,12 +4006,17 @@ var watchController = async (c) => {
             stage.classList.remove('show-controls');
             stage.classList.add('cursor-hidden');
           }
-        }, 2800);
+        }, 3500);
       }
 
       function togglePlay() {
-        if (video.paused) video.play().catch(function () {});
-        else video.pause();
+        if (video.paused) {
+          video.play().catch(function () {
+            setPlaying(false);
+          });
+        } else {
+          video.pause();
+        }
       }
       function toggleMute() {
         video.muted = !video.muted;
@@ -3537,8 +4036,10 @@ var watchController = async (c) => {
         document.body.classList.toggle('theater', theater);
         theaterToggle.classList.toggle('is-on', theater);
         theaterToggle.setAttribute('aria-pressed', theater ? 'true' : 'false');
+        theaterToggle.setAttribute('aria-checked', theater ? 'true' : 'false');
         theaterBtn.classList.toggle('is-on', theater);
-        localStorage.setItem('ani.theater', theater ? '1' : '0');
+        theaterBtn.setAttribute('aria-pressed', theater ? 'true' : 'false');
+        try { localStorage.setItem('ani.theater', theater ? '1' : '0'); } catch (e) {}
         pokeControls();
       }
 
@@ -3555,6 +4056,7 @@ var watchController = async (c) => {
           ccToggle.disabled = !available;
           ccToggle.classList.toggle('is-on', ccOn && available);
           ccToggle.setAttribute('aria-pressed', ccOn && available ? 'true' : 'false');
+          ccToggle.setAttribute('aria-checked', ccOn && available ? 'true' : 'false');
         }
         if (ccLayer) ccLayer.classList.toggle('is-on', ccOn && available);
       }
@@ -3578,6 +4080,7 @@ var watchController = async (c) => {
 
       function parseVtt(text) {
         var cues = [];
+        var maxDur = 0;
         var blocks = String(text || '').replace(/\\r/g, '').split(/\\n\\n+/);
         for (var i = 0; i < blocks.length; i++) {
           var block = blocks[i].trim();
@@ -3598,9 +4101,14 @@ var watchController = async (c) => {
             .replace(/&gt;/g, '>')
             .trim();
           if (!body) continue;
-          cues.push({ start: parseTs(m[1]), end: parseTs(m[2]), text: body });
+          var start = parseTs(m[1]);
+          var end = parseTs(m[2]);
+          var dur = end - start;
+          if (dur > maxDur) maxDur = dur;
+          cues.push({ start: start, end: end, text: body });
         }
-        return cues;
+        cues.sort(function (a, b) { return a.start - b.start; });
+        return { cues: cues, maxDuration: maxDur };
       }
 
       function applyCcStyle() {
@@ -3676,15 +4184,17 @@ var watchController = async (c) => {
       }
 
       function persistCcLayout() {
-        localStorage.setItem('ani.ccSize', String(ccSizePx));
-        localStorage.setItem('ani.ccX', String(Math.round(ccX * 10) / 10));
-        localStorage.setItem('ani.ccY', String(Math.round(ccY * 10) / 10));
-        localStorage.setItem('ani.ccStyle', ccStyle);
-        localStorage.setItem('ani.ccColor', ccColorKey);
-        localStorage.setItem('ani.ccFont', ccFontKey);
-        localStorage.setItem('ani.ccEdge', ccEdgeKey);
-        localStorage.setItem('ani.ccBg', ccBgKey);
-        localStorage.setItem('ani.ccOpacity', String(ccOpacity));
+        try {
+          localStorage.setItem('ani.ccSize', String(ccSizePx));
+          localStorage.setItem('ani.ccX', String(Math.round(ccX * 10) / 10));
+          localStorage.setItem('ani.ccY', String(Math.round(ccY * 10) / 10));
+          localStorage.setItem('ani.ccStyle', ccStyle);
+          localStorage.setItem('ani.ccColor', ccColorKey);
+          localStorage.setItem('ani.ccFont', ccFontKey);
+          localStorage.setItem('ani.ccEdge', ccEdgeKey);
+          localStorage.setItem('ani.ccBg', ccBgKey);
+          localStorage.setItem('ani.ccOpacity', String(ccOpacity));
+        } catch (e) {}
       }
 
       function setCcPos(preset) {
@@ -3706,6 +4216,7 @@ var watchController = async (c) => {
       function unloadCaptions() {
         ccFetchToken += 1;
         ccCues = [];
+        ccMaxDuration = 0;
         ccSrcLoaded = '';
         hideCcText();
         if (ccLayer) ccLayer.classList.remove('is-on');
@@ -3716,16 +4227,48 @@ var watchController = async (c) => {
         } catch (e) {}
       }
 
+      function findFirstGte(cues, val) {
+        var l = 0, r = cues.length - 1, ans = cues.length;
+        while (l <= r) {
+          var mid = (l + r) >> 1;
+          if (cues[mid].start >= val) {
+            ans = mid;
+            r = mid - 1;
+          } else {
+            l = mid + 1;
+          }
+        }
+        return ans;
+      }
+
+      function findLastLte(cues, val) {
+        var l = 0, r = cues.length - 1, ans = -1;
+        while (l <= r) {
+          var mid = (l + r) >> 1;
+          if (cues[mid].start <= val) {
+            ans = mid;
+            l = mid + 1;
+          } else {
+            r = mid - 1;
+          }
+        }
+        return ans;
+      }
+
       function renderCcAt(t) {
         if (!ccOn || !ccCues.length) {
           hideCcText();
           return;
         }
         var text = '';
-        for (var i = 0; i < ccCues.length; i++) {
-          var c = ccCues[i];
-          if (t >= c.start && t <= c.end) {
-            text = text ? text + '\\n' + c.text : c.text;
+        var startIdx = findFirstGte(ccCues, t - ccMaxDuration);
+        var endIdx = findLastLte(ccCues, t);
+        if (startIdx <= endIdx && startIdx < ccCues.length && endIdx >= 0) {
+          for (var i = startIdx; i <= endIdx; i++) {
+            var c = ccCues[i];
+            if (t >= c.start && t <= c.end) {
+              text = text ? text + '\\n' + c.text : c.text;
+            }
           }
         }
         if (text === activeCueText) return;
@@ -3756,6 +4299,7 @@ var watchController = async (c) => {
         }
         var token = ++ccFetchToken;
         ccCues = [];
+        ccMaxDuration = 0;
         hideCcText();
         fetch(src)
           .then(function (r) {
@@ -3764,13 +4308,16 @@ var watchController = async (c) => {
           })
           .then(function (text) {
             if (token !== ccFetchToken) return;
-            ccCues = parseVtt(text);
+            var parsed = parseVtt(text);
+            ccCues = parsed.cues;
+            ccMaxDuration = parsed.maxDuration || 0;
             ccSrcLoaded = src;
             renderCcAt(video.currentTime || 0);
           })
           .catch(function () {
             if (token !== ccFetchToken) return;
             ccCues = [];
+            ccMaxDuration = 0;
             ccSrcLoaded = '';
             hideCcText();
           });
@@ -3778,7 +4325,7 @@ var watchController = async (c) => {
 
       function setCc(on) {
         ccOn = !!on;
-        localStorage.setItem('ani.cc', ccOn ? '1' : '0');
+        try { localStorage.setItem('ani.cc', ccOn ? '1' : '0'); } catch (e) {}
         if (!ccOn) unloadCaptions();
         applyCaptions();
       }
@@ -3787,7 +4334,7 @@ var watchController = async (c) => {
         rate = next;
         video.playbackRate = rate;
         speedBtn.textContent = (rate % 1 === 0 ? rate.toFixed(0) : String(rate)) + 'x';
-        localStorage.setItem('ani.rate', String(rate));
+        try { localStorage.setItem('ani.rate', String(rate)); } catch (e) {}
         speedRow.querySelectorAll('.speed-chip').forEach(function (btn) {
           btn.classList.toggle('is-active', Number(btn.dataset.rate) === rate);
         });
@@ -3984,8 +4531,50 @@ var watchController = async (c) => {
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
           video.addEventListener('loadedmetadata', finishReady, { once: true });
+        } else if (!window.Hls && document.readyState !== 'complete') {
+          window.addEventListener('load', function () {
+            if (window.Hls && Hls.isSupported()) loadTrack(next, keepTime);
+            else fail('This browser cannot play HLS. Try Chrome, Firefox, or Safari.');
+          }, { once: true });
         } else {
           fail('This browser cannot play HLS. Try Chrome, Firefox, or Safari.');
+        }
+      }
+
+      var lastSettingsTrigger = null;
+      var lastEpTrigger = null;
+
+      function trapDialogFocus(e, dialogEl, closeFn) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          closeFn();
+          return;
+        }
+        if (e.key !== 'Tab') return;
+        var focusables = dialogEl.querySelectorAll('button:not([disabled]):not([hidden]), [href]:not([aria-disabled="true"]):not([hidden]), input:not([disabled]):not([hidden]), select:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])');
+        if (!focusables.length) return;
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || !dialogEl.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !dialogEl.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+
+      function syncBackdrop() {
+        var anyOpen = (settingsMenu && settingsMenu.classList.contains('is-open')) ||
+                      (epPanel && epPanel.classList.contains('is-open'));
+        if (sheetBackdrop) {
+          sheetBackdrop.classList.toggle('is-active', anyOpen);
+          sheetBackdrop.hidden = !anyOpen;
         }
       }
 
@@ -3994,9 +4583,19 @@ var watchController = async (c) => {
         settingsMenu.classList.toggle('is-open', open);
         stage.classList.toggle('settings-open', open);
         settingsBtn.classList.toggle('is-on', open);
+        settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        syncBackdrop();
         if (open) {
+          lastSettingsTrigger = document.activeElement;
           setEpPanel(false);
           pokeControls();
+          var firstFocus = settingsMenu.querySelector('button:not([disabled]), select:not([disabled]), input:not([disabled])');
+          if (firstFocus) {
+            try { firstFocus.focus(); } catch (err) {}
+          }
+        } else if (lastSettingsTrigger && typeof lastSettingsTrigger.focus === 'function') {
+          try { lastSettingsTrigger.focus(); } catch (err) {}
+          lastSettingsTrigger = null;
         }
       }
 
@@ -4004,11 +4603,25 @@ var watchController = async (c) => {
         if (!epPanel || !animeId) return;
         epPanel.hidden = !open;
         epPanel.classList.toggle('is-open', open);
-        if (epListBtn) epListBtn.classList.toggle('is-active', open);
+        if (epListBtn) {
+          epListBtn.classList.toggle('is-active', open);
+          epListBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        if (epListBtnMenu) {
+          epListBtnMenu.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        syncBackdrop();
         if (open) {
+          lastEpTrigger = document.activeElement;
           toggleSettings(false);
           pokeControls();
           loadEpisodeList();
+          if (epPanelClose) {
+            try { epPanelClose.focus(); } catch (err) {}
+          }
+        } else if (lastEpTrigger && typeof lastEpTrigger.focus === 'function') {
+          try { lastEpTrigger.focus(); } catch (err) {}
+          lastEpTrigger = null;
         }
       }
 
@@ -4124,7 +4737,17 @@ var watchController = async (c) => {
           .catch(function () {
             epList.hidden = true;
             epPanelStatus.hidden = false;
-            epPanelStatus.textContent = 'Could not load episodes.';
+            epPanelStatus.innerHTML = '<span>Could not load episodes.</span> ';
+            var retryBtn = document.createElement('button');
+            retryBtn.type = 'button';
+            retryBtn.className = 'pill';
+            retryBtn.style.padding = '4px 10px';
+            retryBtn.style.fontSize = '0.75rem';
+            retryBtn.textContent = 'Retry';
+            retryBtn.addEventListener('click', function () {
+              loadEpisodeList();
+            });
+            epPanelStatus.appendChild(retryBtn);
           });
       }
 
@@ -4135,11 +4758,83 @@ var watchController = async (c) => {
       syncAudioButtons();
       syncCcButtons();
 
+      var lastTapTime = 0;
+      var lastTapX = 0;
+      var tapTimer = null;
+      var gestureTimer = null;
+
+      function flashGesture(side) {
+        var el = side === 'left' ? gestureLeft : gestureRight;
+        if (!el) return;
+        el.classList.add('is-active');
+        clearTimeout(gestureTimer);
+        gestureTimer = setTimeout(function () {
+          el.classList.remove('is-active');
+        }, 400);
+      }
+
       playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
       bigPlay.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
       video.addEventListener('click', function () {
+        if (window.matchMedia('(pointer: coarse)').matches) {
+          // Handled by stage pointerup on touch devices
+          return;
+        }
         if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
         else togglePlay();
+      });
+
+      stage.addEventListener('pointerup', function (e) {
+        if (!window.matchMedia('(pointer: coarse)').matches) return;
+        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+          return;
+        }
+
+        var now = Date.now();
+        var dt = now - lastTapTime;
+        var rect = stage.getBoundingClientRect();
+        var tapX = e.clientX - rect.left;
+        var width = rect.width;
+
+        if (dt < 320 && Math.abs(tapX - lastTapX) < 60) {
+          clearTimeout(tapTimer);
+          tapTimer = null;
+          lastTapTime = 0;
+
+          if (tapX < width * 0.38) {
+            video.currentTime = Math.max(0, (video.currentTime || 0) - 10);
+            updateProgress();
+            updateSkip();
+            flashGesture('left');
+          } else if (tapX > width * 0.62) {
+            video.currentTime = Math.min((video.duration || 0), (video.currentTime || 0) + 10);
+            updateProgress();
+            updateSkip();
+            flashGesture('right');
+          } else {
+            togglePlay();
+          }
+          pokeControls();
+        } else {
+          lastTapTime = now;
+          lastTapX = tapX;
+          clearTimeout(tapTimer);
+          tapTimer = setTimeout(function () {
+            tapTimer = null;
+            if (settingsMenu.classList.contains('is-open')) {
+              toggleSettings(false);
+            } else if (epPanel && epPanel.classList.contains('is-open')) {
+              setEpPanel(false);
+            } else {
+              if (stage.classList.contains('show-controls') && !video.paused) {
+                stage.classList.remove('show-controls');
+                stage.classList.add('cursor-hidden');
+              } else {
+                pokeControls();
+              }
+            }
+          }, 280);
+        }
       });
       muteBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMute(); });
       fsBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleFs(); });
@@ -4147,6 +4842,21 @@ var watchController = async (c) => {
         e.preventDefault(); e.stopPropagation();
         toggleSettings();
       });
+      if (settingsClose) {
+        settingsClose.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSettings(false);
+        });
+      }
+      if (sheetBackdrop) {
+        sheetBackdrop.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSettings(false);
+          setEpPanel(false);
+        });
+      }
       if (epListBtn) {
         epListBtn.addEventListener('click', function (e) {
           e.preventDefault();
@@ -4281,7 +4991,7 @@ var watchController = async (c) => {
           ccCollapseBtn.textContent = ccCollapsed ? '\u25BC Show' : '\u25B2 Hide';
           ccCollapseBtn.setAttribute('aria-expanded', ccCollapsed ? 'false' : 'true');
         }
-        localStorage.setItem('ani.ccCollapsed', ccCollapsed ? '1' : '0');
+        try { localStorage.setItem('ani.ccCollapsed', ccCollapsed ? '1' : '0'); } catch (e) {}
       }
       if (ccCollapseBtn) {
         ccCollapseBtn.addEventListener('click', function (e) {
@@ -4336,17 +5046,30 @@ var watchController = async (c) => {
         }
         ccBox.addEventListener('pointerup', endCcDrag);
         ccBox.addEventListener('pointercancel', endCcDrag);
+        ccBox.addEventListener('lostpointercapture', endCcDrag);
+        window.addEventListener('blur', function () { if (draggingCc) endCcDrag({}); });
         ccBox.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
         });
       }
       applyCcStyle();
+      if (settingsMenu) {
+        settingsMenu.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, settingsMenu, function () { toggleSettings(false); });
+        });
+      }
+      if (epPanel) {
+        epPanel.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, epPanel, function () { setEpPanel(false); });
+        });
+      }
       loopToggle.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         video.loop = !video.loop;
         loopToggle.classList.toggle('is-on', video.loop);
         loopToggle.setAttribute('aria-pressed', video.loop ? 'true' : 'false');
+        loopToggle.setAttribute('aria-checked', video.loop ? 'true' : 'false');
       });
       speedBtn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
@@ -4442,11 +5165,7 @@ var watchController = async (c) => {
         updateSkip();
       });
       vol.addEventListener('input', function () {
-        video.volume = Number(vol.value);
-        video.muted = video.volume === 0;
-        vol.style.setProperty('--vol', video.volume * 100 + '%');
-        setMuted(video.muted);
-        localStorage.setItem('ani.vol', String(video.volume));
+        applyVolume(vol.value);
       });
 
       if (skipBtn) {
@@ -4550,6 +5269,7 @@ var watchController = async (c) => {
 
       document.addEventListener('keydown', function (e) {
         if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
@@ -4560,11 +5280,13 @@ var watchController = async (c) => {
           if (captions[track]) setCc(!ccOn);
         }
         else if (e.key === '[') {
-          var prev = document.getElementById('prevEp');
+          e.preventDefault();
+          var prev = document.getElementById('prevEpBar') || document.getElementById('prevEp');
           if (prev && prev.getAttribute('href')) location.href = prev.getAttribute('href');
         }
         else if (e.key === ']') {
-          var next = document.getElementById('nextEp');
+          e.preventDefault();
+          var next = document.getElementById('nextEpBar') || document.getElementById('nextEp');
           if (next && next.getAttribute('href')) location.href = next.getAttribute('href');
         }
         else if (e.key === 'm' || e.key === 'M') toggleMute();
@@ -4572,8 +5294,10 @@ var watchController = async (c) => {
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
         else if (e.key === ',' || e.key === '<') cycleRate(-1);
         else if (e.key === '.' || e.key === '>') cycleRate(1);
-        else if (e.key === 'ArrowRight') video.currentTime = Math.min((video.duration || 0), video.currentTime + 10);
-        else if (e.key === 'ArrowLeft') video.currentTime = Math.max(0, video.currentTime - 10);
+        else if (e.key === 'ArrowRight') { e.preventDefault(); video.currentTime = Math.min((video.duration || 0), video.currentTime + 10); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05); }
         else if (e.key === 'Escape') {
           if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
           else if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
@@ -4582,16 +5306,72 @@ var watchController = async (c) => {
         pokeControls();
       });
 
-      setPlaying(false);
-      setMuted(false);
-      // Restore saved volume level
-      var savedVol = parseFloat(localStorage.getItem('ani.vol') || '1');
-      if (isFinite(savedVol) && savedVol >= 0 && savedVol <= 1) {
-        video.volume = savedVol;
-        vol.value = String(savedVol);
+      function initMediaSession() {
+        if (!('mediaSession' in navigator)) return;
+        try {
+          var msTitle = (currentEpNum ? 'Ep ' + currentEpNum : 'Episode') + (currentEpTitle ? ' \xB7 ' + currentEpTitle : '');
+          var artworkList = [];
+          if (animeId) {
+            try {
+              var meta = JSON.parse(localStorage.getItem('ani.meta.' + animeId) || 'null');
+              if (meta && meta.poster) {
+                artworkList.push({ src: meta.poster, sizes: '300x450', type: 'image/jpeg' });
+              }
+            } catch (e) {}
+          }
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: msTitle,
+            artist: animeName || ${JSON.stringify(SITE_NAME)},
+            album: animeName || ${JSON.stringify(SITE_NAME)},
+            artwork: artworkList,
+          });
+          navigator.mediaSession.setActionHandler('play', function () { togglePlay(); });
+          navigator.mediaSession.setActionHandler('pause', function () { togglePlay(); });
+          navigator.mediaSession.setActionHandler('seekbackward', function (details) {
+            var skipTime = (details && details.seekOffset) || 10;
+            video.currentTime = Math.max((video.currentTime || 0) - skipTime, 0);
+          });
+          navigator.mediaSession.setActionHandler('seekforward', function (details) {
+            var skipTime = (details && details.seekOffset) || 10;
+            video.currentTime = Math.min((video.currentTime || 0) + skipTime, video.duration || 0);
+          });
+          var prevNav = document.getElementById('prevEpBar') || document.getElementById('prevEp');
+          if (prevNav && prevNav.getAttribute('href')) {
+            navigator.mediaSession.setActionHandler('previoustrack', function () {
+              location.href = prevNav.getAttribute('href');
+            });
+          }
+          var nextNav = document.getElementById('nextEpBar') || document.getElementById('nextEp');
+          if (nextNav && nextNav.getAttribute('href')) {
+            navigator.mediaSession.setActionHandler('nexttrack', function () {
+              location.href = nextNav.getAttribute('href');
+            });
+          }
+        } catch (e) {}
       }
-      vol.style.setProperty('--vol', video.volume * 100 + '%');
-      loadTrack(track, false);
+
+      function init() {
+        setPlaying(false);
+        setMuted(false);
+        // Restore saved volume level
+        var savedVol = 1;
+        try {
+          savedVol = parseFloat(localStorage.getItem('ani.vol') || '1');
+        } catch (e) {}
+        if (isFinite(savedVol) && savedVol >= 0 && savedVol <= 1) {
+          applyVolume(savedVol);
+        } else {
+          applyVolume(1);
+        }
+        loadTrack(track, false);
+        initMediaSession();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
     })();
   </script>
   ${vercelObservabilityScriptTags()}
@@ -5228,31 +6008,42 @@ var landingController = async (c) => {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
-  <title>${SITE_NAME}</title>
-  <meta name="description" content="Discover trending and new anime, then watch Sub/Dub streams \u2014 ${SITE_TAGLINE}" />
+  <title>${SITE_NAME} \u2014 Private Cinema Streaming</title>
+  <meta name="description" content="Explore trending anime, browse episode guides, and stream in crisp HD with Sub/Dub captions \u2014 ${SITE_TAGLINE}" />
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg0: #07090d;
+      --bg1: #0d1219;
       --ink: #e8edf5;
       --muted: #8b95a8;
       --accent: #3dd6c6;
       --accent-dim: rgba(61, 214, 198, 0.16);
       --line: rgba(255, 255, 255, 0.1);
       --panel: rgba(12, 16, 24, 0.72);
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-pill: 999px;
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: var(--bg0); color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg0);
+      color: var(--ink);
+      font-family: "DM Sans", system-ui, sans-serif;
+    }
     body {
       min-height: 100dvh;
       background:
         radial-gradient(1000px 520px at 18% -8%, rgba(61, 214, 198, 0.18), transparent 55%),
         radial-gradient(900px 520px at 100% 40%, rgba(70, 100, 180, 0.14), transparent 50%),
-        linear-gradient(165deg, #0d1219 0%, var(--bg0) 48%, #05070a 100%);
+        linear-gradient(165deg, var(--bg1) 0%, var(--bg0) 48%, #05070a 100%);
     }
     .shell {
       min-height: 100dvh;
@@ -5262,10 +6053,10 @@ var landingController = async (c) => {
     .hero {
       display: grid;
       align-content: center;
-      gap: 22px;
+      gap: 20px;
       max-width: 920px;
       margin: 0 auto;
-      padding: clamp(48px, 12vh, 120px) clamp(20px, 5vw, 40px) 48px;
+      padding: clamp(48px, 12vh, 120px) max(clamp(20px, 5vw, 40px), env(safe-area-inset-right)) 48px max(clamp(20px, 5vw, 40px), env(safe-area-inset-left));
       animation: rise 0.75s var(--ease) both;
     }
     @keyframes rise {
@@ -5275,15 +6066,16 @@ var landingController = async (c) => {
     .brand {
       font-family: Syne, sans-serif;
       font-weight: 800;
-      font-size: clamp(3rem, 11vw, 5.4rem);
-      letter-spacing: -0.045em;
-      line-height: 0.92;
+      font-size: clamp(1.55rem, 3vw, 2.05rem);
+      letter-spacing: -0.035em;
+      line-height: 0.95;
       margin: 0;
     }
+    .brand a { color: inherit; text-decoration: none; }
     .brand span { color: var(--accent); }
     .byline {
       margin: 0;
-      font-size: 1rem;
+      font-size: 0.75rem;
       letter-spacing: 0.08em;
       text-transform: lowercase;
       color: var(--muted);
@@ -5291,8 +6083,8 @@ var landingController = async (c) => {
     .byline em { font-style: normal; color: var(--accent); font-weight: 600; }
     .lede {
       margin: 0;
-      max-width: 34rem;
-      font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+      max-width: 36rem;
+      font-size: 1rem;
       line-height: 1.55;
       color: var(--muted);
     }
@@ -5300,18 +6092,23 @@ var landingController = async (c) => {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-top: 8px;
+      margin-top: 6px;
     }
     .btn {
       appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
       border: 1px solid rgba(61, 214, 198, 0.35);
       background: var(--accent-dim);
       color: var(--accent);
       font: inherit;
+      font-size: 0.85rem;
       font-weight: 600;
       text-decoration: none;
-      padding: 13px 20px;
-      border-radius: 999px;
+      padding: 10px 20px;
+      border-radius: var(--radius-pill);
       transition: transform 0.2s var(--ease), background 0.2s ease, border-color 0.2s ease;
     }
     .btn:hover {
@@ -5319,17 +6116,25 @@ var landingController = async (c) => {
       background: rgba(61, 214, 198, 0.28);
       border-color: rgba(61, 214, 198, 0.55);
     }
+    .btn:active { transform: scale(0.98); }
+    .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
     .btn.ghost {
       background: transparent;
       color: var(--ink);
       border-color: var(--line);
     }
-    .btn.ghost:hover { background: rgba(255,255,255,0.05); }
+    .btn.ghost:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
     .panel {
       margin-top: 10px;
       padding: 18px 20px;
       border: 1px solid var(--line);
-      border-radius: 18px;
+      border-radius: var(--radius-lg);
       background: var(--panel);
       backdrop-filter: blur(14px);
       animation: rise 0.85s var(--ease) 0.08s both;
@@ -5337,8 +6142,8 @@ var landingController = async (c) => {
     .panel h2 {
       margin: 0 0 8px;
       font-family: Syne, sans-serif;
-      font-size: 0.95rem;
-      letter-spacing: 0.04em;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
       color: var(--muted);
       font-weight: 700;
@@ -5346,48 +6151,60 @@ var landingController = async (c) => {
     .panel p {
       margin: 0;
       color: var(--muted);
-      font-size: 0.92rem;
+      font-size: 0.85rem;
       line-height: 1.5;
     }
     .panel code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.84em;
+      font-family: inherit;
+      font-weight: 600;
       color: var(--ink);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 5px;
+      border-radius: var(--radius-sm);
     }
     .lede-note {
       margin: 4px 0 0;
       max-width: 36rem;
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       line-height: 1.45;
       color: var(--muted);
       opacity: 0.9;
     }
     footer {
-      padding: 18px clamp(20px, 5vw, 40px) 28px;
+      padding: 18px max(clamp(20px, 5vw, 40px), env(safe-area-inset-right)) 28px max(clamp(20px, 5vw, 40px), env(safe-area-inset-left));
       color: var(--muted);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       text-align: center;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      body { animation: none; }
+      .hero, .panel, .btn {
+        animation: none;
+        transition: none;
+        transform: none !important;
+      }
     }
   </style>
 </head>
 <body>
   <div class="shell">
     <main class="hero">
-      <h1 class="brand">ani<span>.</span>watch</h1>
+      <h1 class="brand"><a href="/">ani<span>.</span>watch</a></h1>
       <p class="byline">by <em>wab</em></p>
-      <p class="lede">Browse trending and latest episodes, pick a title, and play Sub/Dub with captions \u2014 the same flow as the API, in the browser.</p>
+      <p class="lede">Private, theater-grade anime streaming. Browse catalog titles, explore curated rails, and unlock high-definition Sub/Dub playback with your instance access key.</p>
       <div class="cta">
-        <a class="btn" href="/browse">Trending &amp; new</a>
-        <a class="btn ghost" href="/browse">Search titles</a>
-        <a class="btn ghost" href="/api">API index</a>
+        <a class="btn" href="/browse">Discover anime</a>
+        <a class="btn ghost" href="/browse?cat=most-popular">Popular</a>
+        <a class="btn ghost" href="/browse?cat=top-airing">Top airing</a>
+        <a class="btn ghost" href="/api">API docs</a>
       </div>
       <section class="panel">
-        <h2>API access</h2>
-        <p>JSON routes under <code>/api/v2</code> need header <code>x-api-key</code>. Browse uses that key once (saved locally) to load Discover rails and category pages. Watch, play, and HLS stay public.</p>
+        <h2>Instance Security &amp; Access Key</h2>
+        <p>Playback streams and upstream resolvers are secured by design. Catalog exploration and episode guides are open to browse, while video playback requires an <code>x-api-key</code> configured on your instance. Enter your key on the browse dock to unlock the cinema player.</p>
       </section>
       <p class="lede-note">${NOTICE_SHORT}</p>
     </main>
-    <footer>${SITE_NAME} \xB7 ${SITE_TAGLINE}</footer>
+    <footer>${SITE_NAME} \xB7 ${SITE_TAGLINE} \xB7 cinema streaming</footer>
   </div>
   ${vercelObservabilityScriptTags()}
 </body>
@@ -5429,9 +6246,16 @@ var browseController = async (c) => {
       --accent: #3dd6c6;
       --accent-dim: rgba(61, 214, 198, 0.16);
       --danger: #ff7b72;
+      --warning: #ffb454;
+      --warning-dim: rgba(255, 180, 84, 0.12);
       --line: rgba(255, 255, 255, 0.1);
       --panel: rgba(12, 16, 24, 0.88);
-      --radius: 16px;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+      --radius-pill: 999px;
+      --radius: var(--radius-xl);
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
       --max: 1180px;
     }
@@ -5449,7 +6273,10 @@ var browseController = async (c) => {
     .page {
       max-width: var(--max);
       margin: 0 auto;
-      padding: clamp(16px, 3vw, 28px);
+      padding-top: max(clamp(16px, 3vw, 28px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(16px, 3vw, 28px), env(safe-area-inset-bottom));
+      padding-left: max(clamp(16px, 3vw, 28px), env(safe-area-inset-left));
+      padding-right: max(clamp(16px, 3vw, 28px), env(safe-area-inset-right));
       display: grid;
       gap: 16px;
       min-height: 100dvh;
@@ -5499,6 +6326,22 @@ var browseController = async (c) => {
       color: var(--accent);
       background: var(--accent-dim);
       border-color: rgba(61,214,198,0.35);
+    }
+    /* Accessible focus rings */
+    .pill:focus-visible,
+    .btn:focus-visible,
+    .ep-card:focus-visible,
+    .search-fab:focus-visible,
+    .search-overlay-close:focus-visible,
+    .syn-toggle:focus-visible,
+    .season-field select:focus-visible,
+    .wl-btn:focus-visible,
+    .cw-remove-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    input:focus-visible {
+      outline: none;
     }
     .search-dock {
       position: sticky;
@@ -5558,7 +6401,10 @@ var browseController = async (c) => {
       white-space: nowrap;
       transition: background 0.2s ease, transform 0.2s var(--ease);
     }
-    .btn:hover { background: rgba(61, 214, 198, 0.28); transform: translateY(-1px); }
+    @media (hover: hover) {
+      .btn:hover { background: rgba(61, 214, 198, 0.28); transform: translateY(-1px); }
+    }
+    .btn:active { transform: scale(0.98); }
     .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
     .btn.ghost {
       background: transparent;
@@ -5583,6 +6429,48 @@ var browseController = async (c) => {
       color: var(--accent);
       background: var(--accent-dim);
       border-color: rgba(61,214,198,0.35);
+    }
+    .cat-more-wrap {
+      display: inline-flex;
+      align-items: center;
+    }
+    .cat-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 7px 28px 7px 14px;
+      cursor: pointer;
+      min-height: 40px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%238b95a8' d='M0 0h10L5 6z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+    }
+    .cat-select:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+      color: var(--ink);
+    }
+    .cat-select.is-active {
+      color: var(--accent);
+      border-color: rgba(61, 214, 198, 0.35);
+      background-color: var(--accent-dim);
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     .pager {
       display: flex;
@@ -5625,6 +6513,7 @@ var browseController = async (c) => {
       padding: 2px 2px 10px;
       scroll-snap-type: x mandatory;
       -webkit-overflow-scrolling: touch;
+      contain: layout style;
     }
     .rail::-webkit-scrollbar { height: 6px; }
     .rail::-webkit-scrollbar-thumb {
@@ -5650,23 +6539,95 @@ var browseController = async (c) => {
     .crumbs strong { color: var(--ink); font-weight: 600; }
     .status { color: var(--muted); font-size: 0.88rem; min-height: 1.2em; }
     .status.is-err { color: var(--danger); }
+    .key-indicator {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: var(--radius-pill);
+      background: var(--muted);
+      margin-right: 6px;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+      vertical-align: middle;
+    }
+    .key-indicator.is-active {
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(61, 214, 198, 0.4);
+    }
     .key-panel {
       display: none;
-      gap: 8px;
-      padding-top: 4px;
+      gap: 10px;
+      padding: 14px 16px;
       border-top: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: var(--radius-md);
+      margin-top: 4px;
     }
     .key-panel.is-open { display: grid; }
+    .key-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .key-panel-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .key-status-pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .key-status-pill.is-active {
+      background: rgba(61, 214, 198, 0.12);
+      color: var(--accent);
+      border-color: rgba(61, 214, 198, 0.3);
+    }
+    .key-panel-desc {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .key-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+    @media (max-width: 480px) {
+      .key-row {
+        grid-template-columns: 1fr auto;
+      }
+      .key-row button:last-child {
+        grid-column: span 2;
+      }
+    }
     .hint {
       margin: 0;
       color: var(--muted);
       font-size: 0.78rem;
       line-height: 1.4;
     }
+    .hint code {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 1px 4px;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      color: var(--ink);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
       gap: 14px;
+      contain: layout style;
     }
     .card {
       appearance: none;
@@ -5679,16 +6640,29 @@ var browseController = async (c) => {
       color: inherit;
       padding: 0;
       display: grid;
+      content-visibility: auto;
+      contain-intrinsic-size: 148px 240px;
       transition: transform 0.22s var(--ease), border-color 0.2s ease, box-shadow 0.22s ease;
     }
-    .card:hover, .card:focus-visible {
-      transform: translateY(-5px) scale(1.01);
-      border-color: rgba(61,214,198,0.5);
-      box-shadow: 0 20px 44px rgba(0,0,0,0.45), 0 0 0 1px rgba(61,214,198,0.15);
-      outline: none;
+    @media (hover: hover) {
+      .card:hover {
+        transform: translateY(-5px) scale(1.01);
+        border-color: rgba(61,214,198,0.5);
+        box-shadow: 0 20px 44px rgba(0,0,0,0.45), 0 0 0 1px rgba(61,214,198,0.15);
+      }
+      .card:hover .meta .title {
+        color: var(--accent);
+      }
     }
-    .card:hover .meta .title {
-      color: var(--accent);
+    .card:active {
+      transform: scale(0.98);
+    }
+    .card:focus-visible {
+      transform: translateY(-5px) scale(1.01);
+      border-color: rgba(61,214,198,0.7);
+      box-shadow: 0 20px 44px rgba(0,0,0,0.45), 0 0 0 1px rgba(61,214,198,0.3);
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     .poster {
       aspect-ratio: 3 / 4.2;
@@ -5725,12 +6699,12 @@ var browseController = async (c) => {
       flex-wrap: wrap;
     }
     .tick span {
-      font-size: 0.68rem;
+      font-size: 0.75rem;
       font-weight: 700;
       letter-spacing: 0.03em;
       text-transform: uppercase;
       padding: 2px 6px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       background: rgba(255,255,255,0.06);
       color: var(--muted);
     }
@@ -5741,39 +6715,169 @@ var browseController = async (c) => {
     .wl-btn {
       position: absolute; top: 6px; right: 6px;
       appearance: none; border: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
-      color: rgba(255,255,255,0.6); border-radius: 50%; width: 28px; height: 28px;
+      color: rgba(255,255,255,0.6); border-radius: var(--radius-pill); width: 28px; height: 28px;
       font-size: 0.85rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
       z-index: 2;
     }
+    .wl-btn::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
+      min-width: 44px;
+      min-height: 44px;
+    }
     .card:hover .wl-btn, .card:focus-within .wl-btn, .wl-btn.is-wl { opacity: 1; }
     .wl-btn.is-wl { color: #ff5f7e; }
-    .wl-btn:hover { transform: scale(1.15); }
+    @media (hover: hover) {
+      .wl-btn:hover { transform: scale(1.15); }
+    }
 
     /* Continue watching progress bar */
-    .cw-card { text-decoration: none; display: grid; border-radius: 14px; overflow: hidden; }
-    .cw-card-wrap { position: relative; border-radius: 14px; overflow: hidden; cursor: pointer; }
+    .cw-card { text-decoration: none; display: grid; border-radius: var(--radius-lg); overflow: hidden; }
+    .cw-card-wrap { position: relative; border-radius: var(--radius-lg); overflow: hidden; cursor: pointer; }
     .cw-remove-btn {
       position: absolute; top: 5px; left: 5px;
       appearance: none; border: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
-      color: rgba(255,255,255,0.75); border-radius: 50%; width: 24px; height: 24px;
-      font-size: 0.7rem; line-height: 1; cursor: pointer;
+      color: rgba(255,255,255,0.75); border-radius: var(--radius-pill); width: 24px; height: 24px;
+      font-size: 0.75rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity 0.15s ease, background 0.15s ease;
       z-index: 3;
     }
+    .cw-remove-btn::after {
+      content: "";
+      position: absolute;
+      inset: -10px;
+      min-width: 44px;
+      min-height: 44px;
+    }
     .cw-card-wrap:hover .cw-remove-btn { opacity: 1; }
-    .cw-remove-btn:hover { background: rgba(220, 60, 60, 0.8); color: #fff; }
+    @media (hover: hover) {
+      .cw-remove-btn:hover { background: var(--danger); color: #fff; }
+    }
+    @media (hover: none) or (pointer: coarse) {
+      .wl-btn {
+        opacity: 0.88;
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+      }
+      .cw-remove-btn {
+        opacity: 0.88;
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+      }
+    }
     .cw-prog-bar {
       height: 3px; background: rgba(255,255,255,0.12); margin: 0;
     }
     .cw-prog-fill {
-      height: 100%; background: var(--accent); border-radius: 0 2px 2px 0;
+      height: 100%; background: var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       transition: width 0.2s ease;
     }
 
+    /* Undo Toast Notification */
+    .ani-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      z-index: 1000;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 18px;
+      background: rgba(12, 16, 24, 0.94);
+      backdrop-filter: blur(18px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+      color: var(--ink);
+      font-size: 0.85rem;
+      font-weight: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+      max-width: min(90vw, 440px);
+    }
+    .ani-toast.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+    .ani-toast.is-dismissing {
+      opacity: 0;
+      transform: translateX(-50%) translateY(14px);
+      pointer-events: none;
+    }
+    .toast-msg {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 260px;
+    }
+    .toast-act {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+    .toast-act:hover {
+      color: #fff;
+      background: var(--accent-dim);
+    }
+    .toast-act:focus-visible,
+    .toast-close:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .toast-close {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: var(--radius-sm);
+      min-height: 32px;
+      min-width: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .toast-close:hover {
+      color: var(--ink);
+    }
+    @media (max-width: 640px) {
+      .ani-toast {
+        bottom: 74px;
+        padding: 8px 14px;
+        font-size: 0.75rem;
+      }
+      .toast-msg {
+        max-width: 180px;
+      }
+    }
+
     /* Mobile search: hidden dock, floating search button */
+    .mobile-cat-bar {
+      display: none;
+    }
     .search-fab {
       display: none;
     }
@@ -5782,8 +6886,10 @@ var browseController = async (c) => {
       position: fixed; inset: 0; z-index: 100;
       background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
       align-items: flex-start; justify-content: center;
-      padding: 16px;
-      padding-top: max(env(safe-area-inset-top, 16px), 16px);
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
     }
     .search-overlay.is-open { display: flex; }
     .search-overlay-inner {
@@ -5804,20 +6910,32 @@ var browseController = async (c) => {
     }
     .search-overlay-close {
       appearance: none; border: 0; background: rgba(255,255,255,0.08);
-      color: var(--ink); border-radius: 50%; width: 32px; height: 32px;
+      color: var(--ink); border-radius: 50%; width: 36px; height: 36px;
+      min-width: 36px; min-height: 36px; position: relative;
       font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .search-overlay-close::after {
+      content: "";
+      position: absolute;
+      inset: -6px;
+      min-width: 44px;
+      min-height: 44px;
     }
     @media (max-width: 640px) {
       .search-dock { display: none !important; }
       .search-fab {
         display: flex;
-        position: fixed; bottom: 20px; right: 16px; z-index: 50;
+        position: fixed;
+        bottom: max(20px, calc(env(safe-area-inset-bottom) + 16px));
+        right: max(16px, calc(env(safe-area-inset-right) + 16px));
+        z-index: 50;
         appearance: none; border: 1px solid rgba(61,214,198,0.5);
         background: var(--panel);
         backdrop-filter: blur(12px);
         color: var(--accent);
         border-radius: 999px;
         padding: 12px 18px;
+        min-height: 44px;
         font: inherit;
         font-weight: 700;
         font-size: 0.9rem;
@@ -5827,27 +6945,58 @@ var browseController = async (c) => {
         box-shadow: 0 8px 24px rgba(0,0,0,0.45);
         transition: transform 0.2s var(--ease), box-shadow 0.2s ease;
       }
-      .search-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.55); }
-      /* Show category pills inline at top of main on mobile instead */
+      @media (hover: hover) {
+        .search-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.55); }
+      }
+      .search-fab:active { transform: scale(0.97); }
+      /* Show category pills inline at top of main on mobile with sticky frosted header */
       .mobile-cat-bar {
-        display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px;
-        scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+        position: sticky;
+        top: 0;
+        z-index: 25;
+        background: rgba(10, 12, 16, 0.92);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        margin: -8px -14px 12px;
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
       }
       .mobile-cat-bar::-webkit-scrollbar { display: none; }
-      .mobile-cat-bar .pill { flex: 0 0 auto; scroll-snap-align: start; font-size: 0.8rem; padding: 7px 12px; }
+      .mobile-cat-bar .pill {
+        flex: 0 0 auto;
+        scroll-snap-align: start;
+        font-size: 0.84rem;
+        padding: 8px 14px;
+        min-height: 40px;
+      }
+      .mobile-cat-section {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+      }
+      .mobile-overlay-cats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .mobile-overlay-cats .pill {
+        font-size: 0.82rem;
+        padding: 8px 12px;
+        min-height: 38px;
+      }
       .mobile-key-section {
-        margin-top: 20px;
-        padding-top: 16px;
+        margin-top: 16px;
+        padding-top: 14px;
         border-top: 1px solid var(--line);
         display: flex;
         flex-direction: column;
-        gap: 8px;
-      }
-      .mobile-key-section.key-set::before {
-        content: '\u2713 API key saved';
-        font-size: 0.78rem;
-        color: var(--accent);
-        font-weight: 600;
+        gap: 10px;
       }
     }
     .detail {
@@ -5870,7 +7019,7 @@ var browseController = async (c) => {
     .detail-body h2 {
       margin: 0;
       font-family: Syne, sans-serif;
-      font-size: clamp(1.2rem, 2.4vw, 1.55rem);
+      font-size: clamp(1.05rem, 2.4vw, 1.55rem);
       letter-spacing: -0.03em;
       line-height: 1.2;
     }
@@ -5882,14 +7031,14 @@ var browseController = async (c) => {
     }
     .stat {
       padding: 8px 10px;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       background: rgba(0,0,0,0.28);
       border: 1px solid var(--line);
     }
     .stat .k {
       display: block;
       color: var(--muted);
-      font-size: 0.65rem;
+      font-size: 0.75rem;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -5918,9 +7067,12 @@ var browseController = async (c) => {
       font: inherit;
       font-size: 0.82rem;
       font-weight: 650;
-      padding: 0;
+      padding: 6px 0;
       cursor: pointer;
       width: fit-content;
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
     }
     .section-label {
       margin: 0 0 10px;
@@ -5930,6 +7082,15 @@ var browseController = async (c) => {
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
+    .key-help-link {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      font-weight: 600;
+    }
+    .key-help-link:hover {
+      color: #fff;
+    }
     .ep-toolbar {
       display: flex;
       align-items: flex-end;
@@ -5938,7 +7099,48 @@ var browseController = async (c) => {
       flex-wrap: wrap;
       margin-bottom: 10px;
     }
+    .ep-toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
     .ep-toolbar .section-label { margin: 0; }
+    .audio-toggle {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-pill);
+      gap: 2px;
+    }
+    .audio-pill {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      min-height: 28px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .audio-pill:hover {
+      color: var(--ink);
+    }
+    .audio-pill.is-active {
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+    .audio-pill:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
     .season-field { min-width: min(100%, 280px); flex: 1; }
     .season-field select {
       width: 100%;
@@ -5968,6 +7170,7 @@ var browseController = async (c) => {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
+      contain: layout style;
     }
     .ep-card {
       appearance: none;
@@ -5981,11 +7184,22 @@ var browseController = async (c) => {
       padding: 0;
       display: grid;
       grid-template-columns: 72px 1fr;
+      content-visibility: auto;
+      contain-intrinsic-size: 200px 88px;
       transition: border-color 0.2s ease, transform 0.2s var(--ease);
     }
-    .ep-card:hover {
-      border-color: rgba(61,214,198,0.45);
-      transform: translateY(-2px);
+    @media (hover: hover) {
+      .ep-card:hover {
+        border-color: rgba(61,214,198,0.45);
+        transform: translateY(-2px);
+      }
+    }
+    .ep-card:active {
+      transform: scale(0.99);
+    }
+    .ep-card.is-loading {
+      opacity: 0.6;
+      cursor: wait;
     }
     .ep-card .poster {
       aspect-ratio: auto;
@@ -5996,15 +7210,16 @@ var browseController = async (c) => {
     .ep-card .meta { padding: 10px 12px; align-content: center; }
     .badge {
       display: inline-block;
-      font-size: 0.62rem;
+      font-size: 0.75rem;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
-      color: #ffb454;
-      background: rgba(255,180,84,0.12);
+      color: var(--warning);
+      background: var(--warning-dim);
       padding: 2px 6px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       margin-left: 6px;
+      cursor: help;
     }
     .empty {
       padding: 56px 20px;
@@ -6017,10 +7232,222 @@ var browseController = async (c) => {
     .empty h2 {
       margin: 0 0 8px;
       font-family: Syne, sans-serif;
-      font-size: 1.2rem;
+      font-size: 1.05rem;
       color: var(--ink);
     }
     .empty p { margin: 0 auto; max-width: 28rem; line-height: 1.5; }
+    .empty .empty-actions {
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .welcome-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      background: var(--bg-elevated);
+      border: 1px solid rgba(61, 214, 198, 0.2);
+      border-radius: var(--radius-lg);
+      transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+    }
+    .welcome-banner.is-dismissing {
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+    }
+    .welcome-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .welcome-title {
+      font-size: 0.9rem;
+      font-weight: 650;
+      color: var(--ink);
+    }
+    .welcome-desc {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .welcome-desc kbd {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 1px 5px;
+      font-size: 0.75rem;
+      font-family: inherit;
+      color: var(--ink);
+    }
+    .welcome-dismiss {
+      appearance: none;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      color: var(--ink);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      min-height: 44px;
+      min-width: 44px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    @media (hover: hover) {
+      .welcome-dismiss:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+    }
+    @media (max-width: 600px) {
+      .welcome-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .welcome-dismiss {
+        align-self: flex-end;
+      }
+    }
+    /* In-Page Cinema Player Overlay */
+    .cinema-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(12px, 3vw, 24px);
+    }
+    .cinema-overlay.is-open {
+      display: flex;
+    }
+    .cinema-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(7, 9, 13, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    .cinema-stage {
+      position: relative;
+      z-index: 1;
+      width: min(1200px, 96vw);
+      max-height: 94dvh;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      animation: cinemaEnter 0.22s var(--ease);
+    }
+    @keyframes cinemaEnter {
+      from { opacity: 0; transform: scale(0.97) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .cinema-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 4px;
+    }
+    .cinema-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      overflow: hidden;
+    }
+    .cinema-anime {
+      font-size: 0.9rem;
+      font-weight: 650;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cinema-episode {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .cinema-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .cinema-actions .pill {
+      font-size: 0.85rem;
+      padding: 6px 14px;
+      min-height: 38px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
+    .cinema-close {
+      appearance: none;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      width: 36px;
+      height: 36px;
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink);
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    @media (hover: hover) {
+      .cinema-close:hover {
+        background: rgba(255, 255, 255, 0.16);
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+    }
+    .cinema-viewport {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: calc(90dvh - 56px);
+      background: #000;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+    }
+    .cinema-viewport iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+    @media (max-width: 640px) {
+      .cinema-overlay {
+        padding: 0;
+      }
+      .cinema-stage {
+        width: 100vw;
+        height: 100dvh;
+        max-height: 100dvh;
+        padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+        justify-content: center;
+      }
+      .cinema-viewport {
+        border-radius: var(--radius-md);
+      }
+    }
     .skeleton-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 14px; }
     .skel {
       border-radius: 14px;
@@ -6044,12 +7471,34 @@ var browseController = async (c) => {
       from { background-position: 200% 0; }
       to { background-position: -200% 0; }
     }
-    footer { color: var(--muted); font-size: 0.8rem; }
+    footer {
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+    @media (pointer: coarse) {
+      .syn-toggle {
+        padding: 8px 0;
+        min-height: 44px;
+      }
+      .season-field select {
+        padding: 12px 36px 12px 14px;
+        min-height: 44px;
+      }
+      .rail::-webkit-scrollbar { display: none; }
+      .rail { scrollbar-width: none; }
+    }
     /* Tablet / large phone */
     @media (max-width: 640px) {
-      .page { padding: clamp(12px, 3vw, 20px); gap: 14px; }
+      .page {
+        padding-top: max(clamp(12px, 3vw, 20px), env(safe-area-inset-top));
+        padding-bottom: max(clamp(12px, 3vw, 20px), env(safe-area-inset-bottom));
+        padding-left: max(clamp(12px, 3vw, 20px), env(safe-area-inset-left));
+        padding-right: max(clamp(12px, 3vw, 20px), env(safe-area-inset-right));
+        gap: 14px;
+      }
       .pill { padding: 9px 14px; font-size: 0.84rem; min-height: 40px; }
-      .btn { padding: 12px 16px; }
+      .btn { padding: 12px 16px; min-height: 44px; }
       .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .rail .card { flex-basis: 116px; width: 116px; }
@@ -6063,7 +7512,7 @@ var browseController = async (c) => {
       .meta { padding: 8px 9px 10px; gap: 4px; }
       .search-dock { padding: 12px; gap: 10px; }
       .detail { grid-template-columns: 88px 1fr; gap: 12px; padding: 12px; }
-      .detail-body h2 { font-size: 1.15rem; }
+      .detail-body h2 { font-size: 1.05rem; }
       .ep-grid { grid-template-columns: 1fr; }
       .ep-card { grid-template-columns: 64px 1fr; }
       .rail .card { flex-basis: 104px; width: 104px; }
@@ -6073,6 +7522,19 @@ var browseController = async (c) => {
       .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .skeleton-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .detail { grid-template-columns: 72px 1fr; gap: 8px; padding: 10px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      body { animation: none; }
+      .page, .pill, .btn, .card, .ep-card, .search-fab, .wl-btn, .cw-remove-btn, .cw-prog-fill, .ani-toast {
+        transition: none;
+      }
+      .btn:hover, .btn:active, .card:hover, .card:active, .card:focus-visible, .ep-card:hover, .ep-card:active, .search-fab:hover, .search-fab:active, .wl-btn:hover {
+        transform: none;
+      }
+      .skel .ph {
+        animation: none;
+        background: rgba(255, 255, 255, 0.06);
+      }
     }
   </style>
 </head>
@@ -6086,7 +7548,7 @@ var browseController = async (c) => {
       <div class="nav">
         <a class="pill" href="/">Home</a>
         <button type="button" class="pill is-active" id="browseTab">Browse</button>
-        <button type="button" class="pill" id="keyToggle">API key</button>
+        <button type="button" class="pill" id="keyToggle" aria-expanded="false" aria-controls="keyPanel" aria-label="Access settings (Guest mode)"><span class="key-indicator" id="keyIndicator"></span><span id="keyToggleLabel">Guest</span></button>
       </div>
     </header>
 
@@ -6098,43 +7560,60 @@ var browseController = async (c) => {
           <button type="button" class="btn" id="searchBtn">Search</button>
         </div>
       </div>
-      <div class="key-panel" id="keyPanel">
-        <label class="field-label" for="apiKey">x-api-key (this browser tab only)</label>
-        <div class="search-row">
-          <input id="apiKey" type="password" autocomplete="off" placeholder="BOT_SECRET_KEY" />
-          <button type="button" class="btn ghost" id="saveKey">Save</button>
+      <div class="key-panel" id="keyPanel" role="region" aria-label="Access settings">
+        <div class="key-panel-head">
+          <span class="key-panel-title">Instance Security</span>
+          <span class="key-status-pill" id="keyStatusBadge">Key Required</span>
         </div>
-        <p class="hint">Kept in sessionStorage \u2014 cleared when you close the tab. Only sent as <code>x-api-key</code> to this site.</p>
+        <p class="key-panel-desc">Playback streams are secured by the instance host. Self-hosters enter their <code>BOT_SECRET_KEY</code>. Guests can check <a href="/api" target="_blank" rel="noopener" class="key-help-link">API docs</a> or contact the server administrator.</p>
+        <label class="field-label" for="apiKey">Access Key</label>
+        <div class="key-row">
+          <input id="apiKey" type="password" autocomplete="off" placeholder="Paste access key\u2026" />
+          <button type="button" class="btn" id="saveKey">Save</button>
+          <button type="button" class="btn ghost" id="clearKey" title="Clear key">Clear</button>
+        </div>
+        <p class="hint">Stored in this browser tab only (<code>sessionStorage</code>). Sent as <code>x-api-key</code> with stream requests.</p>
       </div>
       <div>
-        <label class="field-label">Browse</label>
-        <div class="cat-row" id="catRow" role="tablist" aria-label="Browse categories">
-          <button type="button" class="pill is-active" data-cat="discover" data-label="Discover">Discover</button>
-          <button type="button" class="pill" data-cat="recently-updated" data-label="Recently updated">Updated</button>
-          <button type="button" class="pill" data-cat="recently-added" data-label="Recently added">New</button>
-          <button type="button" class="pill" data-cat="top-airing" data-label="Top airing">Airing</button>
-          <button type="button" class="pill" data-cat="most-popular" data-label="Most popular">Popular</button>
-          <button type="button" class="pill" data-cat="most-favorite" data-label="Most favorite">Favorite</button>
-          <button type="button" class="pill" data-cat="top-upcoming" data-label="Top upcoming">Upcoming</button>
-          <button type="button" class="pill" data-cat="movie" data-label="Movies">Movies</button>
-          <button type="button" class="pill" data-cat="tv" data-label="TV series">TV</button>
-          <button type="button" class="pill" data-cat="completed" data-label="Completed">Completed</button>
+        <label class="field-label" id="browseCatLabel">Browse</label>
+        <div class="cat-row" id="catRow" role="tablist" aria-labelledby="browseCatLabel">
+          <button type="button" class="pill is-active" role="tab" aria-selected="true" data-cat="discover" data-label="Discover">Discover</button>
+          <button type="button" class="pill" role="tab" aria-selected="false" data-cat="most-popular" data-label="Most popular">Popular</button>
+          <button type="button" class="pill" role="tab" aria-selected="false" data-cat="top-airing" data-label="Top airing">Top Airing</button>
+          <button type="button" class="pill" role="tab" aria-selected="false" data-cat="watchlist" data-label="My Watchlist">My Watchlist</button>
+          <div class="cat-more-wrap">
+            <label class="sr-only" for="catFilterSelect">Filter by category</label>
+            <select class="cat-select" id="catFilterSelect" aria-label="Filter by category">
+              <option value="" disabled selected>More Categories \u25BE</option>
+              <option value="recently-updated">Recently Updated</option>
+              <option value="recently-added">Recently Added</option>
+              <option value="most-favorite">Most Favorite</option>
+              <option value="top-upcoming">Top Upcoming</option>
+              <option value="movie">Movies</option>
+              <option value="tv">TV Series</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="meta-row">
-        <div class="crumbs" id="crumbs"><span>Discover loads with your API key</span></div>
+        <div class="crumbs" id="crumbs"><span>Discover</span></div>
         <p class="status" id="status"></p>
       </div>
     </div>
 
     <main id="main">
-      <div class="empty">
-        <h2>Discover &amp; browse</h2>
-        <p>Enter your API key once to load Trending, Latest episodes, and category pages \u2014 or search any title. Open an episode to launch the player.</p>
+      <div class="skeleton-grid">
+        <div class="skel"><div class="ph"></div><div class="line"></div><div class="line" style="width:55%"></div></div>
+        <div class="skel"><div class="ph"></div><div class="line"></div><div class="line" style="width:55%"></div></div>
+        <div class="skel"><div class="ph"></div><div class="line"></div><div class="line" style="width:55%"></div></div>
+        <div class="skel"><div class="ph"></div><div class="line"></div><div class="line" style="width:55%"></div></div>
+        <div class="skel"><div class="ph"></div><div class="line"></div><div class="line" style="width:55%"></div></div>
+        <div class="skel"><div class="ph"></div><div class="line"></div><div class="line" style="width:55%"></div></div>
       </div>
     </main>
 
-    <footer>${SITE_NAME} \xB7 ${SITE_TAGLINE} \xB7 watch opens in a new tab<br />${NOTICE_SHORT}</footer>
+    <footer>${SITE_NAME} \xB7 ${SITE_TAGLINE} \xB7 cinema streaming<br />${NOTICE_SHORT}</footer>
   </div>
 
   <!-- Mobile search overlay (hidden on desktop via CSS) -->
@@ -6150,13 +7629,32 @@ var browseController = async (c) => {
           <button type="button" class="btn" id="searchBtnMobile">Go</button>
         </div>
       </div>
-      <div class="mobile-key-section" id="mobileKeySection">
-        <label class="field-label" for="apiKeyMobile">API Key</label>
-        <div class="search-row" style="grid-template-columns: 1fr auto">
-          <input id="apiKeyMobile" type="password" autocomplete="off" placeholder="BOT_SECRET_KEY" />
-          <button type="button" class="btn ghost" id="saveKeyMobile">Save</button>
+      <div class="mobile-cat-section" id="mobileCatSection">
+        <label class="field-label">Browse Categories</label>
+        <div class="mobile-overlay-cats">
+          <button type="button" class="pill" data-mobile-cat="discover">Discover</button>
+          <button type="button" class="pill" data-mobile-cat="most-popular">Popular</button>
+          <button type="button" class="pill" data-mobile-cat="top-airing">Top Airing</button>
+          <button type="button" class="pill" data-mobile-cat="watchlist">My Watchlist</button>
+          <button type="button" class="pill" data-mobile-cat="recently-updated">Updated</button>
+          <button type="button" class="pill" data-mobile-cat="recently-added">New</button>
+          <button type="button" class="pill" data-mobile-cat="movie">Movies</button>
+          <button type="button" class="pill" data-mobile-cat="tv">TV Series</button>
         </div>
-        <p class="hint">Kept in sessionStorage \u2014 cleared when you close the tab.</p>
+      </div>
+      <div class="mobile-key-section" id="mobileKeySection">
+        <div class="key-panel-head">
+          <span class="key-panel-title">Instance Security</span>
+          <span class="key-status-pill" id="mobileKeyStatusBadge">Key Required</span>
+        </div>
+        <p class="key-panel-desc">Playback streams are secured by the instance host. Self-hosters enter their <code>BOT_SECRET_KEY</code>. Guests can check <a href="/api" target="_blank" rel="noopener" class="key-help-link">API docs</a> or contact the server administrator.</p>
+        <label class="field-label" for="apiKeyMobile">Access Key</label>
+        <div class="key-row">
+          <input id="apiKeyMobile" type="password" autocomplete="off" placeholder="Paste access key\u2026" />
+          <button type="button" class="btn" id="saveKeyMobile">Save</button>
+          <button type="button" class="btn ghost" id="clearKeyMobile" title="Clear key">Clear</button>
+        </div>
+        <p class="hint">Stored in this browser tab only (<code>sessionStorage</code>).</p>
       </div>
     </div>
   </div>
@@ -6167,6 +7665,29 @@ var browseController = async (c) => {
     Search
   </button>
 
+  <!-- Cinema Player Overlay -->
+  <div class="cinema-overlay" id="cinemaOverlay" role="dialog" aria-modal="true" aria-label="Cinema Player">
+    <div class="cinema-backdrop" id="cinemaBackdrop"></div>
+    <div class="cinema-stage">
+      <div class="cinema-header">
+        <div class="cinema-meta">
+          <span class="cinema-anime" id="cinemaAnime"></span>
+          <span class="cinema-episode" id="cinemaEpisode"></span>
+        </div>
+        <div class="cinema-actions">
+          <a class="pill" id="cinemaNewTab" href="#" target="_blank" rel="noopener" title="Open player in new tab">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="margin-right:4px;vertical-align:-1px"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+            Pop out
+          </a>
+          <button type="button" class="cinema-close" id="cinemaClose" aria-label="Close cinema player">\u2715</button>
+        </div>
+      </div>
+      <div class="cinema-viewport">
+        <iframe id="cinemaFrame" src="about:blank" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var KEY = 'ani.apiKey';
@@ -6174,16 +7695,31 @@ var browseController = async (c) => {
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
       var searchBtn = document.getElementById('searchBtn');
+      var browseTab = document.getElementById('browseTab');
       var saveKey = document.getElementById('saveKey');
+      var clearKey = document.getElementById('clearKey');
       var keyToggle = document.getElementById('keyToggle');
+      var keyToggleLabel = document.getElementById('keyToggleLabel');
+      var keyIndicator = document.getElementById('keyIndicator');
+      var keyStatusBadge = document.getElementById('keyStatusBadge');
       var keyPanel = document.getElementById('keyPanel');
       var apiKeyMobile = document.getElementById('apiKeyMobile');
       var saveKeyMobile = document.getElementById('saveKeyMobile');
+      var clearKeyMobile = document.getElementById('clearKeyMobile');
+      var mobileKeyStatusBadge = document.getElementById('mobileKeyStatusBadge');
       var mobileKeySection = document.getElementById('mobileKeySection');
       var catRow = document.getElementById('catRow');
+      var catFilterSelect = document.getElementById('catFilterSelect');
       var main = document.getElementById('main');
       var statusEl = document.getElementById('status');
       var crumbs = document.getElementById('crumbs');
+      var cinemaOverlay = document.getElementById('cinemaOverlay');
+      var cinemaBackdrop = document.getElementById('cinemaBackdrop');
+      var cinemaFrame = document.getElementById('cinemaFrame');
+      var cinemaAnime = document.getElementById('cinemaAnime');
+      var cinemaEpisode = document.getElementById('cinemaEpisode');
+      var cinemaNewTab = document.getElementById('cinemaNewTab');
+      var cinemaClose = document.getElementById('cinemaClose');
       var state = {
         view: 'discover',
         anime: null,
@@ -6194,51 +7730,110 @@ var browseController = async (c) => {
         listPage: 1,
         pageInfo: null,
         home: null,
+        audioPref: 'sub',
       };
       var POSTER_PROXY_BASE = ${JSON.stringify(posterProxy)};
       var POSTER_PROXY_KEY = ${JSON.stringify(posterKey)};
+      var AUDIO_KEY = 'ani.audioPref';
+      try {
+        var savedAudio = localStorage.getItem(AUDIO_KEY);
+        if (savedAudio === 'dub' || savedAudio === 'sub') state.audioPref = savedAudio;
+      } catch (e) {}
 
       try { localStorage.removeItem(KEY); } catch (e) {}
       apiKey.value = sessionStorage.getItem(KEY) || '';
       apiKeyMobile.value = apiKey.value;
-      if (apiKey.value.trim()) mobileKeySection.classList.add('key-set');
-      if (!apiKey.value.trim()) keyPanel.classList.add('is-open');
+
+      function updateKeyUI() {
+        var hasKey = !!apiKey.value.trim();
+        if (keyToggleLabel) keyToggleLabel.textContent = hasKey ? 'Key Active' : 'Key Required';
+        if (keyIndicator) keyIndicator.classList.toggle('is-active', hasKey);
+        if (keyToggle) {
+          keyToggle.setAttribute('aria-label', hasKey ? 'Access settings (Key active \u2014 streaming unlocked)' : 'Access settings (Key required to stream)');
+          keyToggle.setAttribute('aria-expanded', keyPanel && keyPanel.classList.contains('is-open') ? 'true' : 'false');
+        }
+        if (keyStatusBadge) {
+          keyStatusBadge.textContent = hasKey ? 'Streaming Unlocked' : 'Key Required to Stream';
+          keyStatusBadge.classList.toggle('is-active', hasKey);
+        }
+        if (mobileKeyStatusBadge) {
+          mobileKeyStatusBadge.textContent = hasKey ? 'Streaming Unlocked' : 'Key Required to Stream';
+          mobileKeyStatusBadge.classList.toggle('is-active', hasKey);
+        }
+        if (clearKey) clearKey.disabled = !hasKey;
+        if (clearKeyMobile) clearKeyMobile.disabled = !hasKey;
+      }
+      updateKeyUI();
 
       function persistKey() {
         var v = apiKey.value.trim() || apiKeyMobile.value.trim();
         apiKey.value = v;
         apiKeyMobile.value = v;
-        if (v) { sessionStorage.setItem(KEY, v); mobileKeySection.classList.add('key-set'); }
-        else { sessionStorage.removeItem(KEY); mobileKeySection.classList.remove('key-set'); }
+        if (v) { sessionStorage.setItem(KEY, v); }
+        else { sessionStorage.removeItem(KEY); }
+        updateKeyUI();
       }
+
+      function clearKeyVal() {
+        apiKey.value = '';
+        apiKeyMobile.value = '';
+        try { sessionStorage.removeItem(KEY); } catch (e) {}
+        updateKeyUI();
+        setStatus('Access key cleared \u2014 key required to stream');
+      }
+
       apiKey.addEventListener('change', persistKey);
       apiKey.addEventListener('blur', persistKey);
       apiKeyMobile.addEventListener('change', persistKey);
       apiKeyMobile.addEventListener('blur', persistKey);
-      saveKey.addEventListener('click', function () {
-        persistKey();
-        setStatus(apiKey.value.trim() ? 'API key saved for this tab' : 'API key cleared');
-        keyPanel.classList.remove('is-open');
-        if (apiKey.value.trim()) loadDiscover();
-      });
-      saveKeyMobile.addEventListener('click', function () {
-        persistKey();
-        searchOverlay.classList.remove('is-open');
-        document.body.style.overflow = '';
-        if (apiKey.value.trim()) { setStatus('API key saved'); loadDiscover(); }
-        else setStatus('API key cleared');
-      });
-      keyToggle.addEventListener('click', function () {
-        if (window.innerWidth <= 640) {
-          // On mobile: open the search overlay (which contains the API key section)
-          searchOverlay.classList.add('is-open');
-          document.body.style.overflow = 'hidden';
-          apiKeyMobile.value = apiKey.value;
-          setTimeout(function () { mobileKeySection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 120);
-        } else {
-          keyPanel.classList.toggle('is-open');
-        }
-      });
+      if (saveKey) {
+        saveKey.addEventListener('click', function () {
+          persistKey();
+          setStatus(apiKey.value.trim() ? 'Access key saved \u2014 streaming unlocked' : 'Access key cleared');
+          keyPanel.classList.remove('is-open');
+          updateKeyUI();
+          loadDiscover();
+        });
+      }
+      if (clearKey) {
+        clearKey.addEventListener('click', function () {
+          clearKeyVal();
+          keyPanel.classList.remove('is-open');
+          loadDiscover();
+        });
+      }
+      if (saveKeyMobile) {
+        saveKeyMobile.addEventListener('click', function () {
+          persistKey();
+          closeSearchOverlay();
+          setStatus(apiKey.value.trim() ? 'Access key saved \u2014 streaming unlocked' : 'Access key cleared');
+          loadDiscover();
+        });
+      }
+      if (clearKeyMobile) {
+        clearKeyMobile.addEventListener('click', function () {
+          clearKeyVal();
+          closeSearchOverlay();
+          loadDiscover();
+        });
+      }
+      if (keyToggle) {
+        keyToggle.addEventListener('click', function () {
+          if (window.innerWidth <= 640) {
+            openSearchOverlay(keyToggle);
+            apiKeyMobile.value = apiKey.value;
+            setTimeout(function () { mobileKeySection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 120);
+          } else {
+            keyPanel.classList.toggle('is-open');
+            updateKeyUI();
+          }
+        });
+      }
+      if (browseTab) {
+        browseTab.addEventListener('click', function () {
+          navigate({ view: 'discover' });
+        });
+      }
 
       function setStatus(msg, isErr) {
         statusEl.textContent = msg || '';
@@ -6246,17 +7841,184 @@ var browseController = async (c) => {
       }
 
       function requireKey(action) {
-        if (apiKey.value.trim()) return true;
-        keyPanel.classList.add('is-open');
-        setStatus('API key required' + (action ? ' for ' + action : '') + '.', true);
-        return false;
+        if (!apiKey.value.trim()) {
+          setStatus('Access key required to ' + (action || 'stream') + '.', true);
+          if (window.innerWidth <= 640) {
+            openSearchOverlay(keyToggle);
+            setTimeout(function () {
+              if (mobileKeySection) mobileKeySection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              if (apiKeyMobile) apiKeyMobile.focus();
+            }, 120);
+          } else {
+            keyPanel.classList.add('is-open');
+            updateKeyUI();
+            if (apiKey) apiKey.focus();
+          }
+          return false;
+        }
+        return true;
+      }
+
+      var lastCinemaTrigger = null;
+      function openCinema(link, animeTitle, epLabel) {
+        if (!cinemaFrame || !cinemaOverlay) return;
+        lastCinemaTrigger = document.activeElement;
+        cinemaFrame.src = link;
+        if (cinemaAnime) cinemaAnime.textContent = animeTitle || '';
+        if (cinemaEpisode) cinemaEpisode.textContent = epLabel ? ' \xB7 ' + epLabel : '';
+        if (cinemaNewTab) cinemaNewTab.href = link;
+        cinemaOverlay.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+        try {
+          history.pushState(Object.assign({}, history.state || {}, { inCinema: true }), '');
+        } catch (e) {}
+        if (cinemaClose) cinemaClose.focus();
+      }
+
+      function closeCinema(fromPop) {
+        if (!cinemaOverlay) return;
+        var wasOpen = cinemaOverlay.classList.contains('is-open');
+        cinemaOverlay.classList.remove('is-open');
+        if (cinemaFrame) cinemaFrame.src = 'about:blank';
+        document.body.style.overflow = '';
+        if (wasOpen && !fromPop && history.state && history.state.inCinema) {
+          try { history.back(); } catch (e) {}
+        }
+        if (lastCinemaTrigger && typeof lastCinemaTrigger.focus === 'function') {
+          lastCinemaTrigger.focus();
+          lastCinemaTrigger = null;
+        }
+      }
+
+      if (cinemaClose) cinemaClose.addEventListener('click', function () { closeCinema(); });
+      if (cinemaBackdrop) cinemaBackdrop.addEventListener('click', function () { closeCinema(); });
+      if (cinemaOverlay) {
+        cinemaOverlay.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, cinemaOverlay);
+        });
       }
 
       function setActiveCat(query) {
         catRow.querySelectorAll('[data-cat]').forEach(function (btn) {
-          btn.classList.toggle('is-active', btn.getAttribute('data-cat') === query);
+          var match = btn.getAttribute('data-cat') === query;
+          btn.classList.toggle('is-active', match);
+          btn.setAttribute('aria-selected', match ? 'true' : 'false');
+        });
+        var mobileCatSection = document.getElementById('mobileCatSection');
+        if (mobileCatSection) {
+          mobileCatSection.querySelectorAll('[data-mobile-cat]').forEach(function (btn) {
+            var match = btn.getAttribute('data-mobile-cat') === query;
+            btn.classList.toggle('is-active', match);
+            btn.setAttribute('aria-selected', match ? 'true' : 'false');
+          });
+        }
+        if (catFilterSelect) {
+          var isDropdownVal = false;
+          for (var i = 0; i < catFilterSelect.options.length; i++) {
+            if (catFilterSelect.options[i].value === query) {
+              catFilterSelect.selectedIndex = i;
+              isDropdownVal = true;
+              break;
+            }
+          }
+          catFilterSelect.classList.toggle('is-active', isDropdownVal);
+          if (!isDropdownVal) catFilterSelect.selectedIndex = 0;
+        }
+      }
+
+      var mobileCatSection = document.getElementById('mobileCatSection');
+      if (mobileCatSection) {
+        mobileCatSection.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('[data-mobile-cat]') : null;
+          if (!btn) return;
+          var cat = btn.getAttribute('data-mobile-cat');
+          var label = btn.textContent || cat;
+          closeSearchOverlay();
+          if (cat === 'discover') navigate({ view: 'discover' });
+          else if (cat === 'watchlist') navigate({ view: 'watchlist' });
+          else navigate({ view: 'list', query: cat, label: label, page: 1 });
         });
       }
+
+      if (catFilterSelect) {
+        catFilterSelect.addEventListener('change', function () {
+          var val = catFilterSelect.value;
+          var optLabel = catFilterSelect.options[catFilterSelect.selectedIndex].text;
+          if (val) {
+            navigate({ view: 'list', query: val, label: optLabel, page: 1 });
+          }
+        });
+      }
+
+      function navigate(target, replace) {
+        var params = new URLSearchParams();
+        if (target.view === 'list') {
+          if (target.query && target.query !== 'discover') params.set('cat', target.query);
+          if (target.page && target.page > 1) params.set('page', String(target.page));
+        } else if (target.view === 'watchlist') {
+          params.set('cat', 'watchlist');
+        } else if (target.view === 'search') {
+          if (target.keyword) params.set('q', target.keyword);
+        } else if (target.view === 'episodes') {
+          var aid = target.animeId || (target.anime && target.anime.id);
+          if (aid) params.set('anime', aid);
+        }
+        var queryStr = params.toString();
+        var newUrl = window.location.pathname + (queryStr ? '?' + queryStr : '');
+        if (replace) {
+          history.replaceState(target, '', newUrl);
+        } else {
+          history.pushState(target, '', newUrl);
+        }
+        applyRoute(target);
+      }
+
+      function readCurrentRouteFromUrl() {
+        var p = new URLSearchParams(window.location.search);
+        if (p.has('anime')) {
+          return { view: 'episodes', animeId: p.get('anime') };
+        }
+        if (p.has('q')) {
+          return { view: 'search', keyword: p.get('q') };
+        }
+        if (p.has('cat')) {
+          var c = p.get('cat');
+          if (c === 'watchlist') return { view: 'watchlist' };
+          return { view: 'list', query: c, label: null, page: parseInt(p.get('page') || '1', 10) || 1 };
+        }
+        return { view: 'discover' };
+      }
+
+      function applyRoute(target) {
+        if (!target || target.view === 'discover') {
+          loadDiscover();
+        } else if (target.view === 'watchlist') {
+          renderWatchlistView();
+        } else if (target.view === 'list') {
+          loadList(target.query, target.label, target.page || 1);
+        } else if (target.view === 'search') {
+          if (target.keyword) {
+            if (q) q.value = target.keyword;
+            doSearch();
+          } else {
+            loadDiscover();
+          }
+        } else if (target.view === 'episodes') {
+          loadEpisodes(target.anime || { id: target.animeId });
+        }
+      }
+
+      window.addEventListener('popstate', function () {
+        if (cinemaOverlay && cinemaOverlay.classList.contains('is-open')) {
+          closeCinema(true);
+          return;
+        }
+        if (searchOverlay && searchOverlay.classList.contains('is-open')) {
+          closeSearchOverlay();
+          return;
+        }
+        applyRoute(readCurrentRouteFromUrl());
+      });
 
       var FETCH_MS = 20000;
       var loadSeq = 0;
@@ -6281,7 +8043,9 @@ var browseController = async (c) => {
           try { json = text ? JSON.parse(text) : null; } catch (e) {}
           if (res.status === 401 || res.status === 403) {
             keyPanel.classList.add('is-open');
-            throw new Error('Unauthorized \u2014 set your API key.');
+            updateKeyUI();
+            setStatus('Private instance: Access key required.', true);
+            throw new Error('Unauthorized \u2014 set your access key.');
           }
           if (!res.ok) {
             throw new Error((json && (json.message || json.error)) || ('Request failed (' + res.status + ')'));
@@ -6416,6 +8180,9 @@ var browseController = async (c) => {
         if (state.source === 'search') {
           return { label: 'Results', action: 'search' };
         }
+        if (state.source === 'watchlist') {
+          return { label: 'My Watchlist', action: 'watchlist' };
+        }
         return { label: 'Discover', action: 'discover' };
       }
 
@@ -6429,12 +8196,14 @@ var browseController = async (c) => {
         crumbs.querySelectorAll('[data-crumb]').forEach(function (btn) {
           btn.addEventListener('click', function () {
             var action = btn.getAttribute('data-crumb');
-            if (action === 'search') renderSearch(state.lastAnimes || []);
-            else if (action === 'list') renderList(state.lastAnimes || [], state.pageInfo);
-            else if (action === 'discover') {
-              setActiveCat('discover');
-              if (state.home) renderDiscover(state.home);
-              else loadDiscover();
+            if (action === 'search') {
+              navigate({ view: 'search', keyword: (q && q.value.trim()) || '' });
+            } else if (action === 'list') {
+              navigate({ view: 'list', query: state.listQuery, label: state.listLabel, page: state.listPage });
+            } else if (action === 'watchlist') {
+              navigate({ view: 'watchlist' });
+            } else if (action === 'discover') {
+              navigate({ view: 'discover' });
             }
           });
         });
@@ -6448,28 +8217,178 @@ var browseController = async (c) => {
         main.innerHTML = html + '</div>';
       }
 
+      // \u2500\u2500 Toast notification system \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+      var toastTimer = null;
+      function showToast(message, actionLabel, onAction) {
+        var toast = document.getElementById('aniToast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'aniToast';
+          toast.className = 'ani-toast';
+          toast.setAttribute('role', 'status');
+          toast.setAttribute('aria-live', 'polite');
+          document.body.appendChild(toast);
+        }
+        if (toastTimer) {
+          clearTimeout(toastTimer);
+          toastTimer = null;
+        }
+        toast.innerHTML = '';
+
+        var msgSpan = document.createElement('span');
+        msgSpan.className = 'toast-msg';
+        msgSpan.textContent = message;
+        toast.appendChild(msgSpan);
+
+        if (actionLabel && typeof onAction === 'function') {
+          var actBtn = document.createElement('button');
+          actBtn.type = 'button';
+          actBtn.className = 'toast-act';
+          actBtn.textContent = actionLabel;
+          actBtn.addEventListener('click', function () {
+            clearTimeout(toastTimer);
+            dismissToast();
+            onAction();
+          });
+          toast.appendChild(actBtn);
+        }
+
+        var closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'toast-close';
+        closeBtn.setAttribute('aria-label', 'Dismiss notification');
+        closeBtn.textContent = '\u2715';
+        closeBtn.addEventListener('click', function () {
+          clearTimeout(toastTimer);
+          dismissToast();
+        });
+        toast.appendChild(closeBtn);
+
+        toast.classList.remove('is-dismissing');
+        toast.classList.add('is-visible');
+
+        toastTimer = setTimeout(function () {
+          dismissToast();
+        }, 5000);
+      }
+
+      function dismissToast() {
+        var toast = document.getElementById('aniToast');
+        if (!toast) return;
+        toast.classList.add('is-dismissing');
+        setTimeout(function () {
+          toast.classList.remove('is-visible', 'is-dismissing');
+        }, 220);
+      }
+
       // \u2500\u2500 Watchlist \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       var WL_KEY = 'ani.watchlist';
+      var wlCache = null;
+      var wlSet = null;
       function readWatchlist() {
-        try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch (e) { return []; }
+        if (wlCache !== null) return wlCache;
+        try { wlCache = JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch (e) { wlCache = []; }
+        return wlCache;
+      }
+      function getWlSet() {
+        if (wlSet !== null) return wlSet;
+        var list = readWatchlist();
+        wlSet = {};
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && list[i].id) wlSet[list[i].id] = true;
+        }
+        return wlSet;
       }
       function isInWatchlist(id) {
-        return readWatchlist().some(function (x) { return x.id === id; });
+        return !!getWlSet()[id];
+      }
+      function heartIcon(filled) {
+        if (filled) {
+          return '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+        }
+        return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
       }
       function toggleWatchlist(a, heartBtn) {
-        var list = readWatchlist();
+        var list = readWatchlist().slice();
         var idx = list.findIndex(function (x) { return x.id === a.id; });
+        var removedItem = null;
+        var removedIndex = -1;
         if (idx >= 0) {
+          removedItem = list[idx];
+          removedIndex = idx;
           list.splice(idx, 1);
         } else {
           list.unshift({ id: a.id, name: a.name, poster: Array.isArray(a.poster) ? a.poster[0] : a.poster });
           if (list.length > 200) list = list.slice(0, 200);
         }
         try { localStorage.setItem(WL_KEY, JSON.stringify(list)); } catch (e) {}
+        wlCache = list;
+        wlSet = null;
         var inWl = idx < 0; // we just added it
-        heartBtn.textContent = inWl ? '\u2665' : '\u2661';
+        heartBtn.innerHTML = heartIcon(inWl);
         heartBtn.classList.toggle('is-wl', inWl);
         heartBtn.setAttribute('aria-label', inWl ? 'Remove from watchlist' : 'Add to watchlist');
+
+        if (!inWl && removedItem) {
+          var titleName = a.name || a.id || 'title';
+          var cardEl = heartBtn.closest ? heartBtn.closest('.card') : null;
+          var nextSibling = cardEl ? cardEl.nextSibling : null;
+          var parentGrid = cardEl ? cardEl.parentNode : null;
+
+          if (state.view === 'watchlist' && cardEl) {
+            cardEl.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+            cardEl.style.opacity = '0';
+            cardEl.style.transform = 'scale(0.95)';
+            setTimeout(function () {
+              if (cardEl.parentNode) cardEl.remove();
+              var grid = document.getElementById('animeGrid');
+              if (grid && !grid.children.length) {
+                renderWatchlistView();
+              } else {
+                var hint = main.querySelector('.rail-head .hint-inline');
+                if (hint) {
+                  var remaining = list.length;
+                  hint.textContent = remaining + ' saved ' + (remaining === 1 ? 'title' : 'titles');
+                }
+              }
+            }, 200);
+          }
+
+          showToast('Removed "' + titleName + '" from Watchlist', 'Undo', function () {
+            var curList = readWatchlist().slice();
+            if (removedIndex >= 0 && removedIndex <= curList.length) {
+              curList.splice(removedIndex, 0, removedItem);
+            } else {
+              curList.unshift(removedItem);
+            }
+            try { localStorage.setItem(WL_KEY, JSON.stringify(curList)); } catch (e) {}
+            wlCache = curList;
+            wlSet = null;
+            heartBtn.innerHTML = heartIcon(true);
+            heartBtn.classList.add('is-wl');
+            heartBtn.setAttribute('aria-label', 'Remove from watchlist');
+
+            if (state.view === 'watchlist') {
+              if (parentGrid && cardEl) {
+                cardEl.style.opacity = '1';
+                cardEl.style.transform = 'none';
+                if (nextSibling && nextSibling.parentNode === parentGrid) {
+                  parentGrid.insertBefore(cardEl, nextSibling);
+                } else {
+                  parentGrid.appendChild(cardEl);
+                }
+                var hint = main.querySelector('.rail-head .hint-inline');
+                if (hint) {
+                  var total = curList.length;
+                  hint.textContent = total + ' saved ' + (total === 1 ? 'title' : 'titles');
+                }
+              } else {
+                renderWatchlistView();
+              }
+            }
+            showToast('Restored "' + titleName + '" to Watchlist');
+          });
+        }
       }
 
       // \u2500\u2500 Continue watching \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -6493,6 +8412,7 @@ var browseController = async (c) => {
           '<span class="hint-inline">Pick up where you left off</span></div>' +
           '<div class="rail cw-rail"></div>';
         var rail = wrap.querySelector('.rail');
+        var railFrag = document.createDocumentFragment();
         list.slice(0, 12).forEach(function (entry) {
           // Try to get poster from stored anime meta (written by browse before opening player)
           var posterStr = entry.poster || null;
@@ -6526,17 +8446,53 @@ var browseController = async (c) => {
           removeBtn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            cwRemove(entry.id);
-            card.remove();
-            // Hide the whole rail if empty
-            if (!rail.children.length) {
-              wrap.remove();
+            var removedEntry = entry;
+            var removedIndex = -1;
+            var currentCw = readCw();
+            for (var i = 0; i < currentCw.length; i++) {
+              if (currentCw[i].id === entry.id) {
+                removedIndex = i;
+                break;
+              }
             }
+            cwRemove(entry.id);
+            var nextSibling = card.nextSibling;
+            var parentRail = card.parentNode;
+            card.remove();
+            if (parentRail && !parentRail.children.length && wrap.parentNode) {
+              wrap.style.display = 'none';
+            }
+            var titleStr = entry.name || entry.id || 'title';
+            showToast('Removed "' + titleStr + '" from Continue Watching', 'Undo', function () {
+              try {
+                var list = readCw().filter(function (x) { return x.id !== removedEntry.id; });
+                if (removedIndex >= 0 && removedIndex <= list.length) {
+                  list.splice(removedIndex, 0, removedEntry);
+                } else {
+                  list.unshift(removedEntry);
+                }
+                localStorage.setItem(CW_KEY, JSON.stringify(list));
+              } catch (e) {}
+              if (parentRail) {
+                if (nextSibling && nextSibling.parentNode === parentRail) {
+                  parentRail.insertBefore(card, nextSibling);
+                } else {
+                  parentRail.appendChild(card);
+                }
+                if (wrap.style.display === 'none') {
+                  wrap.style.display = '';
+                }
+              } else if (state.view === 'discover') {
+                loadDiscover();
+              }
+              showToast('Restored "' + titleStr + '"');
+            });
           });
           card.appendChild(link);
           card.appendChild(removeBtn);
-          rail.appendChild(card);
+          railFrag.appendChild(card);
         });
+        rail.appendChild(railFrag);
         return wrap;
       }
       function renderWatchlistRail() {
@@ -6567,8 +8523,10 @@ var browseController = async (c) => {
           '<div class="meta"><div class="title">' + esc(a.name || a.id) + '</div>' +
           '<div class="tick">' + ticks + '</div></div>' +
           '<button type="button" class="wl-btn' + (inWl ? ' is-wl' : '') + '" aria-label="' + (inWl ? 'Remove from watchlist' : 'Add to watchlist') + '" data-wl-id="' + esc(a.id) + '" title="Watchlist">' +
-          (inWl ? '\u2665' : '\u2661') + '</button>';
-        btn.addEventListener('click', function () { loadEpisodes(a); });
+          heartIcon(inWl) + '</button>';
+        btn.addEventListener('click', function () {
+          navigate({ view: 'episodes', animeId: a.id, anime: a });
+        });
         // Watchlist heart click (stop propagation so card click doesn't fire)
         btn.querySelector('.wl-btn').addEventListener('click', function (e) {
           e.stopPropagation();
@@ -6578,7 +8536,9 @@ var browseController = async (c) => {
       }
 
       function fillGrid(grid, animes) {
-        animes.forEach(function (a) { grid.appendChild(animeCard(a)); });
+        var frag = document.createDocumentFragment();
+        animes.forEach(function (a) { frag.appendChild(animeCard(a)); });
+        grid.appendChild(frag);
       }
 
       function renderRail(title, items, hint) {
@@ -6595,32 +8555,118 @@ var browseController = async (c) => {
       }
 
       function renderMobileCatBar(activeCat) {
-        var cats = [
-          { q: 'discover', label: 'Discover' },
-          { q: 'recently-updated', label: 'Updated' },
-          { q: 'recently-added', label: 'New' },
-          { q: 'top-airing', label: 'Airing' },
-          { q: 'most-popular', label: 'Popular' },
-          { q: 'most-favorite', label: 'Favorite' },
-          { q: 'top-upcoming', label: 'Upcoming' },
-          { q: 'movie', label: 'Movies' },
-          { q: 'tv', label: 'TV' },
-          { q: 'completed', label: 'Completed' },
-        ];
         var bar = document.createElement('div');
         bar.className = 'mobile-cat-bar';
-        cats.forEach(function (c) {
+        bar.setAttribute('role', 'tablist');
+        bar.setAttribute('aria-label', 'Browse categories');
+        var coreCats = [
+          { q: 'discover', label: 'Discover' },
+          { q: 'most-popular', label: 'Popular' },
+          { q: 'top-airing', label: 'Airing' },
+          { q: 'watchlist', label: 'Watchlist' },
+        ];
+        coreCats.forEach(function (c) {
           var btn = document.createElement('button');
           btn.type = 'button';
-          btn.className = 'pill' + (c.q === activeCat ? ' is-active' : '');
+          var isCurrent = c.q === activeCat;
+          btn.className = 'pill' + (isCurrent ? ' is-active' : '');
+          btn.setAttribute('role', 'tab');
+          btn.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
           btn.textContent = c.label;
           btn.addEventListener('click', function () {
-            if (c.q === 'discover') loadDiscover();
-            else loadList(c.q, c.label, 1);
+            if (c.q === 'discover') navigate({ view: 'discover' });
+            else if (c.q === 'watchlist') navigate({ view: 'watchlist' });
+            else navigate({ view: 'list', query: c.q, label: c.label, page: 1 });
           });
           bar.appendChild(btn);
         });
+
+        var moreWrap = document.createElement('div');
+        moreWrap.className = 'cat-more-wrap';
+        var moreSelect = document.createElement('select');
+        moreSelect.className = 'cat-select';
+        moreSelect.setAttribute('aria-label', 'More categories');
+        moreSelect.innerHTML =
+          '<option value="" disabled selected>More \u25BE</option>' +
+          '<option value="recently-updated">Updated</option>' +
+          '<option value="recently-added">New</option>' +
+          '<option value="most-favorite">Favorite</option>' +
+          '<option value="top-upcoming">Upcoming</option>' +
+          '<option value="movie">Movies</option>' +
+          '<option value="tv">TV</option>' +
+          '<option value="completed">Completed</option>';
+        for (var i = 1; i < moreSelect.options.length; i++) {
+          if (moreSelect.options[i].value === activeCat) {
+            moreSelect.selectedIndex = i;
+            moreSelect.classList.add('is-active');
+            break;
+          }
+        }
+        moreSelect.addEventListener('change', function () {
+          var val = moreSelect.value;
+          var optLabel = moreSelect.options[moreSelect.selectedIndex].text;
+          if (val) navigate({ view: 'list', query: val, label: optLabel, page: 1 });
+        });
+        moreWrap.appendChild(moreSelect);
+        bar.appendChild(moreWrap);
+
         return bar;
+      }
+
+      function renderWatchlistView() {
+        state.view = 'watchlist';
+        state.source = 'watchlist';
+        state.anime = null;
+        setActiveCat('watchlist');
+        setCrumbs([
+          { label: 'Discover', action: 'discover' },
+          { label: 'My Watchlist' },
+        ]);
+        var list = readWatchlist();
+        if (!list.length) {
+          main.innerHTML =
+            '<div class="empty">' +
+              '<h2>Your watchlist is empty</h2>' +
+              '<p>Click the heart icon on any anime card to save titles for quick access later.</p>' +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="wlToDiscover">Explore Discover</button></div>' +
+            '</div>';
+          var toDisc = document.getElementById('wlToDiscover');
+          if (toDisc) toDisc.addEventListener('click', function () { navigate({ view: 'discover' }); });
+          return;
+        }
+        main.innerHTML =
+          '<div class="rail-head" style="margin-bottom:14px"><h2>My Watchlist</h2>' +
+          '<span class="hint-inline">' + list.length + ' saved ' + (list.length === 1 ? 'title' : 'titles') + '</span></div>' +
+          '<div class="grid" id="animeGrid"></div>';
+        var items = list.map(function (x) {
+          return { id: x.id, name: x.name, poster: x.poster ? [x.poster] : [], episodes: {} };
+        });
+        fillGrid(document.getElementById('animeGrid'), items);
+        main.insertBefore(renderMobileCatBar('watchlist'), main.firstChild);
+      }
+
+      function renderWelcomeBanner() {
+        try {
+          if (localStorage.getItem('ani.welcome_seen')) return null;
+        } catch (e) { return null; }
+        var banner = document.createElement('section');
+        banner.className = 'welcome-banner';
+        banner.id = 'welcomeBanner';
+        banner.innerHTML =
+          '<div class="welcome-body">' +
+            '<div class="welcome-title">Welcome to ani.watch</div>' +
+            '<p class="welcome-desc">Explore trending anime, search your favorite series with <kbd>/</kbd>, and build your watchlist without an account.</p>' +
+          '</div>' +
+          '<button type="button" class="welcome-dismiss" id="welcomeDismiss" aria-label="Dismiss welcome message">Got it</button>';
+        var dismiss = banner.querySelector('#welcomeDismiss');
+        if (dismiss) {
+          dismiss.addEventListener('click', function () {
+            try { localStorage.setItem('ani.welcome_seen', '1'); } catch (e) {}
+            banner.classList.add('is-dismissing');
+            setTimeout(function () { banner.remove(); }, 250);
+          });
+        }
+        return banner;
       }
 
       function renderDiscover(home) {
@@ -6632,6 +8678,8 @@ var browseController = async (c) => {
         setActiveCat('discover');
         setCrumbs([{ label: 'Discover' }]);
         main.innerHTML = '';
+        var welcome = renderWelcomeBanner();
+        if (welcome) main.appendChild(welcome);
         var rails = [
           renderCwRail(),
           renderWatchlistRail(),
@@ -6642,7 +8690,14 @@ var browseController = async (c) => {
           renderRail('Most popular', takeList(home.mostPopular)),
         ].filter(Boolean);
         if (!rails.length) {
-          main.innerHTML = '<div class="empty"><h2>Nothing to show</h2><p>Home catalog came back empty. Try a category or search.</p></div>';
+          main.innerHTML =
+            '<div class="empty">' +
+              "<h2>Catalog currently unavailable</h2>" +
+              "<p>We couldn't load the discover catalog right now. Try refreshing or search for a title directly.</p>" +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="emptyRetryBtn">Retry Discover</button></div>' +
+            '</div>';
+          var retryBtn = document.getElementById('emptyRetryBtn');
+          if (retryBtn) retryBtn.addEventListener('click', function () { loadDiscover(); });
           return;
         }
         rails.forEach(function (el) { main.appendChild(el); });
@@ -6664,7 +8719,14 @@ var browseController = async (c) => {
           { label: (state.listLabel || 'Browse') + (total ? ' \xB7 p.' + page : '') },
         ]);
         if (!animes.length) {
-          main.innerHTML = '<div class="empty"><h2>No titles</h2><p>This category has nothing on this page.</p></div>';
+          main.innerHTML =
+            '<div class="empty">' +
+              '<h2>No titles found</h2>' +
+              '<p>This category has no titles on this page.</p>' +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="listBackBtn">Back to Discover</button></div>' +
+            '</div>';
+          var backBtn = document.getElementById('listBackBtn');
+          if (backBtn) backBtn.addEventListener('click', function () { navigate({ view: 'discover' }); });
           return;
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div><div class="pager" id="pager"></div>';
@@ -6685,10 +8747,10 @@ var browseController = async (c) => {
         var prev = document.getElementById('prevPage');
         var next = document.getElementById('nextPage');
         if (prev) prev.addEventListener('click', function () {
-          if (page > 1) loadList(state.listQuery, state.listLabel, page - 1);
+          if (page > 1) navigate({ view: 'list', query: state.listQuery, label: state.listLabel, page: page - 1 });
         });
         if (next) next.addEventListener('click', function () {
-          if (hasNext) loadList(state.listQuery, state.listLabel, page + 1);
+          if (hasNext) navigate({ view: 'list', query: state.listQuery, label: state.listLabel, page: page + 1 });
         });
       }
 
@@ -6703,7 +8765,14 @@ var browseController = async (c) => {
           { label: animes.length + ' result' + (animes.length === 1 ? '' : 's') },
         ]);
         if (!animes.length) {
-          main.innerHTML = '<div class="empty"><h2>No matches</h2><p>Try another spelling or a shorter keyword.</p></div>';
+          main.innerHTML =
+            '<div class="empty">' +
+              "<h2>No matches found</h2>" +
+              "<p>We couldn't find any titles matching your search. Try another spelling or a shorter keyword.</p>" +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="searchBackBtn">Back to Discover</button></div>' +
+            '</div>';
+          var sBackBtn = document.getElementById('searchBackBtn');
+          if (sBackBtn) sBackBtn.addEventListener('click', function () { navigate({ view: 'discover' }); });
           return;
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div>';
@@ -6814,12 +8883,36 @@ var browseController = async (c) => {
             '</div>' +
           '</section>' +
           '<div class="ep-toolbar">' +
-            '<p class="section-label">Episodes</p>' +
+            '<div class="ep-toolbar-left">' +
+              '<p class="section-label">Episodes</p>' +
+              '<div class="audio-toggle" id="audioToggle" role="group" aria-label="Audio format">' +
+                '<button type="button" class="audio-pill' + (state.audioPref === 'sub' ? ' is-active' : '') + '" data-audio="sub" aria-pressed="' + (state.audioPref === 'sub' ? 'true' : 'false') + '">SUB</button>' +
+                '<button type="button" class="audio-pill' + (state.audioPref === 'dub' ? ' is-active' : '') + '" data-audio="dub" aria-pressed="' + (state.audioPref === 'dub' ? 'true' : 'false') + '">DUB</button>' +
+              '</div>' +
+            '</div>' +
             seasonBar +
           '</div>' +
           '<div class="ep-grid" id="epGrid"></div>';
 
         main.innerHTML = detailHtml;
+
+        var audioToggle = document.getElementById('audioToggle');
+        if (audioToggle) {
+          audioToggle.addEventListener('click', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('[data-audio]') : null;
+            if (!btn) return;
+            var chosen = btn.getAttribute('data-audio');
+            if (!chosen || chosen === state.audioPref) return;
+            state.audioPref = chosen;
+            try { localStorage.setItem(AUDIO_KEY, chosen); } catch (e) {}
+            audioToggle.querySelectorAll('[data-audio]').forEach(function (b) {
+              var match = b.getAttribute('data-audio') === chosen;
+              b.classList.toggle('is-active', match);
+              b.setAttribute('aria-pressed', match ? 'true' : 'false');
+            });
+            setStatus('Audio preference set to ' + chosen.toUpperCase());
+          });
+        }
 
         var seasonSelect = document.getElementById('seasonSelect');
         if (seasonSelect) {
@@ -6830,11 +8923,15 @@ var browseController = async (c) => {
             for (var i = 0; i < seasons.length; i++) {
               if (seasons[i].id === nextId) { s = seasons[i]; break; }
             }
-            loadEpisodes({
-              id: nextId,
-              name: (s && (s.title || s.alternativeTitle)) || nextId,
-              jname: s && s.alternativeTitle,
-              poster: (s && s.poster) || poster || anime.poster || null,
+            navigate({
+              view: 'episodes',
+              animeId: nextId,
+              anime: {
+                id: nextId,
+                name: (s && (s.title || s.alternativeTitle)) || nextId,
+                jname: s && s.alternativeTitle,
+                poster: (s && s.poster) || poster || anime.poster || null,
+              },
             });
           });
         }
@@ -6849,6 +8946,7 @@ var browseController = async (c) => {
         }
 
         var grid = document.getElementById('epGrid');
+        var frag = document.createDocumentFragment();
         episodes.forEach(function (ep) {
           var btn = document.createElement('button');
           btn.type = 'button';
@@ -6866,18 +8964,17 @@ var browseController = async (c) => {
           btn.innerHTML =
             posterImg(poster || posterFallbacks, primary) +
             '<div class="meta"><div class="title">' + esc(primary) +
-            (ep.isFiller ? '<span class="badge">Filler</span>' : '') +
+            (ep.isFiller ? '<span class="badge" title="Filler episode (non-canon storyline)" aria-label="Filler episode (non-canon)">Filler</span>' : '') +
             '</div>' +
             (secondary ? '<div class="sub">' + esc(secondary) + '</div>' : '') +
             '</div>';
-          btn.addEventListener('click', function () { playEpisode(ep); });
-          grid.appendChild(btn);
+          btn.addEventListener('click', function () { playEpisode(ep, btn); });
+          frag.appendChild(btn);
         });
+        grid.appendChild(frag);
       }
 
       async function loadDiscover() {
-        if (!requireKey('discover')) return;
-        persistKey();
         var seq = ++loadSeq;
         setStatus('Loading discover\u2026');
         showSkeleton(8);
@@ -6889,7 +8986,14 @@ var browseController = async (c) => {
         } catch (err) {
           if (seq !== loadSeq) return;
           setStatus((err && err.message) || 'Discover failed', true);
-          main.innerHTML = '<div class="empty"><h2>Discover failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
+          main.innerHTML =
+            '<div class="empty">' +
+              '<h2>Discover failed to load</h2>' +
+              '<p>' + esc((err && err.message) || 'Try again shortly.') + '</p>' +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="discoverRetryBtn">Try again</button></div>' +
+            '</div>';
+          var dRetry = document.getElementById('discoverRetryBtn');
+          if (dRetry) dRetry.addEventListener('click', function () { loadDiscover(); });
         }
       }
 
@@ -6898,8 +9002,6 @@ var browseController = async (c) => {
           loadDiscover();
           return;
         }
-        if (!requireKey('browse')) return;
-        persistKey();
         var seq = ++loadSeq;
         state.listQuery = query;
         state.listLabel = label || query;
@@ -6922,7 +9024,14 @@ var browseController = async (c) => {
         } catch (err) {
           if (seq !== loadSeq) return;
           setStatus((err && err.message) || 'Browse failed', true);
-          main.innerHTML = '<div class="empty"><h2>Browse failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
+          main.innerHTML =
+            '<div class="empty">' +
+              '<h2>Browse failed to load</h2>' +
+              '<p>' + esc((err && err.message) || 'Try again shortly.') + '</p>' +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="listRetryBtn">Try again</button></div>' +
+            '</div>';
+          var lRetry = document.getElementById('listRetryBtn');
+          if (lRetry) lRetry.addEventListener('click', function () { loadList(query, label, page); });
         }
       }
 
@@ -6932,8 +9041,6 @@ var browseController = async (c) => {
           setStatus('Enter a search term.', true);
           return;
         }
-        if (!requireKey('search')) return;
-        persistKey();
         var seq = ++loadSeq;
         searchBtn.disabled = true;
         setStatus('Searching\u2026');
@@ -6947,7 +9054,14 @@ var browseController = async (c) => {
         } catch (err) {
           if (seq !== loadSeq) return;
           setStatus((err && err.message) || 'Search failed', true);
-          main.innerHTML = '<div class="empty"><h2>Search failed</h2><p>' + esc((err && err.message) || 'Try again shortly.') + '</p></div>';
+          main.innerHTML =
+            '<div class="empty">' +
+              '<h2>Search failed</h2>' +
+              '<p>' + esc((err && err.message) || 'Try again shortly.') + '</p>' +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="searchRetryBtn">Try again</button></div>' +
+            '</div>';
+          var sRetry = document.getElementById('searchRetryBtn');
+          if (sRetry) sRetry.addEventListener('click', function () { doSearch(); });
         } finally {
           if (seq === loadSeq) searchBtn.disabled = false;
         }
@@ -6988,26 +9102,43 @@ var browseController = async (c) => {
         } catch (err) {
           if (seq !== loadSeq) return;
           setStatus((err && err.message) || 'Could not load episodes', true);
-          main.innerHTML = '<div class="empty"><h2>Could not load episodes</h2><p>' + esc((err && err.message) || '') + '</p></div>';
+          main.innerHTML =
+            '<div class="empty">' +
+              '<h2>Could not load episodes</h2>' +
+              '<p>' + esc((err && err.message) || 'Try again shortly.') + '</p>' +
+              '<div class="empty-actions"><button type="button" class="btn ghost" id="epRetryBtn">Try again</button></div>' +
+            '</div>';
+          var epRetry = document.getElementById('epRetryBtn');
+          if (epRetry) epRetry.addEventListener('click', function () { loadEpisodes(anime); });
         }
       }
 
-      async function playEpisode(ep) {
+      var resolvingStream = false;
+      async function playEpisode(ep, btn) {
+        if (!requireKey('stream')) return;
+        if (resolvingStream) return;
         var episodeId = ep.episodeId || ep.id;
         if (!episodeId) {
           setStatus('Missing episode id.', true);
           return;
         }
+        resolvingStream = true;
+        if (btn) {
+          btn.classList.add('is-loading');
+          btn.setAttribute('aria-busy', 'true');
+        }
         setStatus('Resolving stream\u2026');
         try {
+          var audioCat = state.audioPref || 'sub';
           var params = new URLSearchParams({
             animeEpisodeId: String(episodeId).replace('::', '?'),
             server: 'hd-1',
-            category: 'sub',
+            category: audioCat,
           });
           var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString(), 25000);
           var link =
             data.link ||
+            (data.tracks && data.tracks[audioCat] && data.tracks[audioCat].link) ||
             (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
             (data.sources && data.sources[0] && data.sources[0].url);
           if (!link) throw new Error('No watch link returned.');
@@ -7022,10 +9153,22 @@ var browseController = async (c) => {
               );
             } catch (e) {}
           }
-          setStatus('Opening player\u2026');
-          window.open(link, '_blank', 'noopener');
+          setStatus('Playing in cinema\u2026');
+          var epNum = ep.number;
+          var raw = String(ep.title || ep.alternativeTitle || '').trim();
+          var generic = !raw || /^episodes*#?s*d+$/i.test(raw) || (epNum != null && raw === String(epNum));
+          var epTag = epNum != null ? 'Ep ' + epNum : 'Episode';
+          var epLabel = (generic ? epTag : epTag + ' \xB7 ' + raw) + ' (' + audioCat.toUpperCase() + ')';
+          var animeName = (state.anime && (state.anime.name || state.anime.title)) || 'Anime';
+          openCinema(link, animeName, epLabel);
         } catch (err) {
           setStatus((err && err.message) || 'Could not resolve stream', true);
+        } finally {
+          resolvingStream = false;
+          if (btn) {
+            btn.classList.remove('is-loading');
+            btn.removeAttribute('aria-busy');
+          }
         }
       }
 
@@ -7038,13 +9181,23 @@ var browseController = async (c) => {
         if (!btn) return;
         var query = btn.getAttribute('data-cat');
         var label = btn.getAttribute('data-label') || query;
-        if (query === 'discover') loadDiscover();
-        else loadList(query, label, 1);
+        if (query === 'discover') navigate({ view: 'discover' });
+        else if (query === 'watchlist') navigate({ view: 'watchlist' });
+        else navigate({ view: 'list', query: query, label: label, page: 1 });
       });
 
-      searchBtn.addEventListener('click', doSearch);
+      function submitSearch() {
+        var keyword = q.value.trim();
+        if (!keyword) {
+          setStatus('Enter a search term.', true);
+          return;
+        }
+        navigate({ view: 'search', keyword: keyword });
+      }
+
+      searchBtn.addEventListener('click', submitSearch);
       q.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') doSearch();
+        if (e.key === 'Enter') submitSearch();
       });
 
       // Mobile search FAB + overlay
@@ -7053,29 +9206,86 @@ var browseController = async (c) => {
       var searchOverlayClose = document.getElementById('searchOverlayClose');
       var qMobile = document.getElementById('qMobile');
       var searchBtnMobile = document.getElementById('searchBtnMobile');
-      function openSearchOverlay() {
+      var lastFocusedTrigger = null;
+
+      function openSearchOverlay(trigger) {
+        lastFocusedTrigger = trigger || document.activeElement;
         searchOverlay.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
         apiKeyMobile.value = apiKey.value;
-        if (apiKey.value.trim()) mobileKeySection.classList.add('key-set');
+        updateKeyUI();
         setTimeout(function () { if (qMobile) qMobile.focus(); }, 80);
       }
       function closeSearchOverlay() {
         searchOverlay.classList.remove('is-open');
+        document.body.style.overflow = '';
+        if (lastFocusedTrigger && typeof lastFocusedTrigger.focus === 'function') {
+          lastFocusedTrigger.focus();
+          lastFocusedTrigger = null;
+        }
       }
-      if (searchFab) searchFab.addEventListener('click', openSearchOverlay);
+      function trapDialogFocus(e, dialogEl) {
+        if (e.key !== 'Tab') return;
+        var focusables = dialogEl.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+        if (!focusables.length) return;
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+      if (searchFab) searchFab.addEventListener('click', function () { openSearchOverlay(searchFab); });
       if (searchOverlayClose) searchOverlayClose.addEventListener('click', closeSearchOverlay);
       if (searchOverlay) {
         searchOverlay.addEventListener('click', function (e) {
           if (e.target === searchOverlay) closeSearchOverlay();
         });
+        searchOverlay.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, searchOverlay);
+        });
       }
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+          if (cinemaOverlay && cinemaOverlay.classList.contains('is-open')) {
+            e.preventDefault();
+            closeCinema();
+          } else if (searchOverlay && searchOverlay.classList.contains('is-open')) {
+            e.preventDefault();
+            closeSearchOverlay();
+          } else if (keyPanel && keyPanel.classList.contains('is-open')) {
+            e.preventDefault();
+            keyPanel.classList.remove('is-open');
+            updateKeyUI();
+            if (keyToggle) keyToggle.focus();
+          }
+        } else if ((e.key === '/' || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) && !e.altKey) {
+          var tag = document.activeElement && document.activeElement.tagName;
+          if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && !document.activeElement.isContentEditable) {
+            e.preventDefault();
+            if (window.innerWidth <= 640) {
+              openSearchOverlay();
+            } else if (q) {
+              q.focus();
+              q.select();
+            }
+          }
+        }
+      });
       async function doMobileSearch() {
         var keyword = (qMobile && qMobile.value.trim()) || '';
         if (!keyword) return;
         // Sync to desktop input
         q.value = keyword;
         closeSearchOverlay();
-        await doSearch();
+        navigate({ view: 'search', keyword: keyword });
       }
       if (searchBtnMobile) searchBtnMobile.addEventListener('click', doMobileSearch);
       if (qMobile) {
@@ -7084,8 +9294,12 @@ var browseController = async (c) => {
         });
       }
 
-      if (apiKey.value.trim()) loadDiscover();
-      else q.focus();
+      var initialRoute = readCurrentRouteFromUrl();
+      history.replaceState(initialRoute, '', window.location.href);
+      applyRoute(initialRoute);
+      if (initialRoute.view === 'discover' && window.innerWidth > 640 && !apiKey.value.trim()) {
+        setTimeout(function () { try { q.focus(); } catch (e) {} }, 150);
+      }
     })();
   </script>
   ${vercelObservabilityScriptTags()}

@@ -209,8 +209,10 @@ const watchController = async (c: Context) => {
   ${faviconLinkTags(origin)}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Rosario:wght@700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" /></noscript>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" defer></script>
   <style>
     :root {
       --bg0: #0a0c10;
@@ -221,7 +223,12 @@ const watchController = async (c: Context) => {
       --danger: #ff7b72;
       --line: rgba(255, 255, 255, 0.12);
       --panel: rgba(14, 18, 26, 0.94);
-      --radius: 18px;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+      --radius-pill: 999px;
+      --radius: var(--radius-xl);
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
       --stage-max: 1120px;
     }
@@ -232,7 +239,7 @@ const watchController = async (c: Context) => {
       animation: fadein 0.3s ease both;
       background:
         radial-gradient(1200px 600px at 50% -10%, rgba(61, 214, 198, 0.12), transparent 55%),
-        radial-gradient(900px 500px at 100% 100%, rgba(80, 110, 180, 0.1), transparent 50%),
+        radial-gradient(900px 500px at 100% 100%, rgba(70, 100, 180, 0.12), transparent 50%),
         linear-gradient(180deg, #0d1118 0%, var(--bg0) 45%, #080a0e 100%);
     }
     @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
@@ -241,6 +248,10 @@ const watchController = async (c: Context) => {
       display: grid;
       grid-template-rows: auto 1fr auto;
       padding: clamp(16px, 3vw, 28px);
+      padding-top: max(clamp(16px, 3vw, 28px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(16px, 3vw, 28px), env(safe-area-inset-bottom));
+      padding-left: max(clamp(16px, 3vw, 28px), env(safe-area-inset-left));
+      padding-right: max(clamp(16px, 3vw, 28px), env(safe-area-inset-right));
       gap: 18px;
       transition: padding 0.35s var(--ease);
     }
@@ -250,11 +261,11 @@ const watchController = async (c: Context) => {
       transition: opacity 0.3s ease, transform 0.3s ease;
     }
     .brand {
-      font-family: Syne, sans-serif; font-weight: 700;
-      font-size: clamp(1.35rem, 2.4vw, 1.75rem); letter-spacing: -0.03em; margin: 0;
+      font-family: Syne, sans-serif; font-weight: 800;
+      font-size: clamp(1.55rem, 3vw, 2.05rem); letter-spacing: -0.035em; margin: 0;
     }
     .brand span { color: var(--accent); }
-    .brand-wrap { display: flex; flex-direction: column; gap: 2px; }
+    .brand-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .brand-by {
       margin: 0;
       font-size: 0.72rem;
@@ -274,7 +285,7 @@ const watchController = async (c: Context) => {
       text-overflow: ellipsis;
       letter-spacing: 0.01em;
     }
-    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
     .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
     .pill-toggle {
       display: inline-flex; padding: 4px; border-radius: 999px;
@@ -314,6 +325,33 @@ const watchController = async (c: Context) => {
     }
     .pill.provider-pill[hidden] { display: none !important; }
     a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
+    /* Accessible focus rings */
+    .pill:focus-visible,
+    .ctrl:focus-visible,
+    .big-btn:focus-visible,
+    .skip-btn:focus-visible,
+    .speed-chip:focus-visible,
+    .switch:focus-visible,
+    .cc-font-btn:focus-visible,
+    .cc-swatch:focus-visible,
+    .menu select:focus-visible,
+    .menu-slider:focus-visible,
+    .ep-item:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .seek:focus-visible,
+    .vol:focus-visible {
+      outline: none;
+    }
+    .seek:focus-visible::-webkit-slider-thumb,
+    .vol:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 4px var(--accent-dim), 0 0 0 2px var(--accent);
+    }
+    .seek:focus-visible::-moz-range-thumb,
+    .vol:focus-visible::-moz-range-thumb {
+      box-shadow: 0 0 0 4px var(--accent-dim), 0 0 0 2px var(--accent);
+    }
     .stage-wrap { display: grid; place-items: center; width: 100%; min-height: 0; }
     .stage {
       position: relative;
@@ -430,20 +468,24 @@ const watchController = async (c: Context) => {
     /* CC settings redesign */
     .cc-setting-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
     .cc-setting-row:last-child { border-bottom: none; }
-    .cc-label { font-size: 0.8rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .cc-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .cc-swatch-row { gap: 8px; }
     .cc-swatch {
-      width: 22px; height: 22px; border-radius: 50%;
+      width: 28px; height: 28px; border-radius: 50%;
       border: 2px solid rgba(255,255,255,0.15); cursor: pointer;
       transition: transform 0.12s, border-color 0.12s; flex-shrink: 0;
+      position: relative;
     }
-    .cc-swatch:hover { transform: scale(1.18); }
-    .cc-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); transform: scale(1.12); }
+    .cc-swatch::after {
+      content: ""; position: absolute; inset: -8px; border-radius: 50%;
+    }
+    .cc-swatch:hover { transform: scale(1.15); }
+    .cc-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); transform: scale(1.1); }
     .cc-font-row { gap: 5px; flex-wrap: wrap; }
     .cc-font-btn {
       flex: 1; min-width: 70px; text-align: center; padding: 7px 6px; font-size: 0.78rem;
       background: var(--surface2, rgba(255,255,255,0.06)); border: 1px solid var(--line);
-      border-radius: 8px; color: var(--ink); cursor: pointer; transition: background 0.12s, border-color 0.12s;
+      border-radius: var(--radius-sm, 6px); color: var(--ink); cursor: pointer; transition: background 0.12s, border-color 0.12s;
     }
     .cc-font-btn:hover { background: rgba(255,255,255,0.12); }
     .cc-font-btn.is-active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
@@ -511,7 +553,7 @@ const watchController = async (c: Context) => {
     @keyframes apIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
     .ap-label { margin: 0 0 4px; font-size: 0.78rem; color: var(--muted); }
     .ap-count {
-      display: block; font-size: 2rem; font-weight: 700; color: var(--accent);
+      display: block; font-family: Syne, sans-serif; font-size: 2.05rem; font-weight: 800; color: var(--accent);
       line-height: 1; text-align: center; margin-bottom: 4px;
     }
 
@@ -561,7 +603,7 @@ const watchController = async (c: Context) => {
     .row .spacer { flex: 1; min-width: 8px; }
     .ctrl {
       appearance: none; border: 0; background: transparent; color: var(--ink);
-      width: 40px; height: 40px; border-radius: 10px;
+      width: 40px; height: 40px; border-radius: var(--radius-md, 12px);
       display: grid; place-items: center; cursor: pointer; position: relative;
       transition: background 0.2s ease;
     }
@@ -586,7 +628,7 @@ const watchController = async (c: Context) => {
     .speed-chip {
       appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.04);
       color: var(--muted); font: inherit; font-size: 0.75rem; font-weight: 600;
-      padding: 6px 8px; border-radius: 8px; cursor: pointer; min-width: 42px;
+      padding: 6px 10px; border-radius: var(--radius-pill, 999px); cursor: pointer; min-width: 42px;
     }
     .speed-chip:hover, .speed-chip.is-active { color: var(--accent); border-color: rgba(61,214,198,0.4); background: var(--accent-dim); }
     .menu {
@@ -594,7 +636,7 @@ const watchController = async (c: Context) => {
       width: min(300px, calc(100% - 24px));
       max-height: min(80dvh, 600px); overflow-y: auto; overflow-x: hidden;
       background: var(--panel); border: 1px solid var(--line);
-      border-radius: 14px; padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      border-radius: var(--radius-lg, 14px); padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
       display: none; z-index: 5; backdrop-filter: blur(16px);
       overscroll-behavior: contain;
     }
@@ -615,7 +657,7 @@ const watchController = async (c: Context) => {
     }
     .menu select {
       appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.04);
-      color: var(--ink); border-radius: 10px; padding: 8px 10px; font: inherit;
+      color: var(--ink); border-radius: var(--radius-md, 12px); padding: 8px 10px; font: inherit;
     }
     .speed-row { display: flex; flex-wrap: wrap; gap: 6px; }
     .switch {
@@ -635,7 +677,7 @@ const watchController = async (c: Context) => {
     }
     footer {
       max-width: var(--stage-max); width: 100%; margin: 0 auto;
-      color: var(--muted); font-size: 0.8rem;
+      color: var(--muted); font-size: 0.75rem;
       transition: opacity 0.3s ease;
       display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     }
@@ -668,8 +710,10 @@ const watchController = async (c: Context) => {
       appearance: none; border: 0; background: transparent; color: var(--ink);
       font: inherit; text-align: left; cursor: pointer;
       display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
-      padding: 8px 10px; border-radius: 10px; width: 100%;
+      padding: 8px 10px; border-radius: var(--radius-md, 12px); width: 100%;
       transition: background 0.15s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: auto 36px;
     }
     .ep-item:hover { background: rgba(255,255,255,0.06); }
     .ep-item.is-current { background: var(--accent-dim); color: var(--accent); }
@@ -680,12 +724,19 @@ const watchController = async (c: Context) => {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .ep-item.is-filler .ep-n::after {
-      content: "F"; margin-left: 4px; font-size: 0.65rem; opacity: 0.7;
+      content: "F"; margin-left: 4px; font-size: 0.72rem; opacity: 0.7;
     }
 
     /* Theater mode */
     body.theater { background: #000; }
-    body.theater .page { padding: 0; gap: 0; }
+    body.theater .page {
+      padding: 0;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      gap: 0;
+    }
     body.theater header,
     body.theater footer { opacity: 0; pointer-events: none; height: 0; overflow: hidden; margin: 0; padding: 0; }
     body.theater .stage-wrap { min-height: 100dvh; }
@@ -711,61 +762,435 @@ const watchController = async (c: Context) => {
       opacity: 1;
     }
     #ccBody.is-collapsed { max-height: 0; opacity: 0; pointer-events: none; }
-
-    @media (max-width: 720px) {
-      .vol { display: none; }
-      .hint { display: none; }
-      .time { min-width: auto; }
-      .stage { aspect-ratio: 16 / 9; border-radius: 12px; }
-      .big-btn { width: 68px; height: 68px; }
-      /* Bigger touch targets for controls */
-      .ctrl { width: 44px; height: 44px; }
-      .pill { padding: 10px 14px; font-size: 0.86rem; min-height: 40px; }
-      header { gap: 10px; }
-      .header-right { gap: 8px; }
+    .shortcuts-row {
+      flex-direction: column; align-items: flex-start; gap: 6px;
+      padding-top: 6px; border-top: 1px solid var(--line); margin-top: 4px;
     }
-    /* Small phone: 375–480px */
-    @media (max-width: 480px) {
-      .page { padding: 10px 10px 16px; gap: 10px; }
-      .brand { font-size: 1.15rem; }
-      .ep-line { max-width: calc(100vw - 24px); font-size: 0.72rem; white-space: normal; line-height: 1.3; }
-      .stage { border-radius: 8px; }
-      .menu { right: 8px; bottom: 56px; width: calc(100% - 16px); max-height: 70dvh; overflow-y: auto; }
-      .ep-panel { left: 8px; bottom: 56px; width: calc(100% - 16px); }
-      .skip-btn { right: 8px; bottom: 72px; font-size: 12px; padding: 8px 12px; }
-      .big-btn { width: 60px; height: 60px; }
-      .big-btn svg { width: 26px; height: 26px; }
-      footer { font-size: 0.78rem; flex-direction: column; gap: 4px; }
-      /* Speed chip smaller */
-      .speed-chip { padding: 5px 7px; font-size: 0.72rem; min-width: 36px; }
-      /* Header: stack brand on top, controls below, smaller pills */
-      header { flex-direction: column; align-items: flex-start; gap: 8px; }
-      .header-right { width: 100%; gap: 6px; flex-wrap: wrap; }
-      .header-right .pill { font-size: 0.78rem; padding: 7px 10px; min-height: 36px; }
-      /* Controls bar: two rows */
-      .row { flex-wrap: wrap; gap: 2px; }
-      /* Primary row: play, mute, time take up full width first */
-      .row .time { flex: 1; }
-      /* Nav pills and right-side controls wrap to second line */
-      .nav-pill { font-size: 0.78rem; padding: 6px 10px; }
-      /* Ensure seek bar is full width and easy to tap */
-      .seek { height: 10px; margin-bottom: 12px; }
-      .seek::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -5px; }
+    .shortcuts-label {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600;
+    }
+    .shortcuts-grid {
+      display: grid; grid-template-columns: auto 1fr; gap: 4px 10px;
+      font-size: 0.78rem; color: var(--muted); width: 100%;
+    }
+    .shortcuts-grid kbd {
+      font-family: monospace; background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line); border-radius: var(--radius-sm, 6px);
+      padding: 1px 5px; font-size: 0.75rem; text-align: center;
+    }
+
+    /* Sheet & Gesture shared styles */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s var(--ease);
+    }
+    .sheet-backdrop.is-active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .sheet-handle {
+      display: none;
+    }
+    .sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .sheet-head h3 {
+      margin: 0;
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .sheet-close {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: color 0.15s ease, background 0.15s ease;
+      padding: 0;
+    }
+    .sheet-close:hover {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .menu-body {
+      display: flex;
+      flex-direction: column;
+    }
+    .gesture-indicator {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 38%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 6;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .gesture-left {
+      left: 0;
+      border-radius: 0 100px 100px 0;
+      background: radial-gradient(circle at 25% 50%, rgba(61, 214, 198, 0.28), transparent 75%);
+    }
+    .gesture-right {
+      right: 0;
+      border-radius: 100px 0 0 100px;
+      background: radial-gradient(circle at 75% 50%, rgba(61, 214, 198, 0.28), transparent 75%);
+    }
+    .gesture-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--accent);
+      font-family: Syne, sans-serif;
+      font-weight: 800;
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      transform: scale(0.85);
+      transition: transform 0.25s var(--ease);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    }
+    .gesture-indicator.is-active {
+      opacity: 1;
+    }
+    .gesture-indicator.is-active .gesture-icon {
+      transform: scale(1.15);
+    }
+    .mobile-nav-pill {
+      display: none;
+    }
+
+    /* Mobile Cinema Player Overhaul (<= 720px) */
+    @media (max-width: 720px) {
+      .page {
+        display: flex;
+        flex-direction: column;
+        padding: 0 0 24px 0;
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+        gap: 12px;
+        min-height: 100dvh;
+      }
+      .stage-wrap {
+        order: 1;
+        position: sticky;
+        top: 0;
+        z-index: 80;
+        width: 100vw;
+        background: #000;
+      }
+      .stage {
+        width: 100vw;
+        max-width: 100vw;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        aspect-ratio: 16 / 9;
+      }
+      header {
+        order: 2;
+        padding: 0 clamp(12px, 3.5vw, 18px);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        width: 100%;
+        margin: 0;
+      }
+      .brand-wrap {
+        width: 100%;
+      }
+      .brand {
+        font-size: 1.25rem;
+      }
+      .ep-line {
+        max-width: 100%;
+        font-size: 0.8rem;
+        white-space: normal;
+        line-height: 1.35;
+        color: var(--ink);
+        opacity: 0.88;
+      }
+      .header-right {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .header-right .pill-toggle {
+        flex-shrink: 0;
+      }
+      .header-right .pill {
+        min-height: 40px;
+        font-size: 0.82rem;
+        padding: 8px 12px;
+      }
+      .mobile-nav-pill {
+        display: inline-flex;
+        background: var(--accent-dim);
+        color: var(--accent);
+        border: 1px solid rgba(61, 214, 198, 0.35);
+      }
+      .err {
+        order: 3;
+        margin: 0 clamp(12px, 3.5vw, 18px);
+        width: calc(100% - clamp(24px, 7vw, 36px));
+      }
+      footer {
+        order: 4;
+        padding: 8px clamp(12px, 3.5vw, 18px) 0;
+        font-size: 0.75rem;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-start;
+      }
+
+      /* Compacted Controls HUD: 64px Height, Single Row */
+      .controls {
+        padding: 24px 12px 8px;
+        background: linear-gradient(transparent 0%, rgba(0, 0, 0, 0.88) 60%);
+      }
+      .seek {
+        height: 8px;
+        margin-bottom: 8px;
+      }
+      .seek::-webkit-slider-thumb {
+        width: 18px;
+        height: 18px;
+        margin-top: -5px;
+      }
+      .row {
+        flex-wrap: nowrap !important;
+        gap: 6px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #theaterBtn,
+      #speedBtn,
+      #prevEpBar,
+      #nextEpBar,
+      .vol,
+      .hint,
+      .row .spacer {
+        display: none !important;
+      }
+      .ctrl {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        flex-shrink: 0;
+      }
+      .time {
+        min-width: auto;
+        font-size: 0.78rem;
+        padding: 0 4px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .big-btn {
+        width: 64px;
+        height: 64px;
+      }
+      .big-btn svg {
+        width: 28px;
+        height: 28px;
+      }
+      .skip-btn {
+        right: 12px;
+        bottom: 104px;
+        font-size: 13px;
+        padding: 8px 14px;
+      }
+
+      /* Subtitles bounds on mobile */
+      .cc-box {
+        font-size: var(--cc-size, clamp(15px, 4.2vw, 22px)) !important;
+        max-width: min(92%, 520px) !important;
+        line-height: 1.3 !important;
+        -webkit-text-stroke: 1.5px #000 !important;
+      }
+
+      /* Native Bottom Sheets for Settings & Episodes */
+      .menu, .ep-panel {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        top: auto !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: 85dvh !important;
+        border-radius: 20px 20px 0 0 !important;
+        border: none !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+        background: rgba(14, 18, 26, 0.98) !important;
+        backdrop-filter: blur(24px) !important;
+        -webkit-backdrop-filter: blur(24px) !important;
+        box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.8) !important;
+        z-index: 1000 !important;
+        padding: 0 !important;
+        transform: translateY(100%);
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        display: flex !important;
+        flex-direction: column !important;
+        visibility: hidden;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        visibility: visible !important;
+        transform: translateY(0) !important;
+      }
+      .sheet-handle {
+        display: block !important;
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.35);
+        margin: 10px auto 4px;
+        flex-shrink: 0;
+      }
+      .sheet-head {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px 12px !important;
+        border-bottom: 1px solid var(--line) !important;
+        margin-bottom: 0 !important;
+        flex-shrink: 0;
+      }
+      .sheet-head h3 {
+        margin: 0;
+        font-size: 0.85rem !important;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink);
+        font-weight: 700 !important;
+      }
+      .sheet-close {
+        appearance: none;
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--ink);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      .sheet-close:hover {
+        background: rgba(255, 255, 255, 0.16);
+      }
+      .menu-body {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding: 14px 16px 28px;
+        flex: 1;
+      }
+      .ep-panel-head {
+        padding: 10px 16px 12px !important;
+        flex-shrink: 0;
+      }
+      .ep-panel-head h3 {
+        font-size: 0.85rem !important;
+        font-weight: 700 !important;
+        color: var(--ink) !important;
+      }
+      .ep-panel-head .pill {
+        min-height: 36px;
+        padding: 6px 14px;
+      }
+      .ep-list {
+        flex: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding: 8px 12px 28px !important;
+      }
+      .ep-item {
+        min-height: 48px;
+        padding: 10px 12px !important;
+        align-items: center;
+      }
+      .shortcuts-row {
+        display: none !important;
+      }
     }
     /* Landscape phone */
     @media (max-height: 500px) and (orientation: landscape) {
-      .page { padding: 6px; gap: 6px; }
-      header { display: none; }
-      .stage { aspect-ratio: auto; height: calc(100dvh - 72px); border-radius: 0; }
-      .stage-wrap { min-height: 0; }
-      footer { display: none; }
+      .page {
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+      header, footer { display: none !important; }
+      .stage-wrap {
+        height: 100dvh;
+        min-height: 100dvh;
+      }
+      .stage {
+        aspect-ratio: auto;
+        height: 100dvh;
+        width: 100vw;
+        border-radius: 0;
+      }
     }
-    /* Very small phone: <360px */
-    @media (max-width: 360px) {
-      .provider-pill { display: none; }
-      .speed-chip { display: none; }
-      .header-right .pill { font-size: 0.74rem; padding: 6px 8px; }
-      .ctrl { width: 40px; height: 40px; }
+    /* Touch / Coarse pointer adaptations */
+    @media (pointer: coarse) {
+      .ctrl { min-width: 44px; min-height: 44px; }
+      .pill { min-height: 44px; }
+      .speed-chip { min-height: 42px; padding: 10px 14px; font-size: 0.85rem; }
+      .cc-swatch { width: 34px; height: 34px; }
+      .cc-swatch::after { inset: -6px; }
+      .seek { height: 10px; }
+      .seek::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -6px; }
+      .seek::-moz-range-thumb { width: 22px; height: 22px; }
+      .menu-slider { height: 10px; }
+      .menu-slider::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -6px; }
+      .menu-slider::-moz-range-thumb { width: 22px; height: 22px; }
+      .shortcuts-row { display: none !important; }
+    }
+    /* Small phone: <380px */
+    @media (max-width: 380px) {
+      .provider-pill { display: none !important; }
+      .header-right .pill { font-size: 0.74rem; padding: 6px 10px; min-height: 36px; }
+      .ctrl { width: 42px; height: 42px; }
+    }
+    /* Motion sensitivity */
+    @media (prefers-reduced-motion: reduce) {
+      html, body, .page, header, footer, .stage, .controls, .menu, .ep-panel, .skip-btn, .ap-card, .switch::after {
+        transition-duration: 0.05s !important;
+        animation-duration: 0.05s !important;
+      }
+      .spinner {
+        animation: none !important;
+        border-top-color: var(--accent) !important;
+        opacity: 0.85;
+      }
     }
   </style>
 </head>
@@ -783,7 +1208,9 @@ const watchController = async (c: Context) => {
         </div>
         <span class="pill provider-pill" id="providerBadge" title="Stream provider" ${initialProviderLabel ? '' : 'hidden'}>${escAttr(initialProviderLabel)}</span>
         <button type="button" class="pill" id="ccTop" title="English subtitles (C)" ${hasAnyCc ? '' : 'hidden'} aria-pressed="false">CC</button>
-        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? '' : 'hidden'}>Episodes</button>
+        <button type="button" class="pill" id="epListBtn" title="Episode list (E)" ${hasAnime ? '' : 'hidden'} aria-haspopup="dialog" aria-expanded="false" aria-controls="epPanel">Episodes</button>
+        <a class="pill mobile-nav-pill" id="prevEpHeader" title="Previous episode" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true"'} ${prevPlaySafe ? '' : 'hidden'}>← Prev</a>
+        <a class="pill mobile-nav-pill" id="nextEpHeader" title="Next episode" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true"'} ${nextPlaySafe ? '' : 'hidden'}>Next →</a>
         <a class="pill" href="/browse" title="Back to browse" style="opacity:0.7">← Browse</a>
       </div>
     </header>
@@ -794,6 +1221,19 @@ const watchController = async (c: Context) => {
         <div class="cc-layer" id="ccLayer" aria-live="polite">
           <div class="cc-box" id="ccBox" title="Drag to move"></div>
         </div>
+        <div class="gesture-indicator gesture-left" id="gestureLeft" aria-hidden="true">
+          <div class="gesture-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+            <span>-10s</span>
+          </div>
+        </div>
+        <div class="gesture-indicator gesture-right" id="gestureRight" aria-hidden="true">
+          <div class="gesture-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6-8.5-6z"/></svg>
+            <span>+10s</span>
+          </div>
+        </div>
+        <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
         <div class="overlay">
           <button type="button" class="big-btn" id="bigPlay" aria-label="Play">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -813,7 +1253,8 @@ const watchController = async (c: Context) => {
           </div>
         </div>
 
-        <div class="ep-panel" id="epPanel" role="dialog" aria-label="Episode list" hidden>
+        <div class="ep-panel" id="epPanel" role="dialog" aria-modal="true" aria-label="Episode list" hidden>
+          <div class="sheet-handle" aria-hidden="true"></div>
           <div class="ep-panel-head">
             <h3>Episodes</h3>
             <button type="button" class="pill" id="epPanelClose" style="padding:6px 10px">Close</button>
@@ -822,7 +1263,15 @@ const watchController = async (c: Context) => {
           <div class="ep-list" id="epList" hidden></div>
         </div>
 
-        <div class="menu" id="settingsMenu" role="dialog" aria-label="Player settings">
+        <div class="menu" id="settingsMenu" role="dialog" aria-modal="true" aria-label="Player settings">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-head">
+            <h3>Settings</h3>
+            <button type="button" class="sheet-close" id="settingsClose" aria-label="Close settings">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          <div class="menu-body">
           <div class="menu-section">
             <h3>Audio</h3>
             <div class="pill-toggle" id="audioToggleMenu" ${hasEither ? '' : 'hidden'} style="width:100%;justify-content:stretch">
@@ -837,7 +1286,7 @@ const watchController = async (c: Context) => {
               <a class="pill" style="flex:1;text-align:center" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true"'} ${prevPlaySafe ? '' : 'hidden'}>Previous</a>
               <a class="pill" style="flex:1;text-align:center" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true"'} ${nextPlaySafe ? '' : 'hidden'}>Next</a>
             </div>
-            <button type="button" class="pill" id="epListBtnMenu" style="width:100%;margin-top:8px;justify-content:center" ${hasAnime ? '' : 'hidden'}>All episodes</button>
+            <button type="button" class="pill" id="epListBtnMenu" style="width:100%;margin-top:8px;justify-content:center" ${hasAnime ? '' : 'hidden'} aria-haspopup="dialog" aria-expanded="false" aria-controls="epPanel">All episodes</button>
             <p class="hint" style="margin-top:8px">${epIndex && epTotal ? escAttr(`Episode ${epIndex} of ${epTotal}`) : 'Jump with Prev / Next or the episode list.'}</p>
           </div>
           <div class="menu-section" id="ccSection">
@@ -847,8 +1296,8 @@ const watchController = async (c: Context) => {
             </div>
             <div id="ccBody">
               <div class="menu-row">
-                <label for="ccToggle">English CC</label>
-                <button type="button" class="switch" id="ccToggle" aria-pressed="false" ${hasAnyCc ? '' : 'disabled'}></button>
+                <label id="ccLabel" for="ccToggle">English CC</label>
+                <button type="button" class="switch" id="ccToggle" role="switch" aria-labelledby="ccLabel" aria-checked="false" aria-pressed="false" ${hasAnyCc ? '' : 'disabled'}></button>
               </div>
               <div id="ccControls" ${hasAnyCc ? '' : 'hidden'}>
 
@@ -865,12 +1314,12 @@ const watchController = async (c: Context) => {
                 <div class="menu-row cc-setting-row">
                   <span class="cc-label">Font Color</span>
                   <div class="pos-row cc-swatch-row" id="ccColorRow">
-                    <button type="button" class="cc-swatch is-active" data-cc-color="white" style="background:#fff" title="White"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="yellow" style="background:#ffe066" title="Yellow"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="cyan" style="background:#3dd6c6" title="Cyan"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="lime" style="background:#86efac" title="Lime"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="orange" style="background:#fb923c" title="Orange"></button>
-                    <button type="button" class="cc-swatch" data-cc-color="pink" style="background:#f472b6" title="Pink"></button>
+                    <button type="button" class="cc-swatch is-active" data-cc-color="white" style="background:#fff" title="White" aria-label="White text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="yellow" style="background:#ffe066" title="Yellow" aria-label="Yellow text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="cyan" style="background:#3dd6c6" title="Cyan" aria-label="Cyan text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="lime" style="background:#86efac" title="Lime" aria-label="Lime text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="orange" style="background:#fb923c" title="Orange" aria-label="Orange text color"></button>
+                    <button type="button" class="cc-swatch" data-cc-color="pink" style="background:#f472b6" title="Pink" aria-label="Pink text color"></button>
                   </div>
                 </div>
 
@@ -896,12 +1345,12 @@ const watchController = async (c: Context) => {
                 <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
                   <span class="cc-label">Font Family</span>
                   <div class="pos-row cc-font-row" id="ccFontRow">
-                    <button type="button" class="cc-font-btn is-active" data-cc-font="dm" style="font-family:'DM Sans',sans-serif">DM Sans</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="trebuchet" style="font-family:'Trebuchet MS',sans-serif">Trebuchet</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="rosario" style="font-family:'Rosario',sans-serif">Rosario</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="sans" style="font-family:system-ui,sans-serif">System</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="serif" style="font-family:Georgia,serif">Serif</button>
-                    <button type="button" class="cc-font-btn" data-cc-font="mono" style="font-family:'Courier New',monospace">Mono</button>
+                    <button type="button" class="cc-font-btn is-active" data-cc-font="dm" style="font-family: 'DM Sans', sans-serif;">DM Sans</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="trebuchet" style="font-family: 'Trebuchet MS', sans-serif;">Trebuchet</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="rosario" style="font-family: 'Rosario', sans-serif;">Rosario</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="sans" style="font-family: system-ui, sans-serif;">System</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="serif" style="font-family: Georgia, serif;">Serif</button>
+                    <button type="button" class="cc-font-btn" data-cc-font="mono" style="font-family: 'Courier New', monospace;">Mono</button>
                   </div>
                 </div>
 
@@ -921,11 +1370,11 @@ const watchController = async (c: Context) => {
                 <div class="menu-row cc-setting-row">
                   <span class="cc-label">Edge Color</span>
                   <div class="pos-row cc-swatch-row" id="ccEdgeRow">
-                    <button type="button" class="cc-swatch is-active" data-cc-edge="black" style="background:#000;border:2px solid rgba(255,255,255,0.25)" title="Black"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="darkgray" style="background:#374151" title="Dark Gray"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="white" style="background:#fff;border:2px solid rgba(255,255,255,0.25)" title="White"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="red" style="background:#dc2626" title="Red"></button>
-                    <button type="button" class="cc-swatch" data-cc-edge="blue" style="background:#3b82f6" title="Blue"></button>
+                    <button type="button" class="cc-swatch is-active" data-cc-edge="black" style="background:#000;border:2px solid rgba(255,255,255,0.25)" title="Black" aria-label="Black edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="darkgray" style="background:#374151" title="Dark Gray" aria-label="Dark Gray edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="white" style="background:#fff;border:2px solid rgba(255,255,255,0.25)" title="White" aria-label="White edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="red" style="background:#dc2626" title="Red" aria-label="Red edge"></button>
+                    <button type="button" class="cc-swatch" data-cc-edge="blue" style="background:#3b82f6" title="Blue" aria-label="Blue edge"></button>
                   </div>
                 </div>
 
@@ -967,12 +1416,12 @@ const watchController = async (c: Context) => {
           </div>
           <div class="menu-section">
             <div class="menu-row">
-              <label for="loopToggle">Loop</label>
-              <button type="button" class="switch" id="loopToggle" aria-pressed="false"></button>
+              <label id="loopLabel" for="loopToggle">Loop</label>
+              <button type="button" class="switch" id="loopToggle" role="switch" aria-labelledby="loopLabel" aria-checked="false" aria-pressed="false"></button>
             </div>
             <div class="menu-row">
-              <label for="theaterToggle">Theater mode</label>
-              <button type="button" class="switch" id="theaterToggle" aria-pressed="false"></button>
+              <label id="theaterLabel" for="theaterToggle">Theater mode</label>
+              <button type="button" class="switch" id="theaterToggle" role="switch" aria-labelledby="theaterLabel" aria-checked="false" aria-pressed="false"></button>
             </div>
             <div class="menu-row">
               <label>Picture in picture</label>
@@ -982,19 +1431,21 @@ const watchController = async (c: Context) => {
               <label>Cast to TV</label>
               <button type="button" class="pill" id="castBtn" style="padding:6px 10px" title="Cast to a nearby screen or smart TV">📺 Cast</button>
             </div>
-            <div class="menu-row" style="flex-direction:column;align-items:flex-start;gap:6px;padding-top:4px;border-top:1px solid var(--line);margin-top:4px">
-              <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">Keyboard shortcuts</label>
-              <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:0.78rem;color:var(--muted);width:100%">
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">Space</kbd><span>Play / Pause</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">← →</kbd><span>Seek ±10s</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">[ ]</kbd><span>Prev / Next episode</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">F</kbd><span>Fullscreen</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">T</kbd><span>Theater mode</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">C</kbd><span>Captions on/off</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">M</kbd><span>Mute</span>
-                <kbd style="font-family:monospace;background:var(--surface2);border-radius:4px;padding:1px 5px">, .</kbd><span>Speed down / up</span>
+            <div class="menu-row shortcuts-row">
+              <label class="shortcuts-label">Keyboard shortcuts</label>
+              <div class="shortcuts-grid">
+                <kbd>Space</kbd><span>Play / Pause</span>
+                <kbd>← →</kbd><span>Seek ±10s</span>
+                <kbd>↑ ↓</kbd><span>Volume ±5%</span>
+                <kbd>[ ]</kbd><span>Prev / Next episode</span>
+                <kbd>F</kbd><span>Fullscreen</span>
+                <kbd>T</kbd><span>Theater mode</span>
+                <kbd>C</kbd><span>Captions on/off</span>
+                <kbd>M</kbd><span>Mute</span>
+                <kbd>, .</kbd><span>Speed down / up</span>
               </div>
             </div>
+          </div>
           </div>
         </div>
 
@@ -1010,13 +1461,13 @@ const watchController = async (c: Context) => {
             <input class="vol" id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
             <span class="time" id="time">0:00 / 0:00</span>
             <button type="button" class="speed-chip" id="speedBtn" title="Playback speed">1x</button>
-            <a class="pill nav-pill" id="prevEpBar" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'} style="padding:6px 10px;min-width:auto">← Prev</a>
-            <a class="pill nav-pill" id="nextEpBar" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'} style="padding:6px 10px;min-width:auto">Next →</a>
+            <a class="pill nav-pill" id="prevEpBar" title="Previous episode ([)" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? '' : 'hidden'} style="padding:6px 10px;min-width:auto">← Prev</a>
+            <a class="pill nav-pill" id="nextEpBar" title="Next episode (])" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? '' : 'hidden'} style="padding:6px 10px;min-width:auto">Next →</a>
             <button type="button" class="ctrl" id="ccBtn" aria-label="English captions" title="English CC (C)" ${hasAnyCc ? '' : 'hidden'}>
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-8.5 10.5c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7H9.5v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 0.7 1 1.3 0 1-.9 1.4-2.1 1.4zm7 0c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7h-.7v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 .7 1 1.3 0 1-.9 1.4-2.1 1.4z"/></svg>
             </button>
             <span class="spacer"></span>
-            <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings">
+            <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsMenu">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.89 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
             <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode">
@@ -1089,6 +1540,10 @@ const watchController = async (c: Context) => {
       var epPanelClose = document.getElementById('epPanelClose');
       var epPanelStatus = document.getElementById('epPanelStatus');
       var epList = document.getElementById('epList');
+      var sheetBackdrop = document.getElementById('sheetBackdrop');
+      var settingsClose = document.getElementById('settingsClose');
+      var gestureLeft = document.getElementById('gestureLeft');
+      var gestureRight = document.getElementById('gestureRight');
       var hideTimer = null;
       var hls = null;
       var switching = false;
@@ -1114,6 +1569,7 @@ const watchController = async (c: Context) => {
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 10;
       var ccCues = [];
+      var ccMaxDuration = 0;
       var ccSrcLoaded = '';
       var ccFetchToken = 0;
       var activeCueText = '';
@@ -1222,6 +1678,19 @@ const watchController = async (c: Context) => {
             loadTrack(fallbackTrack, true);
           };
           err.appendChild(btn);
+        } else {
+          var retryBtn = document.createElement('button');
+          retryBtn.type = 'button';
+          retryBtn.className = 'pill';
+          retryBtn.style.marginLeft = '12px';
+          retryBtn.style.padding = '4px 10px';
+          retryBtn.style.fontSize = '12px';
+          retryBtn.textContent = 'Retry stream';
+          retryBtn.onclick = function () {
+            clearErr();
+            loadTrack(track, true);
+          };
+          err.appendChild(retryBtn);
         }
         stage.classList.remove('is-loading');
         switching = false;
@@ -1243,11 +1712,27 @@ const watchController = async (c: Context) => {
         playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
         bigPlay.setAttribute('aria-label', playing ? 'Pause' : 'Play');
         bigPlay.querySelector('svg').innerHTML = playing ? ICONS.pause : ICONS.play;
+        if ('mediaSession' in navigator) {
+          try {
+            navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+          } catch (e) {}
+        }
       }
 
       function setMuted(muted) {
         muteIcon.innerHTML = muted || video.volume === 0 ? ICONS.muted : ICONS.vol;
         muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+      }
+
+      function applyVolume(val) {
+        var v = Math.max(0, Math.min(1, Number(val)));
+        if (!isFinite(v)) v = 1;
+        video.volume = v;
+        video.muted = v === 0;
+        vol.value = String(v);
+        vol.style.setProperty('--vol', (v * 100) + '%');
+        setMuted(video.muted);
+        try { localStorage.setItem('ani.vol', String(v)); } catch (e) {}
       }
 
       function updateProgress() {
@@ -1256,6 +1741,15 @@ const watchController = async (c: Context) => {
         if (!seek.matches(':active')) seek.value = String(d ? (t / d) * 1000 : 0);
         seek.style.setProperty('--progress', (d ? (t / d) * 100 : 0) + '%');
         timeEl.textContent = fmt(t) + ' / ' + fmt(d);
+        if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession && isFinite(d) && d > 0 && isFinite(t)) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: d,
+              playbackRate: video.playbackRate || 1,
+              position: Math.min(Math.max(t, 0), d),
+            });
+          } catch (e) {}
+        }
       }
 
       function currentSkip() {
@@ -1309,12 +1803,17 @@ const watchController = async (c: Context) => {
             stage.classList.remove('show-controls');
             stage.classList.add('cursor-hidden');
           }
-        }, 2800);
+        }, 3500);
       }
 
       function togglePlay() {
-        if (video.paused) video.play().catch(function () {});
-        else video.pause();
+        if (video.paused) {
+          video.play().catch(function () {
+            setPlaying(false);
+          });
+        } else {
+          video.pause();
+        }
       }
       function toggleMute() {
         video.muted = !video.muted;
@@ -1334,8 +1833,10 @@ const watchController = async (c: Context) => {
         document.body.classList.toggle('theater', theater);
         theaterToggle.classList.toggle('is-on', theater);
         theaterToggle.setAttribute('aria-pressed', theater ? 'true' : 'false');
+        theaterToggle.setAttribute('aria-checked', theater ? 'true' : 'false');
         theaterBtn.classList.toggle('is-on', theater);
-        localStorage.setItem('ani.theater', theater ? '1' : '0');
+        theaterBtn.setAttribute('aria-pressed', theater ? 'true' : 'false');
+        try { localStorage.setItem('ani.theater', theater ? '1' : '0'); } catch (e) {}
         pokeControls();
       }
 
@@ -1352,6 +1853,7 @@ const watchController = async (c: Context) => {
           ccToggle.disabled = !available;
           ccToggle.classList.toggle('is-on', ccOn && available);
           ccToggle.setAttribute('aria-pressed', ccOn && available ? 'true' : 'false');
+          ccToggle.setAttribute('aria-checked', ccOn && available ? 'true' : 'false');
         }
         if (ccLayer) ccLayer.classList.toggle('is-on', ccOn && available);
       }
@@ -1375,6 +1877,7 @@ const watchController = async (c: Context) => {
 
       function parseVtt(text) {
         var cues = [];
+        var maxDur = 0;
         var blocks = String(text || '').replace(/\\r/g, '').split(/\\n\\n+/);
         for (var i = 0; i < blocks.length; i++) {
           var block = blocks[i].trim();
@@ -1395,9 +1898,14 @@ const watchController = async (c: Context) => {
             .replace(/&gt;/g, '>')
             .trim();
           if (!body) continue;
-          cues.push({ start: parseTs(m[1]), end: parseTs(m[2]), text: body });
+          var start = parseTs(m[1]);
+          var end = parseTs(m[2]);
+          var dur = end - start;
+          if (dur > maxDur) maxDur = dur;
+          cues.push({ start: start, end: end, text: body });
         }
-        return cues;
+        cues.sort(function (a, b) { return a.start - b.start; });
+        return { cues: cues, maxDuration: maxDur };
       }
 
       function applyCcStyle() {
@@ -1473,15 +1981,17 @@ const watchController = async (c: Context) => {
       }
 
       function persistCcLayout() {
-        localStorage.setItem('ani.ccSize', String(ccSizePx));
-        localStorage.setItem('ani.ccX', String(Math.round(ccX * 10) / 10));
-        localStorage.setItem('ani.ccY', String(Math.round(ccY * 10) / 10));
-        localStorage.setItem('ani.ccStyle', ccStyle);
-        localStorage.setItem('ani.ccColor', ccColorKey);
-        localStorage.setItem('ani.ccFont', ccFontKey);
-        localStorage.setItem('ani.ccEdge', ccEdgeKey);
-        localStorage.setItem('ani.ccBg', ccBgKey);
-        localStorage.setItem('ani.ccOpacity', String(ccOpacity));
+        try {
+          localStorage.setItem('ani.ccSize', String(ccSizePx));
+          localStorage.setItem('ani.ccX', String(Math.round(ccX * 10) / 10));
+          localStorage.setItem('ani.ccY', String(Math.round(ccY * 10) / 10));
+          localStorage.setItem('ani.ccStyle', ccStyle);
+          localStorage.setItem('ani.ccColor', ccColorKey);
+          localStorage.setItem('ani.ccFont', ccFontKey);
+          localStorage.setItem('ani.ccEdge', ccEdgeKey);
+          localStorage.setItem('ani.ccBg', ccBgKey);
+          localStorage.setItem('ani.ccOpacity', String(ccOpacity));
+        } catch (e) {}
       }
 
       function setCcPos(preset) {
@@ -1503,6 +2013,7 @@ const watchController = async (c: Context) => {
       function unloadCaptions() {
         ccFetchToken += 1;
         ccCues = [];
+        ccMaxDuration = 0;
         ccSrcLoaded = '';
         hideCcText();
         if (ccLayer) ccLayer.classList.remove('is-on');
@@ -1513,16 +2024,48 @@ const watchController = async (c: Context) => {
         } catch (e) {}
       }
 
+      function findFirstGte(cues, val) {
+        var l = 0, r = cues.length - 1, ans = cues.length;
+        while (l <= r) {
+          var mid = (l + r) >> 1;
+          if (cues[mid].start >= val) {
+            ans = mid;
+            r = mid - 1;
+          } else {
+            l = mid + 1;
+          }
+        }
+        return ans;
+      }
+
+      function findLastLte(cues, val) {
+        var l = 0, r = cues.length - 1, ans = -1;
+        while (l <= r) {
+          var mid = (l + r) >> 1;
+          if (cues[mid].start <= val) {
+            ans = mid;
+            l = mid + 1;
+          } else {
+            r = mid - 1;
+          }
+        }
+        return ans;
+      }
+
       function renderCcAt(t) {
         if (!ccOn || !ccCues.length) {
           hideCcText();
           return;
         }
         var text = '';
-        for (var i = 0; i < ccCues.length; i++) {
-          var c = ccCues[i];
-          if (t >= c.start && t <= c.end) {
-            text = text ? text + '\\n' + c.text : c.text;
+        var startIdx = findFirstGte(ccCues, t - ccMaxDuration);
+        var endIdx = findLastLte(ccCues, t);
+        if (startIdx <= endIdx && startIdx < ccCues.length && endIdx >= 0) {
+          for (var i = startIdx; i <= endIdx; i++) {
+            var c = ccCues[i];
+            if (t >= c.start && t <= c.end) {
+              text = text ? text + '\\n' + c.text : c.text;
+            }
           }
         }
         if (text === activeCueText) return;
@@ -1553,6 +2096,7 @@ const watchController = async (c: Context) => {
         }
         var token = ++ccFetchToken;
         ccCues = [];
+        ccMaxDuration = 0;
         hideCcText();
         fetch(src)
           .then(function (r) {
@@ -1561,13 +2105,16 @@ const watchController = async (c: Context) => {
           })
           .then(function (text) {
             if (token !== ccFetchToken) return;
-            ccCues = parseVtt(text);
+            var parsed = parseVtt(text);
+            ccCues = parsed.cues;
+            ccMaxDuration = parsed.maxDuration || 0;
             ccSrcLoaded = src;
             renderCcAt(video.currentTime || 0);
           })
           .catch(function () {
             if (token !== ccFetchToken) return;
             ccCues = [];
+            ccMaxDuration = 0;
             ccSrcLoaded = '';
             hideCcText();
           });
@@ -1575,7 +2122,7 @@ const watchController = async (c: Context) => {
 
       function setCc(on) {
         ccOn = !!on;
-        localStorage.setItem('ani.cc', ccOn ? '1' : '0');
+        try { localStorage.setItem('ani.cc', ccOn ? '1' : '0'); } catch (e) {}
         if (!ccOn) unloadCaptions();
         applyCaptions();
       }
@@ -1584,7 +2131,7 @@ const watchController = async (c: Context) => {
         rate = next;
         video.playbackRate = rate;
         speedBtn.textContent = (rate % 1 === 0 ? rate.toFixed(0) : String(rate)) + 'x';
-        localStorage.setItem('ani.rate', String(rate));
+        try { localStorage.setItem('ani.rate', String(rate)); } catch (e) {}
         speedRow.querySelectorAll('.speed-chip').forEach(function (btn) {
           btn.classList.toggle('is-active', Number(btn.dataset.rate) === rate);
         });
@@ -1781,8 +2328,50 @@ const watchController = async (c: Context) => {
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
           video.addEventListener('loadedmetadata', finishReady, { once: true });
+        } else if (!window.Hls && document.readyState !== 'complete') {
+          window.addEventListener('load', function () {
+            if (window.Hls && Hls.isSupported()) loadTrack(next, keepTime);
+            else fail('This browser cannot play HLS. Try Chrome, Firefox, or Safari.');
+          }, { once: true });
         } else {
           fail('This browser cannot play HLS. Try Chrome, Firefox, or Safari.');
+        }
+      }
+
+      var lastSettingsTrigger = null;
+      var lastEpTrigger = null;
+
+      function trapDialogFocus(e, dialogEl, closeFn) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          closeFn();
+          return;
+        }
+        if (e.key !== 'Tab') return;
+        var focusables = dialogEl.querySelectorAll('button:not([disabled]):not([hidden]), [href]:not([aria-disabled="true"]):not([hidden]), input:not([disabled]):not([hidden]), select:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])');
+        if (!focusables.length) return;
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || !dialogEl.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !dialogEl.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+
+      function syncBackdrop() {
+        var anyOpen = (settingsMenu && settingsMenu.classList.contains('is-open')) ||
+                      (epPanel && epPanel.classList.contains('is-open'));
+        if (sheetBackdrop) {
+          sheetBackdrop.classList.toggle('is-active', anyOpen);
+          sheetBackdrop.hidden = !anyOpen;
         }
       }
 
@@ -1791,9 +2380,19 @@ const watchController = async (c: Context) => {
         settingsMenu.classList.toggle('is-open', open);
         stage.classList.toggle('settings-open', open);
         settingsBtn.classList.toggle('is-on', open);
+        settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        syncBackdrop();
         if (open) {
+          lastSettingsTrigger = document.activeElement;
           setEpPanel(false);
           pokeControls();
+          var firstFocus = settingsMenu.querySelector('button:not([disabled]), select:not([disabled]), input:not([disabled])');
+          if (firstFocus) {
+            try { firstFocus.focus(); } catch (err) {}
+          }
+        } else if (lastSettingsTrigger && typeof lastSettingsTrigger.focus === 'function') {
+          try { lastSettingsTrigger.focus(); } catch (err) {}
+          lastSettingsTrigger = null;
         }
       }
 
@@ -1801,11 +2400,25 @@ const watchController = async (c: Context) => {
         if (!epPanel || !animeId) return;
         epPanel.hidden = !open;
         epPanel.classList.toggle('is-open', open);
-        if (epListBtn) epListBtn.classList.toggle('is-active', open);
+        if (epListBtn) {
+          epListBtn.classList.toggle('is-active', open);
+          epListBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        if (epListBtnMenu) {
+          epListBtnMenu.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        syncBackdrop();
         if (open) {
+          lastEpTrigger = document.activeElement;
           toggleSettings(false);
           pokeControls();
           loadEpisodeList();
+          if (epPanelClose) {
+            try { epPanelClose.focus(); } catch (err) {}
+          }
+        } else if (lastEpTrigger && typeof lastEpTrigger.focus === 'function') {
+          try { lastEpTrigger.focus(); } catch (err) {}
+          lastEpTrigger = null;
         }
       }
 
@@ -1921,7 +2534,17 @@ const watchController = async (c: Context) => {
           .catch(function () {
             epList.hidden = true;
             epPanelStatus.hidden = false;
-            epPanelStatus.textContent = 'Could not load episodes.';
+            epPanelStatus.innerHTML = '<span>Could not load episodes.</span> ';
+            var retryBtn = document.createElement('button');
+            retryBtn.type = 'button';
+            retryBtn.className = 'pill';
+            retryBtn.style.padding = '4px 10px';
+            retryBtn.style.fontSize = '0.75rem';
+            retryBtn.textContent = 'Retry';
+            retryBtn.addEventListener('click', function () {
+              loadEpisodeList();
+            });
+            epPanelStatus.appendChild(retryBtn);
           });
       }
 
@@ -1932,11 +2555,83 @@ const watchController = async (c: Context) => {
       syncAudioButtons();
       syncCcButtons();
 
+      var lastTapTime = 0;
+      var lastTapX = 0;
+      var tapTimer = null;
+      var gestureTimer = null;
+
+      function flashGesture(side) {
+        var el = side === 'left' ? gestureLeft : gestureRight;
+        if (!el) return;
+        el.classList.add('is-active');
+        clearTimeout(gestureTimer);
+        gestureTimer = setTimeout(function () {
+          el.classList.remove('is-active');
+        }, 400);
+      }
+
       playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
       bigPlay.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
       video.addEventListener('click', function () {
+        if (window.matchMedia('(pointer: coarse)').matches) {
+          // Handled by stage pointerup on touch devices
+          return;
+        }
         if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
         else togglePlay();
+      });
+
+      stage.addEventListener('pointerup', function (e) {
+        if (!window.matchMedia('(pointer: coarse)').matches) return;
+        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+          return;
+        }
+
+        var now = Date.now();
+        var dt = now - lastTapTime;
+        var rect = stage.getBoundingClientRect();
+        var tapX = e.clientX - rect.left;
+        var width = rect.width;
+
+        if (dt < 320 && Math.abs(tapX - lastTapX) < 60) {
+          clearTimeout(tapTimer);
+          tapTimer = null;
+          lastTapTime = 0;
+
+          if (tapX < width * 0.38) {
+            video.currentTime = Math.max(0, (video.currentTime || 0) - 10);
+            updateProgress();
+            updateSkip();
+            flashGesture('left');
+          } else if (tapX > width * 0.62) {
+            video.currentTime = Math.min((video.duration || 0), (video.currentTime || 0) + 10);
+            updateProgress();
+            updateSkip();
+            flashGesture('right');
+          } else {
+            togglePlay();
+          }
+          pokeControls();
+        } else {
+          lastTapTime = now;
+          lastTapX = tapX;
+          clearTimeout(tapTimer);
+          tapTimer = setTimeout(function () {
+            tapTimer = null;
+            if (settingsMenu.classList.contains('is-open')) {
+              toggleSettings(false);
+            } else if (epPanel && epPanel.classList.contains('is-open')) {
+              setEpPanel(false);
+            } else {
+              if (stage.classList.contains('show-controls') && !video.paused) {
+                stage.classList.remove('show-controls');
+                stage.classList.add('cursor-hidden');
+              } else {
+                pokeControls();
+              }
+            }
+          }, 280);
+        }
       });
       muteBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMute(); });
       fsBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleFs(); });
@@ -1944,6 +2639,21 @@ const watchController = async (c: Context) => {
         e.preventDefault(); e.stopPropagation();
         toggleSettings();
       });
+      if (settingsClose) {
+        settingsClose.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSettings(false);
+        });
+      }
+      if (sheetBackdrop) {
+        sheetBackdrop.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSettings(false);
+          setEpPanel(false);
+        });
+      }
       if (epListBtn) {
         epListBtn.addEventListener('click', function (e) {
           e.preventDefault();
@@ -2078,7 +2788,7 @@ const watchController = async (c: Context) => {
           ccCollapseBtn.textContent = ccCollapsed ? '▼ Show' : '▲ Hide';
           ccCollapseBtn.setAttribute('aria-expanded', ccCollapsed ? 'false' : 'true');
         }
-        localStorage.setItem('ani.ccCollapsed', ccCollapsed ? '1' : '0');
+        try { localStorage.setItem('ani.ccCollapsed', ccCollapsed ? '1' : '0'); } catch (e) {}
       }
       if (ccCollapseBtn) {
         ccCollapseBtn.addEventListener('click', function (e) {
@@ -2133,17 +2843,30 @@ const watchController = async (c: Context) => {
         }
         ccBox.addEventListener('pointerup', endCcDrag);
         ccBox.addEventListener('pointercancel', endCcDrag);
+        ccBox.addEventListener('lostpointercapture', endCcDrag);
+        window.addEventListener('blur', function () { if (draggingCc) endCcDrag({}); });
         ccBox.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
         });
       }
       applyCcStyle();
+      if (settingsMenu) {
+        settingsMenu.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, settingsMenu, function () { toggleSettings(false); });
+        });
+      }
+      if (epPanel) {
+        epPanel.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, epPanel, function () { setEpPanel(false); });
+        });
+      }
       loopToggle.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         video.loop = !video.loop;
         loopToggle.classList.toggle('is-on', video.loop);
         loopToggle.setAttribute('aria-pressed', video.loop ? 'true' : 'false');
+        loopToggle.setAttribute('aria-checked', video.loop ? 'true' : 'false');
       });
       speedBtn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
@@ -2239,11 +2962,7 @@ const watchController = async (c: Context) => {
         updateSkip();
       });
       vol.addEventListener('input', function () {
-        video.volume = Number(vol.value);
-        video.muted = video.volume === 0;
-        vol.style.setProperty('--vol', video.volume * 100 + '%');
-        setMuted(video.muted);
-        localStorage.setItem('ani.vol', String(video.volume));
+        applyVolume(vol.value);
       });
 
       if (skipBtn) {
@@ -2347,6 +3066,7 @@ const watchController = async (c: Context) => {
 
       document.addEventListener('keydown', function (e) {
         if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
@@ -2357,11 +3077,13 @@ const watchController = async (c: Context) => {
           if (captions[track]) setCc(!ccOn);
         }
         else if (e.key === '[') {
-          var prev = document.getElementById('prevEp');
+          e.preventDefault();
+          var prev = document.getElementById('prevEpBar') || document.getElementById('prevEp');
           if (prev && prev.getAttribute('href')) location.href = prev.getAttribute('href');
         }
         else if (e.key === ']') {
-          var next = document.getElementById('nextEp');
+          e.preventDefault();
+          var next = document.getElementById('nextEpBar') || document.getElementById('nextEp');
           if (next && next.getAttribute('href')) location.href = next.getAttribute('href');
         }
         else if (e.key === 'm' || e.key === 'M') toggleMute();
@@ -2369,8 +3091,10 @@ const watchController = async (c: Context) => {
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
         else if (e.key === ',' || e.key === '<') cycleRate(-1);
         else if (e.key === '.' || e.key === '>') cycleRate(1);
-        else if (e.key === 'ArrowRight') video.currentTime = Math.min((video.duration || 0), video.currentTime + 10);
-        else if (e.key === 'ArrowLeft') video.currentTime = Math.max(0, video.currentTime - 10);
+        else if (e.key === 'ArrowRight') { e.preventDefault(); video.currentTime = Math.min((video.duration || 0), video.currentTime + 10); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05); }
         else if (e.key === 'Escape') {
           if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
           else if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
@@ -2379,16 +3103,72 @@ const watchController = async (c: Context) => {
         pokeControls();
       });
 
-      setPlaying(false);
-      setMuted(false);
-      // Restore saved volume level
-      var savedVol = parseFloat(localStorage.getItem('ani.vol') || '1');
-      if (isFinite(savedVol) && savedVol >= 0 && savedVol <= 1) {
-        video.volume = savedVol;
-        vol.value = String(savedVol);
+      function initMediaSession() {
+        if (!('mediaSession' in navigator)) return;
+        try {
+          var msTitle = (currentEpNum ? 'Ep ' + currentEpNum : 'Episode') + (currentEpTitle ? ' · ' + currentEpTitle : '');
+          var artworkList = [];
+          if (animeId) {
+            try {
+              var meta = JSON.parse(localStorage.getItem('ani.meta.' + animeId) || 'null');
+              if (meta && meta.poster) {
+                artworkList.push({ src: meta.poster, sizes: '300x450', type: 'image/jpeg' });
+              }
+            } catch (e) {}
+          }
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: msTitle,
+            artist: animeName || ${JSON.stringify(SITE_NAME)},
+            album: animeName || ${JSON.stringify(SITE_NAME)},
+            artwork: artworkList,
+          });
+          navigator.mediaSession.setActionHandler('play', function () { togglePlay(); });
+          navigator.mediaSession.setActionHandler('pause', function () { togglePlay(); });
+          navigator.mediaSession.setActionHandler('seekbackward', function (details) {
+            var skipTime = (details && details.seekOffset) || 10;
+            video.currentTime = Math.max((video.currentTime || 0) - skipTime, 0);
+          });
+          navigator.mediaSession.setActionHandler('seekforward', function (details) {
+            var skipTime = (details && details.seekOffset) || 10;
+            video.currentTime = Math.min((video.currentTime || 0) + skipTime, video.duration || 0);
+          });
+          var prevNav = document.getElementById('prevEpBar') || document.getElementById('prevEp');
+          if (prevNav && prevNav.getAttribute('href')) {
+            navigator.mediaSession.setActionHandler('previoustrack', function () {
+              location.href = prevNav.getAttribute('href');
+            });
+          }
+          var nextNav = document.getElementById('nextEpBar') || document.getElementById('nextEp');
+          if (nextNav && nextNav.getAttribute('href')) {
+            navigator.mediaSession.setActionHandler('nexttrack', function () {
+              location.href = nextNav.getAttribute('href');
+            });
+          }
+        } catch (e) {}
       }
-      vol.style.setProperty('--vol', video.volume * 100 + '%');
-      loadTrack(track, false);
+
+      function init() {
+        setPlaying(false);
+        setMuted(false);
+        // Restore saved volume level
+        var savedVol = 1;
+        try {
+          savedVol = parseFloat(localStorage.getItem('ani.vol') || '1');
+        } catch (e) {}
+        if (isFinite(savedVol) && savedVol >= 0 && savedVol <= 1) {
+          applyVolume(savedVol);
+        } else {
+          applyVolume(1);
+        }
+        loadTrack(track, false);
+        initMediaSession();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
     })();
   </script>
   ${vercelObservabilityScriptTags()}
