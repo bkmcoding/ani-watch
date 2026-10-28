@@ -2,12 +2,26 @@ import { Context } from 'hono';
 
 /** Public site origin (honours proxy headers; forces https on non-local hosts). */
 export function requestOrigin(c: Context): string {
+  const envUrl = process.env.SITE_URL || process.env.APP_URL;
+  if (envUrl) {
+    try {
+      return new URL(envUrl).origin;
+    } catch {
+      // ignore invalid URL
+    }
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+
   const url = new URL(c.req.url);
   const xfProto = c.req.header('x-forwarded-proto')?.split(',')[0]?.trim();
-  const xfHost = (c.req.header('x-forwarded-host') || c.req.header('host') || url.host)
+  const rawHost = (c.req.header('x-forwarded-host') || c.req.header('host') || url.host)
     .split(',')[0]
     ?.trim();
-  const host = xfHost || url.host;
+
+  // Validate hostname format to prevent header injection or request smuggling
+  const host = /^[a-zA-Z0-9.\-_]+(:\d+)?$/.test(rawHost) ? rawHost : url.host;
   let proto = xfProto || url.protocol.replace(':', '') || 'https';
   const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
   if (!local && proto === 'http') proto = 'https';

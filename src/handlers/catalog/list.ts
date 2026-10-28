@@ -31,7 +31,8 @@ const listpageController = async (c: Context): Promise<ListPageResponse> => {
 
   let category = c.req.param('category') || null;
 
-  const page = c.req.query('page') || '1';
+  const rawPage = c.req.query('page') || '1';
+  const pageNum = Math.max(1, parseInt(rawPage, 10) || 1);
 
   if ((query === 'genre' || query === 'producer') && !category) {
     throw new validationError(`category is require for query ${query}`);
@@ -40,11 +41,16 @@ const listpageController = async (c: Context): Promise<ListPageResponse> => {
     category = null;
   }
 
-  let nromalizeCategory = category && category.replaceAll(' ', '-').toLowerCase();
-  if (nromalizeCategory === 'martial-arts') nromalizeCategory = 'marial-arts';
-  const endpoint = category
-    ? `/${query}/${nromalizeCategory}?page=${page}`
-    : `/${query}?page=${page}`;
+  let normalizeCategory = category ? category.replace(/\s+/g, '-').toLowerCase() : null;
+  if (normalizeCategory === 'martial-arts') normalizeCategory = 'marial-arts';
+
+  if (normalizeCategory && (!/^[a-z0-9_-]+$/i.test(normalizeCategory) || normalizeCategory.includes('..'))) {
+    throw new validationError('Invalid category parameter');
+  }
+
+  const endpoint = normalizeCategory
+    ? `/${query}/${encodeURIComponent(normalizeCategory)}?page=${pageNum}`
+    : `/${query}?page=${pageNum}`;
 
   const result = await axiosInstance(endpoint, { cacheTtlMs: 120_000 });
 

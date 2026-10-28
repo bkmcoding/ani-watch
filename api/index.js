@@ -699,6 +699,9 @@ var extractDetailpage = (html) => {
 // src/handlers/catalog/detail.ts
 var detailpageController = async (c) => {
   const id = c.req.param("id");
+  if (!id || !/^[a-zA-Z0-9_\-.]+$/.test(id) || id.includes("..")) {
+    throw new validationError("Invalid anime id");
+  }
   const result = await axiosInstance(`/${id}`, { cacheTtlMs: 18e4 });
   if (!result.success || !result.data) {
     throw new validationError(
@@ -837,16 +840,20 @@ var listpageController = async (c) => {
   if (!validateQueries.includes(query))
     throw new validationError("invalid query", { validateQueries });
   let category = c.req.param("category") || null;
-  const page = c.req.query("page") || "1";
+  const rawPage = c.req.query("page") || "1";
+  const pageNum = Math.max(1, parseInt(rawPage, 10) || 1);
   if ((query === "genre" || query === "producer") && !category) {
     throw new validationError(`category is require for query ${query}`);
   }
   if (query !== "genre" && query !== "producer" && query !== "az-list" && category) {
     category = null;
   }
-  let nromalizeCategory = category && category.replaceAll(" ", "-").toLowerCase();
-  if (nromalizeCategory === "martial-arts") nromalizeCategory = "marial-arts";
-  const endpoint = category ? `/${query}/${nromalizeCategory}?page=${page}` : `/${query}?page=${page}`;
+  let normalizeCategory = category ? category.replace(/\s+/g, "-").toLowerCase() : null;
+  if (normalizeCategory === "martial-arts") normalizeCategory = "marial-arts";
+  if (normalizeCategory && (!/^[a-z0-9_-]+$/i.test(normalizeCategory) || normalizeCategory.includes(".."))) {
+    throw new validationError("Invalid category parameter");
+  }
+  const endpoint = normalizeCategory ? `/${query}/${encodeURIComponent(normalizeCategory)}?page=${pageNum}` : `/${query}?page=${pageNum}`;
   const result = await axiosInstance(endpoint, { cacheTtlMs: 12e4 });
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure given endpoint is correct");
@@ -860,10 +867,14 @@ var list_default = listpageController;
 // src/handlers/catalog/search.ts
 var searchController = async (c) => {
   const keyword = c.req.query("keyword") || c.req.query("q") || c.req.query("query") || null;
-  const page = c.req.query("page") || "1";
+  const rawPage = c.req.query("page") || "1";
+  const pageNum = Math.max(1, parseInt(rawPage, 10) || 1);
   if (!keyword) throw new validationError("query is required");
-  const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, "+");
-  const endpoint = `/search?keyword=${noSpaceKeyword}&page=${page}`;
+  const params = new URLSearchParams({
+    keyword: keyword.trim().toLowerCase(),
+    page: String(pageNum)
+  });
+  const endpoint = `/search?${params.toString()}`;
   const result = await axiosInstance(endpoint, { cacheTtlMs: 9e4 });
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure given endpoint is correct");
@@ -934,8 +945,10 @@ var extractSuggestions = (html) => {
 var suggestionController = async (c) => {
   const keyword = c.req.query("keyword") || c.req.query("q") || c.req.query("query") || null;
   if (!keyword) throw new validationError("query is required");
-  const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, "+");
-  const endpoint = `/ajax/search/suggest?keyword=${noSpaceKeyword}`;
+  const params = new URLSearchParams({
+    keyword: keyword.trim().toLowerCase()
+  });
+  const endpoint = `/ajax/search/suggest?${params.toString()}`;
   const result = await axiosInstance(endpoint, {
     headers: { Referer: `${config_default.baseurl}/home` },
     cacheTtlMs: 6e4
@@ -943,8 +956,14 @@ var suggestionController = async (c) => {
   if (!result.success || !result.data) {
     throw new validationError(result.message || "suggestion not found");
   }
-  const jsonData = JSON.parse(result.data);
-  const response = extractSuggestions(jsonData.html);
+  let html = "";
+  try {
+    const jsonData = JSON.parse(result.data);
+    html = typeof jsonData?.html === "string" ? jsonData.html : "";
+  } catch {
+    html = result.data;
+  }
+  const response = extractSuggestions(html);
   return response;
 };
 var suggestion_default = suggestionController;
@@ -1026,10 +1045,14 @@ var extractCharacters = (html) => {
 var charactersController = async (c) => {
   try {
     const id = c.req.param("id");
-    const page = c.req.query("page") || "1";
+    const rawPage = c.req.query("page") || "1";
+    const pageNum = Math.max(1, parseInt(rawPage, 10) || 1);
     if (!id) throw new validationError("id is required");
     const idNum = id.split("-").pop();
-    const endpoint = `/ajax/character/list/${idNum}?page=${page}`;
+    if (!idNum || !/^\d+$/.test(idNum)) {
+      throw new validationError("Invalid anime character list id");
+    }
+    const endpoint = `/ajax/character/list/${idNum}?page=${pageNum}`;
     const result = await axiosInstance(endpoint, {
       headers: { Referer: `${config_default.baseurl}/home` }
     });
@@ -1039,6 +1062,9 @@ var charactersController = async (c) => {
     const response = extractCharacters(result.data);
     return response;
   } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
     if (err instanceof Error) {
       console.log(err.message);
     } else {
@@ -1140,7 +1166,9 @@ var extractCharacterDetail = (html) => {
 // src/handlers/catalog/characterDetail.ts
 var characterDetailConroller = async (c) => {
   const id = c.req.param("id");
-  if (!id) throw new validationError("id is required");
+  if (!id || id.includes("..") || !/^[a-zA-Z0-9_\-.:]+$/.test(id)) {
+    throw new validationError("Invalid character id");
+  }
   const result = await axiosInstance(`/${id.replace(":", "/")}`);
   if (!result.success || !result.data) {
     throw new validationError(result.message || "make sure given endpoint is correct");
@@ -1500,10 +1528,20 @@ async function resolveZokoSources(embedUrl) {
 
 // src/lib/streamUrls.ts
 function requestOrigin(c) {
+  const envUrl = process.env.SITE_URL || process.env.APP_URL;
+  if (envUrl) {
+    try {
+      return new URL(envUrl).origin;
+    } catch {
+    }
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
   const url = new URL(c.req.url);
   const xfProto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
-  const xfHost = (c.req.header("x-forwarded-host") || c.req.header("host") || url.host).split(",")[0]?.trim();
-  const host = xfHost || url.host;
+  const rawHost = (c.req.header("x-forwarded-host") || c.req.header("host") || url.host).split(",")[0]?.trim();
+  const host = /^[a-zA-Z0-9.\-_]+(:\d+)?$/.test(rawHost) ? rawHost : url.host;
   let proto = xfProto || url.protocol.replace(":", "") || "https";
   const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
   if (!local && proto === "http") proto = "https";
@@ -6131,7 +6169,7 @@ router.get("/hianime/watch", async (c) => {
 <body>
   <div class="card">
     <h1>Episode unavailable</h1>
-    <p><code>${msg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</code></p>
+    <p><code>${msg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;")}</code></p>
     <a href="/browse">\u2190 Back to browse</a>
   </div>
 </body>

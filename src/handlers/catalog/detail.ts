@@ -7,6 +7,10 @@ import { DetailAnime } from '../../types/anime';
 const detailpageController = async (c: Context): Promise<DetailAnime> => {
   const id = c.req.param('id');
 
+  if (!id || !/^[a-zA-Z0-9_\-.]+$/.test(id) || id.includes('..')) {
+    throw new validationError('Invalid anime id');
+  }
+
   const result = await axiosInstance(`/${id}`, { cacheTtlMs: 180_000 });
   if (!result.success || !result.data) {
     throw new validationError(

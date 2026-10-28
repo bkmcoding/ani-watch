@@ -6,13 +6,17 @@ import { NotFoundError, validationError } from '../../lib/errors';
 /** Shape search results like aniwatch-api so Discord bots keep working. */
 const searchController = async (c: Context) => {
   const keyword = c.req.query('keyword') || c.req.query('q') || c.req.query('query') || null;
-  const page = c.req.query('page') || '1';
+  const rawPage = c.req.query('page') || '1';
+  const pageNum = Math.max(1, parseInt(rawPage, 10) || 1);
 
   if (!keyword) throw new validationError('query is required');
 
-  const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, '+');
+  const params = new URLSearchParams({
+    keyword: keyword.trim().toLowerCase(),
+    page: String(pageNum),
+  });
 
-  const endpoint = `/search?keyword=${noSpaceKeyword}&page=${page}`;
+  const endpoint = `/search?${params.toString()}`;
   const result = await axiosInstance(endpoint, { cacheTtlMs: 90_000 });
 
   if (!result.success || !result.data) {

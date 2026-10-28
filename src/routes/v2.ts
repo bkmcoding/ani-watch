@@ -144,7 +144,7 @@ router.get('/hianime/watch', async c => {
 <body>
   <div class="card">
     <h1>Episode unavailable</h1>
-    <p><code>${msg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</code></p>
+    <p><code>${msg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</code></p>
     <a href="/browse">← Back to browse</a>
   </div>
 </body>

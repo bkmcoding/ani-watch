@@ -9,8 +9,10 @@ const suggestionController = async (c: Context): Promise<Suggestion[]> => {
 
   if (!keyword) throw new validationError('query is required');
 
-  const noSpaceKeyword = keyword.trim().toLowerCase().replace(/\s+/g, '+');
-  const endpoint = `/ajax/search/suggest?keyword=${noSpaceKeyword}`;
+  const params = new URLSearchParams({
+    keyword: keyword.trim().toLowerCase(),
+  });
+  const endpoint = `/ajax/search/suggest?${params.toString()}`;
 
   const result = await axiosInstance(endpoint, {
     headers: { Referer: `${config.baseurl}/home` },
@@ -22,10 +24,14 @@ const suggestionController = async (c: Context): Promise<Suggestion[]> => {
   }
 
   // Parse HTML from JSON if necessary, or just use result.data if it's already HTML
-  // In hianime API, suggestion ajax usually returns JSON with { status, html }
-  // but my axiosInstance returns response.text() which is the raw JSON string.
-  const jsonData = JSON.parse(result.data);
-  const response = extractSuggestions(jsonData.html);
+  let html = '';
+  try {
+    const jsonData = JSON.parse(result.data);
+    html = typeof jsonData?.html === 'string' ? jsonData.html : '';
+  } catch {
+    html = result.data;
+  }
+  const response = extractSuggestions(html);
 
   return response;
 };
