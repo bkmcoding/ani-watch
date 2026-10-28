@@ -11,6 +11,7 @@ import { logger } from 'hono/logger';
 import config from './config/config';
 import { faviconResponse, SITE_NAME, SITE_TAGLINE } from './lib/brand';
 import { NOTICE_API } from './lib/notices';
+import { scrapeCache } from './lib/ttlCache';
 import landingController from './handlers/pages/landing';
 import browseController from './handlers/pages/browse';
 
@@ -140,6 +141,7 @@ app.get('/api', (c: Context) => {
       'Player episode picker: GET /api/v2/hianime/watch/episodes?anime=',
     ],
     endpoints: {
+      health: '/health',
       ping: '/ping',
       favicon: '/favicon.svg',
       search: '/api/v2/hianime/search?keyword=',
@@ -154,6 +156,25 @@ app.get('/api', (c: Context) => {
       hls: '/api/v2/hianime/hls?url=',
       poster: '/api/v2/hianime/poster?url=',
     },
+  });
+});
+
+app.get('/health', (c: Context) => {
+  const mem = process.memoryUsage();
+  return c.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: Math.round(process.uptime()),
+    environment: config.isVercel ? 'vercel' : 'self-hosted',
+    memory: {
+      heapUsedMb: Math.round((mem.heapUsed / 1024 / 1024) * 100) / 100,
+      heapTotalMb: Math.round((mem.heapTotal / 1024 / 1024) * 100) / 100,
+      rssMb: Math.round((mem.rss / 1024 / 1024) * 100) / 100,
+    },
+    cache: {
+      items: scrapeCache.size(),
+    },
+    version: '2.2.0',
   });
 });
 

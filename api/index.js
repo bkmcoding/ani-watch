@@ -1710,58 +1710,86 @@ function faviconLinkTags(origin) {
 
 // src/services/episodeSources.ts
 var STREAM_TTL_MS = 18e4;
+function isMegaServer(s) {
+  return /(?:megaplay|megacloud)/i.test(s.embedUrl) || /hd-?[12]/i.test(s.serverName);
+}
 function pickMegaPlay(servers, category, server) {
   const picked = pickServer(servers, server, category);
-  if (picked && /megaplay/i.test(picked.embedUrl)) return picked;
+  if (picked && isMegaServer(picked)) return picked;
   return pickServer(
-    servers.filter((s) => /megaplay/i.test(s.embedUrl)),
+    servers.filter(isMegaServer),
     "hd-1",
     category
   );
 }
 function pickZoko(servers, category) {
-  const pool = servers.filter((s) => s.type === category && /zoko/i.test(s.embedUrl));
+  const pool = servers.filter(
+    (s) => s.type === category && (/zoko/i.test(s.embedUrl) || /zoko/i.test(s.serverName))
+  );
   return pool[0] || null;
 }
 async function resolveCategory(servers, category, server, episodeId) {
   const cacheKey = `stream:${episodeId}:${category}:${server}`;
-  return scrapeCache.getOrSet(cacheKey, STREAM_TTL_MS, async () => {
+  const hit = scrapeCache.get(cacheKey);
+  if (hit) return hit;
+  const wantsZoko = /zoko/i.test(server);
+  const tryMegaPlay = async () => {
     const mega = pickMegaPlay(servers, category, server);
-    if (mega) {
-      try {
-        const stream = await resolveMegaPlaySources(mega.embedUrl);
-        const m3u8 = stream.sources[0]?.url;
-        if (m3u8) {
-          return {
-            category,
-            provider: "megaplay",
-            server: mega.serverName.toLowerCase().replace(/\s+/g, "-"),
-            m3u8,
-            stream
-          };
-        }
-      } catch {
-      }
-    }
+    if (!mega) return null;
+    const stream = await resolveMegaPlaySources(mega.embedUrl);
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      provider: "megaplay",
+      server: mega.serverName.toLowerCase().replace(/\s+/g, "-"),
+      m3u8,
+      stream
+    };
+  };
+  const tryZoko = async () => {
     const zoko = pickZoko(servers, category);
-    if (zoko) {
-      try {
-        const stream = await resolveZokoSources(zoko.embedUrl);
-        const m3u8 = stream.sources[0]?.url;
-        if (m3u8) {
-          return {
-            category,
-            provider: "zoko",
-            server: zoko.serverName.toLowerCase().replace(/\s+/g, "-"),
-            m3u8,
-            stream
-          };
-        }
-      } catch {
+    if (!zoko) return null;
+    const stream = await resolveZokoSources(zoko.embedUrl);
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      provider: "zoko",
+      server: zoko.serverName.toLowerCase().replace(/\s+/g, "-"),
+      m3u8,
+      stream
+    };
+  };
+  const [primaryFn, fallbackFn, primaryName, fallbackName] = wantsZoko ? [tryZoko, tryMegaPlay, "Zoko", "MegaPlay"] : [tryMegaPlay, tryZoko, "MegaPlay", "Zoko"];
+  let resolved = null;
+  try {
+    resolved = await primaryFn();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[Stream Resolver] ${primaryName} failed for ${episodeId} (${category}): ${msg}. Auto-failing over to ${fallbackName}...`
+    );
+  }
+  if (!resolved) {
+    try {
+      resolved = await fallbackFn();
+      if (resolved) {
+        console.info(
+          `[Stream Resolver] Auto-failover to ${fallbackName} succeeded for ${episodeId} (${category}).`
+        );
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[Stream Resolver] Fallback ${fallbackName} failed for ${episodeId} (${category}): ${msg}`
+      );
     }
-    return null;
-  });
+  }
+  if (resolved) {
+    scrapeCache.set(cacheKey, resolved, STREAM_TTL_MS);
+  }
+  return resolved;
 }
 function normalizeEpisodeId(raw) {
   return raw.includes("::") ? raw.replace("::", "?") : raw;
@@ -1827,7 +1855,7 @@ var PROVIDER_META = {
   }
 };
 function detectProvider(embedUrl) {
-  if (/megaplay/i.test(embedUrl)) return "megaplay";
+  if (/(?:megaplay|megacloud)/i.test(embedUrl)) return "megaplay";
   if (/zoko/i.test(embedUrl)) return "zoko";
   return null;
 }
@@ -9538,6 +9566,7 @@ app.get("/api", (c) => {
       "Player episode picker: GET /api/v2/hianime/watch/episodes?anime="
     ],
     endpoints: {
+      health: "/health",
       ping: "/ping",
       favicon: "/favicon.svg",
       search: "/api/v2/hianime/search?keyword=",
@@ -9552,6 +9581,24 @@ app.get("/api", (c) => {
       hls: "/api/v2/hianime/hls?url=",
       poster: "/api/v2/hianime/poster?url="
     }
+  });
+});
+app.get("/health", (c) => {
+  const mem = process.memoryUsage();
+  return c.json({
+    status: "ok",
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    uptime: Math.round(process.uptime()),
+    environment: config_default.isVercel ? "vercel" : "self-hosted",
+    memory: {
+      heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
+      heapTotalMb: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
+      rssMb: Math.round(mem.rss / 1024 / 1024 * 100) / 100
+    },
+    cache: {
+      items: scrapeCache.size()
+    },
+    version: "2.2.0"
   });
 });
 app.get("/ping", (c) => {

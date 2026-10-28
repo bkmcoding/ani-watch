@@ -28,70 +28,105 @@ type ResolvedTrack = {
   stream: Awaited<ReturnType<typeof resolveMegaPlaySources>>;
 };
 
+function isMegaServer(s: ThemeServer): boolean {
+  return /(?:megaplay|megacloud)/i.test(s.embedUrl) || /hd-?[12]/i.test(s.serverName);
+}
+
 function pickMegaPlay(servers: ThemeServer[], category: string, server: string) {
   const picked = pickServer(servers, server, category);
-  if (picked && /megaplay/i.test(picked.embedUrl)) return picked;
+  if (picked && isMegaServer(picked)) return picked;
   return pickServer(
-    servers.filter(s => /megaplay/i.test(s.embedUrl)),
+    servers.filter(isMegaServer),
     'hd-1',
     category
   );
 }
 
 function pickZoko(servers: ThemeServer[], category: string) {
-  const pool = servers.filter(s => s.type === category && /zoko/i.test(s.embedUrl));
+  const pool = servers.filter(
+    s => s.type === category && (/zoko/i.test(s.embedUrl) || /zoko/i.test(s.serverName))
+  );
   return pool[0] || null;
 }
 
-async function resolveCategory(
+export async function resolveCategory(
   servers: ThemeServer[],
   category: 'sub' | 'dub',
   server: string,
   episodeId: string
 ): Promise<ResolvedTrack | null> {
   const cacheKey = `stream:${episodeId}:${category}:${server}`;
+  const hit = scrapeCache.get(cacheKey) as ResolvedTrack | undefined;
+  if (hit) return hit;
 
-  return scrapeCache.getOrSet(cacheKey, STREAM_TTL_MS, async () => {
+  const wantsZoko = /zoko/i.test(server);
+
+  const tryMegaPlay = async (): Promise<ResolvedTrack | null> => {
     const mega = pickMegaPlay(servers, category, server);
-    if (mega) {
-      try {
-        const stream = await resolveMegaPlaySources(mega.embedUrl);
-        const m3u8 = stream.sources[0]?.url;
-        if (m3u8) {
-          return {
-            category,
-            provider: 'megaplay' as const,
-            server: mega.serverName.toLowerCase().replace(/\s+/g, '-'),
-            m3u8,
-            stream,
-          };
-        }
-      } catch {
-        // fall through to Zoko
-      }
-    }
+    if (!mega) return null;
+    const stream = await resolveMegaPlaySources(mega.embedUrl);
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      provider: 'megaplay' as const,
+      server: mega.serverName.toLowerCase().replace(/\s+/g, '-'),
+      m3u8,
+      stream,
+    };
+  };
 
+  const tryZoko = async (): Promise<ResolvedTrack | null> => {
     const zoko = pickZoko(servers, category);
-    if (zoko) {
-      try {
-        const stream = await resolveZokoSources(zoko.embedUrl);
-        const m3u8 = stream.sources[0]?.url;
-        if (m3u8) {
-          return {
-            category,
-            provider: 'zoko' as const,
-            server: zoko.serverName.toLowerCase().replace(/\s+/g, '-'),
-            m3u8,
-            stream,
-          };
-        }
-      } catch {
-        // fall through
-      }
-    }
+    if (!zoko) return null;
+    const stream = await resolveZokoSources(zoko.embedUrl);
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      provider: 'zoko' as const,
+      server: zoko.serverName.toLowerCase().replace(/\s+/g, '-'),
+      m3u8,
+      stream: stream as unknown as Awaited<ReturnType<typeof resolveMegaPlaySources>>,
+    };
+  };
 
-    return null as unknown as ResolvedTrack; // getOrSet requires non-undefined; null cached fine
-  }) as Promise<ResolvedTrack | null>;
+  const [primaryFn, fallbackFn, primaryName, fallbackName] = wantsZoko
+    ? [tryZoko, tryMegaPlay, 'Zoko', 'MegaPlay']
+    : [tryMegaPlay, tryZoko, 'MegaPlay', 'Zoko'];
+
+  let resolved: ResolvedTrack | null = null;
+
+  try {
+    resolved = await primaryFn();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[Stream Resolver] ${primaryName} failed for ${episodeId} (${category}): ${msg}. Auto-failing over to ${fallbackName}...`
+    );
+  }
+
+  if (!resolved) {
+    try {
+      resolved = await fallbackFn();
+      if (resolved) {
+        console.info(
+          `[Stream Resolver] Auto-failover to ${fallbackName} succeeded for ${episodeId} (${category}).`
+        );
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[Stream Resolver] Fallback ${fallbackName} failed for ${episodeId} (${category}): ${msg}`
+      );
+    }
+  }
+
+  if (resolved) {
+    scrapeCache.set(cacheKey, resolved, STREAM_TTL_MS);
+  }
+
+  return resolved;
 }
 
 function normalizeEpisodeId(raw: string): string {
@@ -216,7 +251,7 @@ const PROVIDER_META: Record<
 };
 
 function detectProvider(embedUrl: string): ProviderId | null {
-  if (/megaplay/i.test(embedUrl)) return 'megaplay';
+  if (/(?:megaplay|megacloud)/i.test(embedUrl)) return 'megaplay';
   if (/zoko/i.test(embedUrl)) return 'zoko';
   return null;
 }

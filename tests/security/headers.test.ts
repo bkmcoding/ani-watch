@@ -41,6 +41,18 @@ describe('HTTP Security Headers & Middleware Hardening', () => {
     expect(body.message).toContain('permitted hosts');
   });
 
+  it('returns comprehensive system telemetry on /health', async () => {
+    const res = await app.request('/health');
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.status).toBe('ok');
+    expect(body.version).toBe('2.2.0');
+    expect(typeof body.uptime).toBe('number');
+    expect(typeof body.memory?.heapUsedMb).toBe('number');
+    expect(typeof body.cache?.items).toBe('number');
+  });
+
   it('rejects SSRF attempts on /api/v2/hianime/hls with validation error', async () => {
     const res = await app.request(
       '/api/v2/hianime/hls?url=https://169.254.169.254/latest/meta-data/'

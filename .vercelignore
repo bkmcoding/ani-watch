@@ -84,5 +84,4 @@ tests/
 # Misc
 .husky/
 bun.lock
-package-lock.json
 .env.example

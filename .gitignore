@@ -51,3 +51,5 @@ tmp_*.ts
 tmp_*.js
 tmp_*.html
 tmp_rovodev_*.md
+.impeccable/
+.playwright-cli/
