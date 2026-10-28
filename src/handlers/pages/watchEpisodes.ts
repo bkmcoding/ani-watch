@@ -33,7 +33,7 @@ const watchEpisodesController = async (c: Context) => {
   }
 
   const extracted = extractEpisodes(htmlFromAjax(listResult.data));
-  const episodes = extracted.map((ep) => ({
+  const episodes = extracted.map(ep => ({
     n: ep.episodeNumber,
     id: normalizeEpisodeId(ep.id),
     title: ep.title,

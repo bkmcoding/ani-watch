@@ -60,10 +60,6 @@ export function createTtlCache<T = unknown>(opts: TtlCacheOptions = {}) {
 /** Shared process-wide cache for scrape / theme / stream metadata. */
 export const scrapeCache = createTtlCache<unknown>({ max: 400 });
 
-export async function cached<T>(
-  key: string,
-  ttlMs: number,
-  loader: () => Promise<T>
-): Promise<T> {
+export async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
   return scrapeCache.getOrSet(key, ttlMs, loader) as Promise<T>;
 }

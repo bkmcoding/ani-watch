@@ -1,9 +1,4 @@
-import {
-  parseThemeServers,
-  pickServer,
-  resolveMegaPlaySources,
-  ThemeServer,
-} from './megaplay';
+import { parseThemeServers, pickServer, resolveMegaPlaySources, ThemeServer } from './megaplay';
 import { resolveZokoSources } from './zoko';
 import { extractEpisodes } from '../extractors/extractEpisodes';
 import {
@@ -37,14 +32,14 @@ function pickMegaPlay(servers: ThemeServer[], category: string, server: string) 
   const picked = pickServer(servers, server, category);
   if (picked && /megaplay/i.test(picked.embedUrl)) return picked;
   return pickServer(
-    servers.filter((s) => /megaplay/i.test(s.embedUrl)),
+    servers.filter(s => /megaplay/i.test(s.embedUrl)),
     'hd-1',
     category
   );
 }
 
 function pickZoko(servers: ThemeServer[], category: string) {
-  const pool = servers.filter((s) => s.type === category && /zoko/i.test(s.embedUrl));
+  const pool = servers.filter(s => s.type === category && /zoko/i.test(s.embedUrl));
   return pool[0] || null;
 }
 
@@ -111,7 +106,7 @@ async function findNeighbors(slug: string, currentEpNum: string) {
     if (!list.success || !list.data) return null;
     const episodes = extractEpisodes(htmlFromAjax(list.data));
     const idx = episodes.findIndex(
-      (ep) =>
+      ep =>
         String(ep.episodeNumber) === String(currentEpNum) ||
         (ep.id && episodeNumericId(normalizeEpisodeId(ep.id)) === String(currentEpNum))
     );
@@ -132,7 +127,7 @@ async function findNeighbors(slug: string, currentEpNum: string) {
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     let settled = false;
     const timer = setTimeout(() => {
       if (!settled) {
@@ -141,7 +136,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
       }
     }, ms);
     promise
-      .then((v) => {
+      .then(v => {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
@@ -245,8 +240,8 @@ function buildAvailableProviders(
 
   const order: ProviderId[] = ['megaplay', 'zoko'];
   return order
-    .filter((id) => byId.has(id))
-    .map((id) => {
+    .filter(id => byId.has(id))
+    .map(id => {
       const meta = PROVIDER_META[id];
       return {
         id,
@@ -287,11 +282,10 @@ export async function resolveEpisodePlayback(
   }
 
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  const hasPreferred = servers.some((s) => s.type === preferred);
-  const hasOther = servers.some((s) => s.type === other);
+  const hasPreferred = servers.some(s => s.type === preferred);
+  const hasOther = servers.some(s => s.type === other);
 
-  const neighborsPromise =
-    wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
+  const neighborsPromise = wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
 
   // Resolve the primary (requested) track first — sequential to avoid hitting
   // the upstream embed server with two parallel requests (causes rate-limiting).
@@ -325,15 +319,10 @@ export async function resolveEpisodePlayback(
   const dubCc = pickEnglishSubtitle(dubTrack?.stream.subtitles);
   const animeTitle = titleFromAnimeSlug(slug);
   const episodeTitle = neighbors?.current?.title || null;
-  const episodeNumber =
-    neighbors?.current?.episodeNumber ?? (Number(epNum) || null);
+  const episodeNumber = neighbors?.current?.episodeNumber ?? (Number(epNum) || null);
 
-  const prevId = neighbors?.prev?.id
-    ? normalizeEpisodeId(neighbors.prev.id)
-    : null;
-  const nextId = neighbors?.next?.id
-    ? normalizeEpisodeId(neighbors.next.id)
-    : null;
+  const prevId = neighbors?.prev?.id ? normalizeEpisodeId(neighbors.prev.id) : null;
+  const nextId = neighbors?.next?.id ? normalizeEpisodeId(neighbors.next.id) : null;
 
   const watchOpts = {
     sub: subTrack?.m3u8 || null,
@@ -353,8 +342,8 @@ export async function resolveEpisodePlayback(
     intro: subTrack?.stream.intro ?? (!subTrack ? dubTrack?.stream.intro : null) ?? null,
     outro: subTrack?.stream.outro ?? (!subTrack ? dubTrack?.stream.outro : null) ?? null,
     // dis/die/dos/doe only when both tracks exist
-    dubIntro: subTrack && dubTrack ? dubTrack.stream.intro ?? null : null,
-    dubOutro: subTrack && dubTrack ? dubTrack.stream.outro ?? null : null,
+    dubIntro: subTrack && dubTrack ? (dubTrack.stream.intro ?? null) : null,
+    dubOutro: subTrack && dubTrack ? (dubTrack.stream.outro ?? null) : null,
     subProvider: subTrack?.provider ?? null,
     dubProvider: dubTrack?.provider ?? null,
   };

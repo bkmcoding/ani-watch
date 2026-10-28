@@ -19,7 +19,7 @@ export function deobfuscateZoko(blob: string): Record<string, unknown> {
   const decoded = xor(Buffer.from(blob, 'base64').toString('binary'));
   // binary string → UTF-8 via percent-encoding (escape/unescape equivalent)
   const json = decodeURIComponent(
-    Array.from(decoded, (ch) => '%' + ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+    Array.from(decoded, ch => '%' + ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
   );
   return JSON.parse(json);
 }
@@ -65,8 +65,8 @@ export async function resolveZokoSources(embedUrl: string): Promise<ZokoStreamRe
     },
     sources: [{ url: m3u8, isM3U8: true, quality: 'auto' }],
     subtitles: (data.subtitles || [])
-      .filter((t) => t.src)
-      .map((t) => ({
+      .filter(t => t.src)
+      .map(t => ({
         lang: t.label || t.lang || 'Unknown',
         url: t.src as string,
         default: Boolean(t.default),

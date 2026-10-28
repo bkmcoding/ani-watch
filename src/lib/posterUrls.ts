@@ -1,21 +1,22 @@
 import { buildMediaProxyUrl, posterProxyBase } from './streamUrls';
 
 /** HiAnime / Zoro thumbnail hosts (BunnyCDN hotlink-protected). */
-const POSTER_HOST_SUFFIXES = [
+const POSTER_ALLOWED_DOMAINS = [
   'anipixcdn.co',
   'noitatnemucod.net',
   'bunnycdn.ru',
   'b-cdn.net',
   'wsrv.nl',
   'weserv.nl',
+  'hianime.lu',
+  'hianime.to',
+  'aniwatchtv.to',
 ];
 
 export function isAllowedPosterHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  if (POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s))) return true;
-  // Common HiAnime / Zoro thumbnail CDNs
-  if (host.includes('anipix') || host.includes('noitatnemucod')) return true;
-  return false;
+  if (!hostname || typeof hostname !== 'string') return false;
+  const host = hostname.trim().toLowerCase();
+  return POSTER_ALLOWED_DOMAINS.some(domain => host === domain || host.endsWith('.' + domain));
 }
 
 /** Same-origin (or MEDIA_PROXY_ORIGIN) proxy so browse can show posters despite CDN hotlink rules. */

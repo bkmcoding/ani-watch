@@ -90,7 +90,10 @@ export const extractHomepage = (html: string): HomePage => {
 
     const imageEl = $(el).find('.film-poster');
 
-    obj.poster = pickPosterUrl(imageEl.find('img').attr('data-src'), imageEl.find('img').attr('src'));
+    obj.poster = pickPosterUrl(
+      imageEl.find('img').attr('data-src'),
+      imageEl.find('img').attr('src')
+    );
     obj.id = imageEl.attr('href')?.split('/').at(-1) || null;
 
     response.trending.push(obj);

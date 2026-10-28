@@ -1,6 +1,10 @@
 const config = {
   baseurl: process.env.BASE_URL || process.env.HIANIME_BASE_URL || 'https://hianime.lu',
-  baseurl2: process.env.BASE_URL_2 || process.env.BASE_URL || process.env.HIANIME_BASE_URL || 'https://hianime.lu',
+  baseurl2:
+    process.env.BASE_URL_2 ||
+    process.env.BASE_URL ||
+    process.env.HIANIME_BASE_URL ||
+    'https://hianime.lu',
   origin: process.env.CORS_ORIGIN || '*',
   port: Number(process.env.PORT) || 5000,
 

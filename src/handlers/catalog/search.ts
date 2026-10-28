@@ -25,7 +25,7 @@ const searchController = async (c: Context) => {
     throw new NotFoundError('page not found');
   }
 
-  const animes = parsed.response.map((item) => ({
+  const animes = parsed.response.map(item => ({
     id: item.id,
     name: item.title,
     jname: item.alternativeTitle,

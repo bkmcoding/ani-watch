@@ -1,11 +1,6 @@
 import { Context } from 'hono';
 import { validationError } from '../../lib/errors';
-import {
-  proxiedHlsUrl,
-  proxiedVttUrl,
-  requestOrigin,
-  watchPlayUrl,
-} from '../../lib/streamUrls';
+import { proxiedHlsUrl, proxiedVttUrl, requestOrigin, watchPlayUrl } from '../../lib/streamUrls';
 import { faviconLinkTags, SITE_NAME, titleFromAnimeSlug } from '../../lib/brand';
 import { NOTICE_SHORT } from '../../lib/notices';
 import { vercelObservabilityScriptTags } from '../../lib/vercelObservability';
@@ -16,7 +11,7 @@ function parseAllowedUrl(raw: string | undefined): string | null {
     const u = new URL(raw);
     // Only require https:// — the HLS proxy enforces the CDN allowlist when
     // the URL is actually fetched, so double-checking here just breaks on new CDN hostnames.
-    if (!/^https?:$/i.test(u.protocol) || !u.hostname || u.hostname.length < 3) return null;
+    if (u.protocol !== 'https:' || !u.hostname || u.hostname.length < 3) return null;
     return u.href;
   } catch {
     return null;
@@ -41,8 +36,16 @@ function escAttr(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function safeJson(val: unknown): string {
+  return JSON.stringify(val)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
 }
 
 function parseEpisodeIdParam(raw: string | undefined): string | null {
@@ -62,10 +65,7 @@ function parseSkipSec(raw: string | undefined): number | null {
   return Math.round(n);
 }
 
-function parseSkipRange(
-  startRaw: string | undefined,
-  endRaw: string | undefined
-): SkipRange {
+function parseSkipRange(startRaw: string | undefined, endRaw: string | undefined): SkipRange {
   const start = parseSkipSec(startRaw);
   const end = parseSkipSec(endRaw);
   if (start == null || end == null || end <= start) return null;
@@ -127,8 +127,7 @@ const watchController = async (c: Context) => {
     throw new validationError('sub, dub, or url query param required (allowed CDN hosts only)');
   }
 
-  const initial =
-    preferredRaw === 'dub' && resolvedDub ? 'dub' : resolvedSub ? 'sub' : 'dub';
+  const initial = preferredRaw === 'dub' && resolvedDub ? 'dub' : resolvedSub ? 'sub' : 'dub';
   const origin = requestOrigin(c);
 
   function sameOriginPlay(raw: string | null): string | null {
@@ -212,7 +211,7 @@ const watchController = async (c: Context) => {
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
   <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" /></noscript>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" integrity="sha384-9v3HcdYrO3D+OPDTjZ40RXocgE4GtXVCd3/mCS62JsM93JXgI1afJVuwjFvsu6ni" crossorigin="anonymous" defer></script>
   <style>
     :root {
       --bg0: #0a0c10;
@@ -1490,17 +1489,17 @@ const watchController = async (c: Context) => {
 
   <script>
     (function () {
-      var streams = ${JSON.stringify(streams)};
-      var captions = ${JSON.stringify(captions)};
-      var skips = ${JSON.stringify(skips)};
-      var providers = ${JSON.stringify(providers)};
-      var animeId = ${JSON.stringify(animeId)};
-      var animeName = ${JSON.stringify(animeTitle || '')};
-      var playCategory = ${JSON.stringify(category)};
-      var currentEpNum = ${JSON.stringify(epNum)};
-      var currentEpTitle = ${JSON.stringify(epTitle || '')};
+      var streams = ${safeJson(streams)};
+      var captions = ${safeJson(captions)};
+      var skips = ${safeJson(skips)};
+      var providers = ${safeJson(providers)};
+      var animeId = ${safeJson(animeId)};
+      var animeName = ${safeJson(animeTitle || '')};
+      var playCategory = ${safeJson(category)};
+      var currentEpNum = ${safeJson(epNum)};
+      var currentEpTitle = ${safeJson(epTitle || '')};
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
-      var track = ${JSON.stringify(initial)};
+      var track = ${safeJson(initial)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
       var stage = document.getElementById('stage');
@@ -3118,8 +3117,8 @@ const watchController = async (c: Context) => {
           }
           navigator.mediaSession.metadata = new MediaMetadata({
             title: msTitle,
-            artist: animeName || ${JSON.stringify(SITE_NAME)},
-            album: animeName || ${JSON.stringify(SITE_NAME)},
+            artist: animeName || ${safeJson(SITE_NAME)},
+            album: animeName || ${safeJson(SITE_NAME)},
             artwork: artworkList,
           });
           navigator.mediaSession.setActionHandler('play', function () { togglePlay(); });

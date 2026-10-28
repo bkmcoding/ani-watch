@@ -13,8 +13,7 @@ export interface Env {
   MEDIA_PROXY_SECRET?: string;
 }
 
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
 /**
  * SSRF guard for stream URLs: block private/reserved ranges only.
@@ -22,41 +21,83 @@ const UA =
  * MegaPlay/Zoko rotate CDN hostnames regularly; maintaining an allowlist
  * requires a redeployment every time they do.
  */
-const BLOCKED_STREAM_HOST_PATTERNS: RegExp[] = [
-  /^localhost$/i,
-  /^127\./,
-  /^0\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^169\.254\./, // link-local / AWS metadata
-  /^::1$/,
-  /^fc00:/i,
-  /^fe80:/i,
-  /^0\.0\.0\.0$/,
-  /\.local$/i,
-  /\.internal$/i,
-];
-
-const POSTER_HOST_SUFFIXES = [
+const POSTER_ALLOWED_DOMAINS = [
   'anipixcdn.co',
   'noitatnemucod.net',
   'bunnycdn.ru',
   'b-cdn.net',
   'wsrv.nl',
   'weserv.nl',
+  'hianime.lu',
+  'hianime.to',
+  'aniwatchtv.to',
 ];
 
 function isAllowedStreamHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  return !BLOCKED_STREAM_HOST_PATTERNS.some((re) => re.test(host));
+  if (!hostname || typeof hostname !== 'string') return false;
+  let host = hostname.trim().toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) {
+    host = host.slice(1, -1);
+  }
+  if (!host) return false;
+
+  if (/^\d+$/.test(host) || /^0x[0-9a-f]+$/i.test(host)) return false;
+  if (!host.includes('.') && !host.includes(':')) return false;
+
+  if (
+    host === 'localhost' ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal') ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.onion') ||
+    host.endsWith('.nip.io') ||
+    host.endsWith('.sslip.io') ||
+    host.endsWith('.localtest.me') ||
+    host.includes('metadata.google') ||
+    host === 'instance-data'
+  ) {
+    return false;
+  }
+
+  const ipv4Parts = host.split('.');
+  if (ipv4Parts.length === 4 && ipv4Parts.every(p => /^\d+$/.test(p))) {
+    if (ipv4Parts.some(p => p.length > 1 && p.startsWith('0'))) return false;
+
+    const [a, b, c, d] = ipv4Parts.map(Number);
+    if ([a, b, c, d].some(n => n < 0 || n > 255)) return false;
+
+    if (a === 0) return false;
+    if (a === 10) return false;
+    if (a === 127) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    if (a === 100 && b === 100 && c === 100 && d === 200) return false;
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+    if (a === 198 && b === 51 && c === 100) return false;
+    if (a === 203 && b === 0 && c === 113) return false;
+    if (a >= 224) return false;
+  }
+
+  if (host.includes(':')) {
+    if (host === '::1' || host === '::') return false;
+    const ipv4Mapped = host.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+    if (ipv4Mapped) {
+      return isAllowedStreamHost(ipv4Mapped[1]);
+    }
+    if (/^fe[89ab]/i.test(host)) return false;
+    if (/^f[cd]/i.test(host)) return false;
+    if (/^ff/i.test(host)) return false;
+  }
+
+  return true;
 }
 
 function isAllowedPosterHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  if (POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s))) return true;
-  if (host.includes('anipix') || host.includes('noitatnemucod')) return true;
-  return false;
+  if (!hostname || typeof hostname !== 'string') return false;
+  const host = hostname.trim().toLowerCase();
+  return POSTER_ALLOWED_DOMAINS.some(domain => host === domain || host.endsWith('.' + domain));
 }
 
 function refererForStreamUrl(url: string): string {
@@ -71,7 +112,7 @@ function refererForStreamUrl(url: string): string {
   return 'https://megaplay.buzz/';
 }
 
-function corsHeaders(extra: Record<string, string> = {}): HeadersInit {
+function corsHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -143,7 +184,7 @@ function rewritePlaylist(
 ): string {
   return body
     .split(/\r?\n/)
-    .map((line) => {
+    .map(line => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) {
         return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
@@ -187,14 +228,18 @@ async function handleVtt(request: Request): Promise<Response> {
     return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
   }
 
-  if (parsed.protocol !== 'https:') {
-    return new Response('only https:// subtitle URLs are allowed', { status: 400, headers: corsHeaders() });
+  if (parsed.protocol !== 'https:' || !isAllowedStreamHost(parsed.hostname)) {
+    return new Response('only https:// subtitle URLs on permitted hosts are allowed', {
+      status: 400,
+      headers: corsHeaders(),
+    });
   }
 
   // CDN hosts enforce hotlink protection — send trusted Referer
-  const referer = parsed.hostname.includes('aniwatchtv') || parsed.hostname.includes('zoko')
-    ? 'https://zokoanime.video/'
-    : 'https://megaplay.buzz/';
+  const referer =
+    parsed.hostname.includes('aniwatchtv') || parsed.hostname.includes('zoko')
+      ? 'https://zokoanime.video/'
+      : 'https://megaplay.buzz/';
 
   const upstream = await fetch(parsed.href, {
     headers: {
@@ -236,7 +281,7 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
     return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
   }
 
-  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedStreamHost(parsed.hostname)) {
+  if (parsed.protocol !== 'https:' || !isAllowedStreamHost(parsed.hostname)) {
     return new Response('url host not allowed', { status: 400, headers: corsHeaders() });
   }
 
@@ -264,9 +309,7 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
 
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
   const isPlaylist =
-    ct.includes('mpegurl') ||
-    ct.includes('m3u8') ||
-    /\.m3u8(\?|$)/i.test(parsed.pathname);
+    ct.includes('mpegurl') || ct.includes('m3u8') || /\.m3u8(\?|$)/i.test(parsed.pathname);
 
   const proxyBase = `${workerOrigin}/hls`;
   const vttBase = `${workerOrigin}/vtt`;
@@ -285,11 +328,13 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
   }
 
   const isVtt =
-    ct.includes('text/vtt') || ct.includes('vtt') ||
+    ct.includes('text/vtt') ||
+    ct.includes('vtt') ||
     /\.vtt(\?|$)/i.test(parsed.pathname) ||
     /\.vtt(\?|$)/i.test(new URL(target).pathname);
   const isAss =
-    /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes('ass') ||
+    /\.ass(\?|$)/i.test(parsed.pathname) ||
+    ct.includes('ass') ||
     /\.ass(\?|$)/i.test(new URL(target).pathname);
 
   if (isVtt || isAss) {
@@ -305,7 +350,8 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
 
   const ab = await upstream.arrayBuffer();
   const raw = new Uint8Array(ab);
-  const isPng = raw.length > 4 && raw[0] === 0x89 && raw[1] === 0x50 && raw[2] === 0x4e && raw[3] === 0x47;
+  const isPng =
+    raw.length > 4 && raw[0] === 0x89 && raw[1] === 0x50 && raw[2] === 0x4e && raw[3] === 0x47;
   const media = isPng ? stripPngWrapper(raw) : raw;
 
   return new Response(media, {

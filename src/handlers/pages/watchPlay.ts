@@ -9,8 +9,7 @@ import { requestOrigin } from '../../lib/streamUrls';
  * Same surface as sharing a watch link — not a meaningful extra secret leak.
  */
 const watchPlayController = async (c: Context) => {
-  const animeEpisodeId =
-    c.req.query('animeEpisodeId') || c.req.query('episodeId') || undefined;
+  const animeEpisodeId = c.req.query('animeEpisodeId') || c.req.query('episodeId') || undefined;
   const category = (c.req.query('category') || c.req.query('t') || 'sub').toLowerCase();
   const server = (c.req.query('server') || 'hd-1').toLowerCase();
 

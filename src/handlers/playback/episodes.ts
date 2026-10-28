@@ -11,8 +11,7 @@ const episodesController = async (c: Context) => {
   if (!id) throw new validationError('id is required');
 
   const idNum = animeNumericId(id);
-  const wantPoster =
-    c.req.query('poster') === '1' || c.req.query('poster') === 'true';
+  const wantPoster = c.req.query('poster') === '1' || c.req.query('poster') === 'true';
 
   const listResult = await fetchTheme(`episode/list/${idNum}`, `/watch/${id}`);
 
@@ -35,7 +34,7 @@ const episodesController = async (c: Context) => {
   }
 
   const extracted = extractEpisodes(htmlFromAjax(listResult.data));
-  const episodes = extracted.map((ep) => ({
+  const episodes = extracted.map(ep => ({
     title: ep.title,
     alternativeTitle: ep.alternativeTitle,
     episodeId: ep.id?.includes('::') ? ep.id.replace('::', '?') : ep.id,

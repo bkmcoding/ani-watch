@@ -4,8 +4,7 @@ import { validationError } from '../../lib/errors';
 import { isAllowedPosterHost } from '../../lib/posterUrls';
 import { mediaProxyAuthOk } from '../../lib/streamUrls';
 
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const CACHE_MAX = 200;

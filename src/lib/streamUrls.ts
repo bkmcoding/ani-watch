@@ -19,30 +19,94 @@ export function requestOrigin(c: Context): string {
  * We use a blocklist (not an allowlist) so CDN rotations never break playback.
  * The proxy only accepts https:// URLs, so the risk surface is already narrow.
  */
-const BLOCKED_HOST_PATTERNS = [
-  /^localhost$/i,
-  /^127\./,
-  /^0\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^169\.254\./,   // link-local / AWS metadata
-  /^::1$/,
-  /^fc00:/i,
-  /^fe80:/i,
-  /^0\.0\.0\.0$/,
-  /\.local$/i,
-  /\.internal$/i,
-];
-
 /**
- * Returns true when the hostname is safe to proxy — i.e. it is NOT a
- * private/loopback/link-local address. CDN hostnames are not checked;
- * the upstream provider (MegaPlay/Zoko) is responsible for what it returns.
+ * SSRF guard: Comprehensive validation to block private, loopback, link-local,
+ * multicast, carrier-grade NAT, cloud metadata, and DNS-rebinding hosts.
+ *
+ * We use an aggressive rejection list for non-routable/internal targets so CDN
+ * rotations never break legitimate playback while private networks stay isolated.
  */
 export function isAllowedStreamHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  return !BLOCKED_HOST_PATTERNS.some((re) => re.test(host));
+  if (!hostname || typeof hostname !== 'string') return false;
+  let host = hostname.trim().toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) {
+    host = host.slice(1, -1);
+  }
+  if (!host) return false;
+
+  // Reject single integer or hex hostnames (e.g., 2130706433 or 0x7f000001)
+  if (/^\d+$/.test(host) || /^0x[0-9a-f]+$/i.test(host)) return false;
+
+  // Single-label hostnames without a dot (e.g. "localhost", "redis", "intranet") are not public CDNs
+  if (!host.includes('.') && !host.includes(':')) return false;
+
+  // Reject internal/local TLDs, cloud metadata hostnames, and known DNS-rebinding wildcard domains
+  if (
+    host === 'localhost' ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal') ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.onion') ||
+    host.endsWith('.nip.io') ||
+    host.endsWith('.sslip.io') ||
+    host.endsWith('.localtest.me') ||
+    host.includes('metadata.google') ||
+    host === 'instance-data'
+  ) {
+    return false;
+  }
+
+  // IPv4 validation
+  const ipv4Parts = host.split('.');
+  if (ipv4Parts.length === 4 && ipv4Parts.every(p => /^\d+$/.test(p))) {
+    // Detect octal notation (leading zero on numbers > 0)
+    if (ipv4Parts.some(p => p.length > 1 && p.startsWith('0'))) return false;
+
+    const [a, b, c, d] = ipv4Parts.map(Number);
+    if ([a, b, c, d].some(n => n < 0 || n > 255)) return false;
+
+    // 0.0.0.0/8 (Current network / broadcast)
+    if (a === 0) return false;
+    // 10.0.0.0/8 (RFC 1918 Private)
+    if (a === 10) return false;
+    // 127.0.0.0/8 (Loopback)
+    if (a === 127) return false;
+    // 169.254.0.0/16 (Link-local & AWS/Azure metadata)
+    if (a === 169 && b === 254) return false;
+    // 172.16.0.0/12 (RFC 1918 Private: 172.16.0.0 – 172.31.255.255)
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    // 192.168.0.0/16 (RFC 1918 Private)
+    if (a === 192 && b === 168) return false;
+    // 100.64.0.0/10 (Carrier-Grade NAT)
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    // 100.100.100.200 (Alibaba Cloud metadata)
+    if (a === 100 && b === 100 && c === 100 && d === 200) return false;
+    // 192.0.0.0/24, 192.0.2.0/24 (TEST-NET-1), 198.51.100.0/24 (TEST-NET-2), 203.0.113.0/24 (TEST-NET-3)
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+    if (a === 198 && b === 51 && c === 100) return false;
+    if (a === 203 && b === 0 && c === 113) return false;
+    // 224.0.0.0/4 (Multicast) & 240.0.0.0/4 (Reserved)
+    if (a >= 224) return false;
+  }
+
+  // IPv6 validation
+  if (host.includes(':')) {
+    // Loopback ::1 or unspecified ::
+    if (host === '::1' || host === '::') return false;
+    // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+    const ipv4Mapped = host.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+    if (ipv4Mapped) {
+      return isAllowedStreamHost(ipv4Mapped[1]);
+    }
+    // Link-local fe80::/10
+    if (/^fe[89ab]/i.test(host)) return false;
+    // Unique local fc00::/7 (fc00:: – fdff::)
+    if (/^f[cd]/i.test(host)) return false;
+    // Multicast ff00::/8
+    if (/^ff/i.test(host)) return false;
+  }
+
+  return true;
 }
 
 /** Upstream Referer the CDN expects when we proxy a playlist/segment. */
@@ -143,8 +207,8 @@ export function pickEnglishSubtitle(
 ): string | null {
   if (!subs?.length) return null;
   const scored = subs
-    .filter((s) => s.url && /^https?:\/\//i.test(s.url))
-    .map((s) => {
+    .filter(s => s.url && /^https?:\/\//i.test(s.url))
+    .map(s => {
       const lang = (s.lang || '').trim();
       let score = 0;
       if (/^(en|eng|english)([-_]|$)/i.test(lang) || /\benglish\b/i.test(lang)) score += 10;
@@ -152,18 +216,14 @@ export function pickEnglishSubtitle(
       if (/\.vtt(\?|$)/i.test(s.url as string)) score += 2;
       return { url: s.url as string, score };
     })
-    .filter((s) => s.score >= 10)
+    .filter(s => s.score >= 10)
     .sort((a, b) => b.score - a.score);
   return scored[0]?.url || null;
 }
 
 type SkipRange = { start: number; end: number } | null | undefined;
 
-function setSkipParams(
-  params: URLSearchParams,
-  prefix: string,
-  range: SkipRange
-): void {
+function setSkipParams(params: URLSearchParams, prefix: string, range: SkipRange): void {
   if (!range || !Number.isFinite(range.start) || !Number.isFinite(range.end)) return;
   if (range.end <= range.start) return;
   params.set(`${prefix}s`, String(Math.round(range.start)));
@@ -245,11 +305,7 @@ export function watchPageUrl(
 }
 
 /** Public hop URL used by Prev/Next on the watch page. */
-export function watchPlayUrl(
-  origin: string,
-  episodeId: string,
-  category: string = 'sub'
-): string {
+export function watchPlayUrl(origin: string, episodeId: string, category: string = 'sub'): string {
   const base = origin.replace(/\/+$/, '');
   const params = new URLSearchParams({
     animeEpisodeId: episodeId.includes('::') ? episodeId.replace('::', '?') : episodeId,

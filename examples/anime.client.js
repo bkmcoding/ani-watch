@@ -35,7 +35,7 @@ async function getJson(path, label, ms = FETCH_TIMEOUT_MS) {
       timedOut
         ? `${label} took too long to respond - try again shortly.`
         : 'Could not reach the anime API - try again shortly.',
-      { cause: err },
+      { cause: err }
     );
   }
 
@@ -43,7 +43,7 @@ async function getJson(path, label, ms = FETCH_TIMEOUT_MS) {
     throw new UserError(
       process.env.BOT_SECRET_KEY
         ? 'The anime API rejected BOT_SECRET_KEY.'
-        : 'Set BOT_SECRET_KEY to use /anime.',
+        : 'Set BOT_SECRET_KEY to use /anime.'
     );
   }
 
@@ -57,7 +57,7 @@ async function getJson(path, label, ms = FETCH_TIMEOUT_MS) {
 
   if (!res.ok || body?.success === false) {
     throw new UserError(
-      res.status === 404 ? 'Nothing found for that.' : `${label} failed - try again shortly.`,
+      res.status === 404 ? 'Nothing found for that.' : `${label} failed - try again shortly.`
     );
   }
   if (body == null || typeof body !== 'object') {
@@ -105,7 +105,7 @@ export async function animeInfo(anime) {
   const id = typeof anime === 'string' ? anime : anime.id;
   const data = await getJson(
     `/api/v2/hianime/anime/${encodeURIComponent(id)}/episodes`,
-    'That anime',
+    'That anime'
   );
 
   const list = Array.isArray(data) ? data : (data?.episodes ?? []);
@@ -124,17 +124,14 @@ export async function animeInfo(anime) {
   const title = (typeof anime === 'object' && anime.title) || id;
   if (!episodes.length) {
     throw new UserError(
-      `**${title}** has no episodes listed (this scrape source may not expose episode AJAX yet).`,
+      `**${title}** has no episodes listed (this scrape source may not expose episode AJAX yet).`
     );
   }
   return {
     id,
     title,
     image: typeof anime === 'object' ? anime.image : undefined,
-    audio:
-      typeof anime === 'object' && anime.subOrDub === 'dub'
-        ? 'dub'
-        : 'sub', // prefer sub when both / unknown
+    audio: typeof anime === 'object' && anime.subOrDub === 'dub' ? 'dub' : 'sub', // prefer sub when both / unknown
     episodes,
   };
 }
@@ -154,8 +151,8 @@ export function pickStream(payload, audio = 'sub') {
   const page =
     trackLink ||
     payload?.link ||
-    payload?.sources?.find((s) => s?.type === 'link' && s?.url)?.url ||
-    payload?.sources?.find((s) => s?.url && /\/hianime\/watch\?/i.test(s.url))?.url;
+    payload?.sources?.find(s => s?.type === 'link' && s?.url)?.url ||
+    payload?.sources?.find(s => s?.url && /\/hianime\/watch\?/i.test(s.url))?.url;
   if (page && (/\/hianime\/watch\?/i.test(page) || payload?.tracks?.[want]?.link === page)) {
     return {
       url: page,
@@ -175,11 +172,11 @@ export function pickStream(payload, audio = 'sub') {
     };
   }
 
-  const listed = (payload?.sources ?? []).flatMap((source) => {
+  const listed = (payload?.sources ?? []).flatMap(source => {
     const candidates = [source?.streamUrl, source?.url].filter(Boolean);
     return candidates
-      .filter((url) => source?.isM3U8 || /\.m3u8(\?|$)/i.test(url) || /\/hianime\/hls\?/i.test(url))
-      .map((url) => ({ ...source, url }));
+      .filter(url => source?.isM3U8 || /\.m3u8(\?|$)/i.test(url) || /\/hianime\/hls\?/i.test(url))
+      .map(url => ({ ...source, url }));
   });
   if (!listed.length) return null;
 

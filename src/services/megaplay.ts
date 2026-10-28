@@ -63,19 +63,19 @@ export function pickServer(
 ): ThemeServer | null {
   const cat = category.toLowerCase();
   const want = serverName.toLowerCase().replace(/\s+/g, '-');
-  const pool = servers.filter((s) => s.type === cat);
+  const pool = servers.filter(s => s.type === cat);
 
   const exact =
-    pool.find((s) => s.serverName.toLowerCase().replace(/\s+/g, '-') === want) ||
-    pool.find((s) => s.serverName.toLowerCase().includes(want.replace(/-/g, ' '))) ||
-    pool.find((s) => s.serverName.toLowerCase().includes(want));
+    pool.find(s => s.serverName.toLowerCase().replace(/\s+/g, '-') === want) ||
+    pool.find(s => s.serverName.toLowerCase().includes(want.replace(/-/g, ' '))) ||
+    pool.find(s => s.serverName.toLowerCase().includes(want));
 
   if (exact) return exact;
 
   // Prefer MegaPlay HD embeds for playback
   return (
-    pool.find((s) => /megaplay/i.test(s.embedUrl) && /hd-?1/i.test(s.serverName)) ||
-    pool.find((s) => /megaplay/i.test(s.embedUrl)) ||
+    pool.find(s => /megaplay/i.test(s.embedUrl) && /hd-?1/i.test(s.serverName)) ||
+    pool.find(s => /megaplay/i.test(s.embedUrl)) ||
     pool[0] ||
     null
   );
@@ -191,8 +191,8 @@ export async function resolveMegaPlaySources(embedUrl: string): Promise<StreamRe
   if (!m3u8) throw new Error('Failed to decrypt MegaPlay stream URL');
 
   const subtitles = (payload.tracks || [])
-    .filter((t) => t.file && (t.kind === 'captions' || t.kind === 'subtitles' || !t.kind))
-    .map((t) => ({
+    .filter(t => t.file && (t.kind === 'captions' || t.kind === 'subtitles' || !t.kind))
+    .map(t => ({
       lang: t.label || 'Unknown',
       url: t.file as string,
       default: Boolean(t.default),

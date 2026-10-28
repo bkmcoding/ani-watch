@@ -5,7 +5,7 @@ const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
 const TIMEOUT = 10000;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export type AxiosInstanceOptions = {
   headers?: Record<string, string>;
@@ -14,10 +14,7 @@ export type AxiosInstanceOptions = {
   cacheTtlMs?: number;
 };
 
-const axiosInstance = async (
-  endpoint: string,
-  options: AxiosInstanceOptions = {}
-) => {
+const axiosInstance = async (endpoint: string, options: AxiosInstanceOptions = {}) => {
   const { headers: customHeaders = {}, retries = MAX_RETRIES, cacheTtlMs = 0 } = options;
   const cacheKey = `axios:${endpoint}|${JSON.stringify(customHeaders)}`;
 

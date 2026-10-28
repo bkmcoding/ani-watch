@@ -10,8 +10,8 @@ import {
 
 function mapServers(servers: ReturnType<typeof parseThemeServers>, type: string) {
   return servers
-    .filter((s) => s.type === type)
-    .map((s) => ({
+    .filter(s => s.type === type)
+    .map(s => ({
       serverId: s.serverId,
       serverName: s.serverName.toLowerCase().replace(/\s+/g, '-'),
     }));

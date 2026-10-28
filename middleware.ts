@@ -7,8 +7,7 @@ export const config = {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, X-Requested-With, X-Api-Key',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Api-Key',
   'Access-Control-Max-Age': '600',
 };
 
@@ -35,16 +34,13 @@ export default function middleware(request: Request) {
   const expected = process.env.BOT_SECRET_KEY;
 
   if (!expected || apiKey !== expected) {
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized: Invalid or Missing API Key' }),
-      {
-        status: 401,
-        headers: {
-          'content-type': 'application/json',
-          ...corsHeaders,
-        },
+    return new Response(JSON.stringify({ error: 'Unauthorized: Invalid or Missing API Key' }), {
+      status: 401,
+      headers: {
+        'content-type': 'application/json',
+        ...corsHeaders,
       },
-    );
+    });
   }
 
   return next();

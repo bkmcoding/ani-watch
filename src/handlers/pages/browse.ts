@@ -1853,7 +1853,8 @@ const browseController = async (c: Context) => {
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
       }
 
       function normalizeAnime(a) {
@@ -3100,4 +3101,3 @@ const browseController = async (c: Context) => {
 };
 
 export default browseController;
-

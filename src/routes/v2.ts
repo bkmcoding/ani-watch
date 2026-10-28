@@ -55,7 +55,7 @@ router.get('/episode/servers', handler(serversController));
 router.get('/hianime/episode/sources', handler(sourcesController));
 router.get('/episode/sources', handler(sourcesController));
 // Raw HLS proxy (playlist rewrite + PNG unwrap) — not JSON-wrapped
-router.get('/hianime/hls', async (c) => {
+router.get('/hianime/hls', async c => {
   try {
     return await hlsProxyController(c);
   } catch (error: unknown) {
@@ -66,7 +66,7 @@ router.get('/hianime/hls', async (c) => {
   }
 });
 // Subtitle proxy (VTT/ASS) — accepts any https:// CDN, forced text/vtt response
-router.get('/hianime/vtt', async (c) => {
+router.get('/hianime/vtt', async c => {
   try {
     return await vttProxyController(c);
   } catch (error: unknown) {
@@ -77,7 +77,7 @@ router.get('/hianime/vtt', async (c) => {
   }
 });
 // Poster proxy — HiAnime CDN hotlink bypass (allowlisted hosts)
-router.get('/hianime/poster', async (c) => {
+router.get('/hianime/poster', async c => {
   try {
     return await posterProxyController(c);
   } catch (error: unknown) {
@@ -88,7 +88,7 @@ router.get('/hianime/poster', async (c) => {
   }
 });
 // Public episode hop — resolves sources then redirects to /watch (used by Prev/Next)
-router.get('/hianime/watch/play', async (c) => {
+router.get('/hianime/watch/play', async c => {
   try {
     return await watchPlayController(c);
   } catch (error: unknown) {
@@ -99,7 +99,7 @@ router.get('/hianime/watch/play', async (c) => {
   }
 });
 // Public compact episode list for the watch player picker
-router.get('/hianime/watch/episodes', async (c) => {
+router.get('/hianime/watch/episodes', async c => {
   try {
     return await watchEpisodesController(c);
   } catch (error: unknown) {
@@ -110,7 +110,7 @@ router.get('/hianime/watch/episodes', async (c) => {
   }
 });
 // Browser player page — open this link; it plays instead of downloading .m3u8
-router.get('/hianime/watch', async (c) => {
+router.get('/hianime/watch', async c => {
   try {
     return await watchController(c);
   } catch (error: unknown) {
@@ -144,7 +144,7 @@ router.get('/hianime/watch', async (c) => {
 <body>
   <div class="card">
     <h1>Episode unavailable</h1>
-    <p><code>${msg.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></p>
+    <p><code>${msg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</code></p>
     <a href="/browse">← Back to browse</a>
   </div>
 </body>

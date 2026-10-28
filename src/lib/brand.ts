@@ -28,7 +28,7 @@ export function titleFromAnimeSlug(slug: string | null | undefined): string {
   const parts = slug.split('-').filter(Boolean);
   if (parts.length > 1 && /^\d+$/.test(parts[parts.length - 1])) parts.pop();
   if (!parts.length) return SITE_NAME;
-  return parts.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return parts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 export function faviconLinkTags(origin: string): string {

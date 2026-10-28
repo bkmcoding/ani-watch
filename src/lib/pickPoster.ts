@@ -1,7 +1,5 @@
 /** Prefer lazy-load data-src, fall back to src; skip placeholders. */
-export function pickPosterUrl(
-  ...candidates: Array<string | undefined | null>
-): string | null {
+export function pickPosterUrl(...candidates: Array<string | undefined | null>): string | null {
   for (const raw of candidates) {
     if (!raw) continue;
     const s = String(raw).trim();

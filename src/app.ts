@@ -1,5 +1,8 @@
 import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
+import { rateLimiter } from './middleware/rateLimit';
+import { apiKeyAuth } from './middleware/apiKeyAuth';
 import { compress } from 'hono/compress';
 import hiAnimeRoutes from './routes/v2';
 import { AppError } from './lib/errors';
@@ -13,12 +16,54 @@ import browseController from './handlers/pages/browse';
 
 const app = new Hono();
 const origins = config.origin.includes(',')
-  ? config.origin.split(',').map((o) => o.trim())
+  ? config.origin.split(',').map(o => o.trim())
   : config.origin === '*'
     ? '*'
     : [config.origin];
 
 app.use('*', compress());
+
+// Global security headers: prevent MIME sniffing, clickjacking, and restrict browser features
+app.use(
+  '*',
+  secureHeaders({
+    xContentTypeOptions: 'nosniff',
+    xFrameOptions: 'SAMEORIGIN',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    strictTransportSecurity: config.isProduction ? 'max-age=31536000; includeSubDomains' : false,
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+    },
+  })
+);
+
+// Content-Security-Policy specifically tailored for Web UI and Hls.js player
+const htmlCsp = secureHeaders({
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: [
+      "'self'",
+      "'unsafe-inline'",
+      'https://cdn.jsdelivr.net',
+      'https://va.vercel-scripts.com',
+    ],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+    imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+    mediaSrc: ["'self'", 'blob:', 'data:', 'https:'],
+    connectSrc: ["'self'", 'blob:', 'data:', 'https:'],
+    workerSrc: ["'self'", 'blob:'],
+    frameAncestors: ["'self'"],
+  },
+});
+
+app.use('/', htmlCsp);
+app.use('/browse', htmlCsp);
+app.use('/api/v2/hianime/watch', htmlCsp);
+
+const isWildcardOrigin = origins === '*' || (Array.isArray(origins) && origins.includes('*'));
 
 app.use(
   '*',
@@ -28,9 +73,13 @@ app.use(
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Api-Key'],
     exposeHeaders: ['Content-Length', 'X-Request-Id', 'Cache-Control'],
     maxAge: 600,
-    credentials: true,
+    credentials: !isWildcardOrigin,
   })
 );
+
+// Rate limit API endpoints to prevent scraper exhaustion and DoS
+app.use('/api/v2/*', rateLimiter());
+app.use('/api/v2/*', apiKeyAuth());
 
 if (!config.isProduction || config.enableLogging) {
   app.use('/api/v2/*', logger());
@@ -67,8 +116,8 @@ async function htmlRoute(c: Context, fn: (c: Context) => Promise<Response>) {
   }
 }
 
-app.get('/', (c) => htmlRoute(c, landingController));
-app.get('/browse', (c) => htmlRoute(c, browseController));
+app.get('/', c => htmlRoute(c, landingController));
+app.get('/browse', c => htmlRoute(c, browseController));
 
 /** JSON catalog for bots / curl — HTML lives at / and /browse. */
 app.get('/api', (c: Context) => {

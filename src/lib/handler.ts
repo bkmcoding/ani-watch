@@ -1,6 +1,7 @@
 import { Context, Next } from 'hono';
 import { fail, success } from './response';
 import { AppError } from './errors';
+import config from '../config/config';
 
 const handler = (fn: (c: Context, next: Next) => Promise<unknown> | unknown) => {
   return async (c: Context, next: Next) => {
@@ -14,7 +15,8 @@ const handler = (fn: (c: Context, next: Next) => Promise<unknown> | unknown) => 
       }
       if (error instanceof Error) {
         console.error(error.message);
-        return fail(c, error.message, 500);
+        const msg = config.isProduction ? 'Internal server error' : error.message;
+        return fail(c, msg, 500);
       }
       return fail(c, 'Internal server error', 500);
     }

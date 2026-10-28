@@ -10,8 +10,7 @@ import {
   vttProxyBase,
 } from '../../lib/streamUrls';
 
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
 // NOTE: m3u8 playlist caching was removed. CDN segment URLs inside playlists
 // are presigned and expire in seconds — a 30s cache returns stale segment URLs
@@ -68,7 +67,7 @@ export function rewritePlaylist(
 ): string {
   return body
     .split(/\r?\n/)
-    .map((line) => {
+    .map(line => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) {
         return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
@@ -111,7 +110,7 @@ const hlsProxyController = async (c: Context) => {
     throw new validationError('url must be absolute');
   }
 
-  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedStreamHost(parsed.hostname)) {
+  if (parsed.protocol !== 'https:' || !isAllowedStreamHost(parsed.hostname)) {
     throw new validationError('url host not allowed');
   }
 
@@ -175,9 +174,7 @@ const hlsProxyController = async (c: Context) => {
   }
 
   const isVtt =
-    ct.includes('text/vtt') ||
-    ct.includes('vtt') ||
-    /\.vtt(\?|$)/i.test(parsed.pathname);
+    ct.includes('text/vtt') || ct.includes('vtt') || /\.vtt(\?|$)/i.test(parsed.pathname);
   const isAss = /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes('ass');
 
   if (isVtt || isAss) {

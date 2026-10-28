@@ -6,10 +6,7 @@ import { handle } from "@hono/node-server/vercel";
 // src/app.ts
 import { Hono as Hono2 } from "hono";
 import { cors } from "hono/cors";
-import { compress } from "hono/compress";
-
-// src/routes/v2.ts
-import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 
 // src/lib/response.ts
 var success = (c, data, statusCode = 200) => {
@@ -18,6 +15,102 @@ var success = (c, data, statusCode = 200) => {
 var fail = (c, message = "internal server error", statusCode = 500, details = null) => {
   return c.json({ success: false, message, details }, statusCode);
 };
+
+// src/middleware/rateLimit.ts
+var windowMs = 60 * 1e3;
+var defaultMax = 150;
+var store = /* @__PURE__ */ new Map();
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, record] of store.entries()) {
+      if (record.resetTime < now) {
+        store.delete(key);
+      }
+    }
+  },
+  2 * 60 * 1e3
+).unref?.();
+function getClientIp(c) {
+  const cfIp = c.req.header("cf-connecting-ip");
+  if (cfIp) return cfIp.trim();
+  const realIp = c.req.header("x-real-ip");
+  if (realIp) return realIp.trim();
+  const forwardedFor = c.req.header("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0].trim();
+    if (first) return first;
+  }
+  return "anonymous";
+}
+function rateLimiter(options = {}) {
+  const envLimit = Number(process.env.RATE_LIMIT_PER_MINUTE);
+  const max = options.max ?? (Number.isFinite(envLimit) && envLimit > 0 ? envLimit : defaultMax);
+  const winMs = options.windowMs ?? windowMs;
+  return async function rateLimitMiddleware(c, next) {
+    const ip = getClientIp(c);
+    const now = Date.now();
+    let record = store.get(ip);
+    if (!record || record.resetTime < now) {
+      record = { count: 1, resetTime: now + winMs };
+      store.set(ip, record);
+    } else {
+      record.count += 1;
+    }
+    const remaining = Math.max(0, max - record.count);
+    const resetSeconds = Math.ceil((record.resetTime - now) / 1e3);
+    c.header("X-RateLimit-Limit", String(max));
+    c.header("X-RateLimit-Remaining", String(remaining));
+    c.header("X-RateLimit-Reset", String(resetSeconds));
+    if (record.count > max) {
+      c.header("Retry-After", String(resetSeconds));
+      return fail(c, "Too many requests, please try again later", 429);
+    }
+    await next();
+  };
+}
+
+// src/middleware/apiKeyAuth.ts
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
+var PUBLIC_PATH_PREFIXES = [
+  "/api/v2/hianime/watch",
+  "/api/v2/hianime/hls",
+  "/api/v2/hianime/poster",
+  "/api/v2/hianime/vtt"
+];
+function apiKeyAuth(configuredSecret) {
+  return async function apiKeyMiddleware(c, next) {
+    const secretKey = (configuredSecret ?? process.env.BOT_SECRET_KEY ?? "").trim();
+    if (!secretKey) {
+      return next();
+    }
+    const path = new URL(c.req.url).pathname;
+    if (PUBLIC_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+      return next();
+    }
+    const headerKey = c.req.header("x-api-key");
+    const authHeader = c.req.header("authorization");
+    const bearerKey = authHeader?.replace(/^Bearer\s+/i, "").trim();
+    const providedKey = headerKey || bearerKey || "";
+    if (!providedKey || !timingSafeEqual(providedKey, secretKey)) {
+      return fail(c, "Unauthorized: Invalid or missing x-api-key", 401);
+    }
+    return next();
+  };
+}
+
+// src/app.ts
+import { compress } from "hono/compress";
+
+// src/routes/v2.ts
+import { Hono } from "hono";
 
 // src/lib/errors.ts
 var AppError = class extends Error {
@@ -40,26 +133,6 @@ var validationError = class extends AppError {
   }
 };
 
-// src/lib/handler.ts
-var handler = (fn) => {
-  return async (c, next) => {
-    try {
-      const result = await fn(c, next);
-      return success(c, result, 200);
-    } catch (error) {
-      if (error instanceof AppError) {
-        return fail(c, error.message, error.statusCode, error.details);
-      }
-      if (error instanceof Error) {
-        console.error(error.message);
-        return fail(c, error.message, 500);
-      }
-      return fail(c, "Internal server error", 500);
-    }
-  };
-};
-var handler_default = handler;
-
 // src/config/config.ts
 var config = {
   baseurl: process.env.BASE_URL || process.env.HIANIME_BASE_URL || "https://hianime.lu",
@@ -77,29 +150,50 @@ var config = {
 };
 var config_default = config;
 
+// src/lib/handler.ts
+var handler = (fn) => {
+  return async (c, next) => {
+    try {
+      const result = await fn(c, next);
+      return success(c, result, 200);
+    } catch (error) {
+      if (error instanceof AppError) {
+        return fail(c, error.message, error.statusCode, error.details);
+      }
+      if (error instanceof Error) {
+        console.error(error.message);
+        const msg = config_default.isProduction ? "Internal server error" : error.message;
+        return fail(c, msg, 500);
+      }
+      return fail(c, "Internal server error", 500);
+    }
+  };
+};
+var handler_default = handler;
+
 // src/lib/ttlCache.ts
 function createTtlCache(opts = {}) {
   const max = opts.max ?? 300;
-  const store = /* @__PURE__ */ new Map();
+  const store2 = /* @__PURE__ */ new Map();
   const inflight2 = /* @__PURE__ */ new Map();
   function get(key) {
-    const hit = store.get(key);
+    const hit = store2.get(key);
     if (!hit) return void 0;
     if (hit.expires < Date.now()) {
-      store.delete(key);
+      store2.delete(key);
       return void 0;
     }
-    store.delete(key);
-    store.set(key, hit);
+    store2.delete(key);
+    store2.set(key, hit);
     return hit.value;
   }
   function set(key, value, ttlMs) {
     if (ttlMs <= 0) return;
-    if (store.size >= max) {
-      const oldest = store.keys().next().value;
-      if (oldest !== void 0) store.delete(oldest);
+    if (store2.size >= max) {
+      const oldest = store2.keys().next().value;
+      if (oldest !== void 0) store2.delete(oldest);
     }
-    store.set(key, { value, expires: Date.now() + ttlMs });
+    store2.set(key, { value, expires: Date.now() + ttlMs });
   }
   async function getOrSet(key, ttlMs, loader) {
     if (ttlMs <= 0) return loader();
@@ -117,7 +211,7 @@ function createTtlCache(opts = {}) {
     inflight2.set(key, job);
     return job;
   }
-  return { get, set, getOrSet, size: () => store.size };
+  return { get, set, getOrSet, size: () => store2.size };
 }
 var scrapeCache = createTtlCache({ max: 400 });
 async function cached(key, ttlMs, loader) {
@@ -289,7 +383,10 @@ var extractHomepage = (html) => {
     obj.title = titleEl.text();
     obj.alternativeTitle = titleEl.attr("data-jname") || null;
     const imageEl = $(el).find(".film-poster");
-    obj.poster = pickPosterUrl(imageEl.find("img").attr("data-src"), imageEl.find("img").attr("src"));
+    obj.poster = pickPosterUrl(
+      imageEl.find("img").attr("data-src"),
+      imageEl.find("img").attr("src")
+    );
     obj.id = imageEl.attr("href")?.split("/").at(-1) || null;
     response.trending.push(obj);
   });
@@ -1412,25 +1509,47 @@ function requestOrigin(c) {
   if (!local && proto === "http") proto = "https";
   return `${proto}://${host}`;
 }
-var BLOCKED_HOST_PATTERNS = [
-  /^localhost$/i,
-  /^127\./,
-  /^0\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^169\.254\./,
-  // link-local / AWS metadata
-  /^::1$/,
-  /^fc00:/i,
-  /^fe80:/i,
-  /^0\.0\.0\.0$/,
-  /\.local$/i,
-  /\.internal$/i
-];
 function isAllowedStreamHost(hostname) {
-  const host = hostname.toLowerCase();
-  return !BLOCKED_HOST_PATTERNS.some((re) => re.test(host));
+  if (!hostname || typeof hostname !== "string") return false;
+  let host = hostname.trim().toLowerCase();
+  if (host.startsWith("[") && host.endsWith("]")) {
+    host = host.slice(1, -1);
+  }
+  if (!host) return false;
+  if (/^\d+$/.test(host) || /^0x[0-9a-f]+$/i.test(host)) return false;
+  if (!host.includes(".") && !host.includes(":")) return false;
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".localhost") || host.endsWith(".onion") || host.endsWith(".nip.io") || host.endsWith(".sslip.io") || host.endsWith(".localtest.me") || host.includes("metadata.google") || host === "instance-data") {
+    return false;
+  }
+  const ipv4Parts = host.split(".");
+  if (ipv4Parts.length === 4 && ipv4Parts.every((p) => /^\d+$/.test(p))) {
+    if (ipv4Parts.some((p) => p.length > 1 && p.startsWith("0"))) return false;
+    const [a, b, c, d] = ipv4Parts.map(Number);
+    if ([a, b, c, d].some((n) => n < 0 || n > 255)) return false;
+    if (a === 0) return false;
+    if (a === 10) return false;
+    if (a === 127) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    if (a === 100 && b === 100 && c === 100 && d === 200) return false;
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+    if (a === 198 && b === 51 && c === 100) return false;
+    if (a === 203 && b === 0 && c === 113) return false;
+    if (a >= 224) return false;
+  }
+  if (host.includes(":")) {
+    if (host === "::1" || host === "::") return false;
+    const ipv4Mapped = host.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+    if (ipv4Mapped) {
+      return isAllowedStreamHost(ipv4Mapped[1]);
+    }
+    if (/^fe[89ab]/i.test(host)) return false;
+    if (/^f[cd]/i.test(host)) return false;
+    if (/^ff/i.test(host)) return false;
+  }
+  return true;
 }
 function refererForStreamUrl(url) {
   try {
@@ -1980,7 +2099,7 @@ var hlsProxyController = async (c) => {
   } catch {
     throw new validationError("url must be absolute");
   }
-  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedStreamHost(parsed.hostname)) {
+  if (parsed.protocol !== "https:" || !isAllowedStreamHost(parsed.hostname)) {
     throw new validationError("url host not allowed");
   }
   const referer = refererForStreamUrl(parsed.href);
@@ -2057,19 +2176,21 @@ var hlsProxyController = async (c) => {
 var hlsProxy_default = hlsProxyController;
 
 // src/lib/posterUrls.ts
-var POSTER_HOST_SUFFIXES = [
+var POSTER_ALLOWED_DOMAINS = [
   "anipixcdn.co",
   "noitatnemucod.net",
   "bunnycdn.ru",
   "b-cdn.net",
   "wsrv.nl",
-  "weserv.nl"
+  "weserv.nl",
+  "hianime.lu",
+  "hianime.to",
+  "aniwatchtv.to"
 ];
 function isAllowedPosterHost(hostname) {
-  const host = hostname.toLowerCase();
-  if (POSTER_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s))) return true;
-  if (host.includes("anipix") || host.includes("noitatnemucod")) return true;
-  return false;
+  if (!hostname || typeof hostname !== "string") return false;
+  const host = hostname.trim().toLowerCase();
+  return POSTER_ALLOWED_DOMAINS.some((domain) => host === domain || host.endsWith("." + domain));
 }
 
 // src/handlers/media/posterProxy.ts
@@ -2205,8 +2326,8 @@ var vttProxyController = async (c) => {
   } catch {
     throw new validationError("url must be absolute");
   }
-  if (parsed.protocol !== "https:") {
-    throw new validationError("only https:// subtitle URLs are allowed");
+  if (parsed.protocol !== "https:" || !isAllowedStreamHost(parsed.hostname)) {
+    throw new validationError("only https:// subtitle URLs on permitted hosts are allowed");
   }
   const referer = parsed.hostname.includes("aniwatchtv") || parsed.hostname.includes("zoko") ? "https://zokoanime.video/" : "https://megaplay.buzz/";
   const upstream = await fetch(parsed.href, {
@@ -2259,7 +2380,7 @@ function parseAllowedUrl(raw) {
   if (!raw) return null;
   try {
     const u = new URL(raw);
-    if (!/^https?:$/i.test(u.protocol) || !u.hostname || u.hostname.length < 3) return null;
+    if (u.protocol !== "https:" || !u.hostname || u.hostname.length < 3) return null;
     return u.href;
   } catch {
     return null;
@@ -2277,7 +2398,10 @@ function parseCcUrl(raw) {
   }
 }
 function escAttr(s) {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function safeJson(val) {
+  return JSON.stringify(val).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 function parseEpisodeIdParam(raw) {
   if (!raw) return null;
@@ -2415,7 +2539,7 @@ var watchController = async (c) => {
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
   <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Rosario:wght@700&display=swap" rel="stylesheet" /></noscript>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" integrity="sha384-9v3HcdYrO3D+OPDTjZ40RXocgE4GtXVCd3/mCS62JsM93JXgI1afJVuwjFvsu6ni" crossorigin="anonymous" defer></script>
   <style>
     :root {
       --bg0: #0a0c10;
@@ -3693,17 +3817,17 @@ var watchController = async (c) => {
 
   <script>
     (function () {
-      var streams = ${JSON.stringify(streams)};
-      var captions = ${JSON.stringify(captions)};
-      var skips = ${JSON.stringify(skips)};
-      var providers = ${JSON.stringify(providers)};
-      var animeId = ${JSON.stringify(animeId)};
-      var animeName = ${JSON.stringify(animeTitle || "")};
-      var playCategory = ${JSON.stringify(category)};
-      var currentEpNum = ${JSON.stringify(epNum)};
-      var currentEpTitle = ${JSON.stringify(epTitle || "")};
+      var streams = ${safeJson(streams)};
+      var captions = ${safeJson(captions)};
+      var skips = ${safeJson(skips)};
+      var providers = ${safeJson(providers)};
+      var animeId = ${safeJson(animeId)};
+      var animeName = ${safeJson(animeTitle || "")};
+      var playCategory = ${safeJson(category)};
+      var currentEpNum = ${safeJson(epNum)};
+      var currentEpTitle = ${safeJson(epTitle || "")};
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
-      var track = ${JSON.stringify(initial)};
+      var track = ${safeJson(initial)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
       var stage = document.getElementById('stage');
@@ -5321,8 +5445,8 @@ var watchController = async (c) => {
           }
           navigator.mediaSession.metadata = new MediaMetadata({
             title: msTitle,
-            artist: animeName || ${JSON.stringify(SITE_NAME)},
-            album: animeName || ${JSON.stringify(SITE_NAME)},
+            artist: animeName || ${safeJson(SITE_NAME)},
+            album: animeName || ${safeJson(SITE_NAME)},
             artwork: artworkList,
           });
           navigator.mediaSession.setActionHandler('play', function () { togglePlay(); });
@@ -5979,7 +6103,7 @@ router.get("/hianime/watch", async (c) => {
 <body>
   <div class="card">
     <h1>Episode unavailable</h1>
-    <p><code>${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></p>
+    <p><code>${msg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</code></p>
     <a href="/browse">\u2190 Back to browse</a>
   </div>
 </body>
@@ -8069,7 +8193,8 @@ var browseController = async (c) => {
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
       }
 
       function normalizeAnime(a) {
@@ -9321,15 +9446,53 @@ var origins = config_default.origin.includes(",") ? config_default.origin.split(
 app.use("*", compress());
 app.use(
   "*",
+  secureHeaders({
+    xContentTypeOptions: "nosniff",
+    xFrameOptions: "SAMEORIGIN",
+    referrerPolicy: "strict-origin-when-cross-origin",
+    strictTransportSecurity: config_default.isProduction ? "max-age=31536000; includeSubDomains" : false,
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: []
+    }
+  })
+);
+var htmlCsp = secureHeaders({
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: [
+      "'self'",
+      "'unsafe-inline'",
+      "https://cdn.jsdelivr.net",
+      "https://va.vercel-scripts.com"
+    ],
+    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+    imgSrc: ["'self'", "data:", "blob:", "https:"],
+    mediaSrc: ["'self'", "blob:", "data:", "https:"],
+    connectSrc: ["'self'", "blob:", "data:", "https:"],
+    workerSrc: ["'self'", "blob:"],
+    frameAncestors: ["'self'"]
+  }
+});
+app.use("/", htmlCsp);
+app.use("/browse", htmlCsp);
+app.use("/api/v2/hianime/watch", htmlCsp);
+var isWildcardOrigin = origins === "*" || Array.isArray(origins) && origins.includes("*");
+app.use(
+  "*",
   cors({
     origin: origins,
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Api-Key"],
     exposeHeaders: ["Content-Length", "X-Request-Id", "Cache-Control"],
     maxAge: 600,
-    credentials: true
+    credentials: !isWildcardOrigin
   })
 );
+app.use("/api/v2/*", rateLimiter());
+app.use("/api/v2/*", apiKeyAuth());
 if (!config_default.isProduction || config_default.enableLogging) {
   app.use("/api/v2/*", logger());
 }

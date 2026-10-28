@@ -1,8 +1,8 @@
 import { Context } from 'hono';
 import { validationError } from '../../lib/errors';
+import { isAllowedStreamHost } from '../../lib/streamUrls';
 
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
 /**
  * Subtitle (VTT/ASS) proxy — accepts any https:// URL, no auth required.
@@ -30,16 +30,17 @@ const vttProxyController = async (c: Context) => {
     throw new validationError('url must be absolute');
   }
 
-  if (parsed.protocol !== 'https:') {
-    throw new validationError('only https:// subtitle URLs are allowed');
+  if (parsed.protocol !== 'https:' || !isAllowedStreamHost(parsed.hostname)) {
+    throw new validationError('only https:// subtitle URLs on permitted hosts are allowed');
   }
 
   // CDN hosts (broforgotsave.online, etc.) enforce hotlink protection —
   // they return 403 without a trusted Referer.  MegaPlay CDNs expect the
   // embed origin; Zoko CDNs expect the Zoko player origin.
-  const referer = parsed.hostname.includes('aniwatchtv') || parsed.hostname.includes('zoko')
-    ? 'https://zokoanime.video/'
-    : 'https://megaplay.buzz/';
+  const referer =
+    parsed.hostname.includes('aniwatchtv') || parsed.hostname.includes('zoko')
+      ? 'https://zokoanime.video/'
+      : 'https://megaplay.buzz/';
 
   const upstream = await fetch(parsed.href, {
     headers: {
