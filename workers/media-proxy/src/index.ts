@@ -241,15 +241,20 @@ async function handleVtt(request: Request): Promise<Response> {
       ? 'https://zokoanime.video/'
       : 'https://megaplay.buzz/';
 
-  const upstream = await fetch(parsed.href, {
-    headers: {
-      'User-Agent': UA,
-      Accept: 'text/vtt, text/plain, */*',
-      Referer: referer,
-      Origin: new URL(referer).origin,
-    },
-    redirect: 'follow',
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(parsed.href, {
+      headers: {
+        'User-Agent': UA,
+        Accept: 'text/vtt, text/plain, */*',
+        Referer: referer,
+        Origin: new URL(referer).origin,
+      },
+      redirect: 'follow',
+    });
+  } catch {
+    return new Response('Upstream subtitle fetch failed', { status: 502, headers: corsHeaders() });
+  }
 
   if (!upstream.ok) {
     return new Response(`Upstream ${upstream.status}`, { status: 502, headers: corsHeaders() });
@@ -293,15 +298,20 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
     // keep default
   }
 
-  const upstream = await fetch(parsed.href, {
-    headers: {
-      'User-Agent': UA,
-      Referer: referer,
-      Origin: originHeader,
-      Accept: '*/*',
-    },
-    redirect: 'follow',
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(parsed.href, {
+      headers: {
+        'User-Agent': UA,
+        Referer: referer,
+        Origin: originHeader,
+        Accept: '*/*',
+      },
+      redirect: 'follow',
+    });
+  } catch {
+    return new Response('Upstream stream fetch failed', { status: 502, headers: corsHeaders() });
+  }
 
   if (!upstream.ok) {
     return new Response(`Upstream ${upstream.status}`, { status: 502, headers: corsHeaders() });
@@ -422,46 +432,50 @@ async function handlePoster(request: Request): Promise<Response> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders() });
-    }
-
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method not allowed', { status: 405, headers: corsHeaders() });
-    }
-
-    const url = new URL(request.url);
-    const workerOrigin = url.origin;
-    const path = url.pathname.replace(/\/+$/, '') || '/';
-
-    if (path === '/' || path === '') {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          service: 'hianime-media-proxy',
-          routes: ['/hls?url=&k=', '/vtt?url=', '/poster?url=&k='],
-          auth: Boolean((env.MEDIA_PROXY_SECRET || '').trim()),
-        }),
-        {
-          status: 200,
-          headers: corsHeaders({ 'Content-Type': 'application/json' }),
-        }
-      );
-    }
-
-    if (path === '/hls' || path === '/poster') {
-      if (!authOk(request, env)) {
-        return new Response('invalid or missing media proxy key', {
-          status: 401,
-          headers: corsHeaders(),
-        });
+    try {
+      if (request.method === 'OPTIONS') {
+        return new Response(null, { status: 204, headers: corsHeaders() });
       }
+
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return new Response('Method not allowed', { status: 405, headers: corsHeaders() });
+      }
+
+      const url = new URL(request.url);
+      const workerOrigin = url.origin;
+      const path = url.pathname.replace(/\/+$/, '') || '/';
+
+      if (path === '/' || path === '') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            service: 'hianime-media-proxy',
+            routes: ['/hls?url=&k=', '/vtt?url=', '/poster?url=&k='],
+            auth: Boolean((env.MEDIA_PROXY_SECRET || '').trim()),
+          }),
+          {
+            status: 200,
+            headers: corsHeaders({ 'Content-Type': 'application/json' }),
+          }
+        );
+      }
+
+      if (path === '/hls' || path === '/poster') {
+        if (!authOk(request, env)) {
+          return new Response('invalid or missing media proxy key', {
+            status: 401,
+            headers: corsHeaders(),
+          });
+        }
+      }
+
+      if (path === '/hls') return await handleHls(request, workerOrigin, env);
+      if (path === '/vtt') return await handleVtt(request);
+      if (path === '/poster') return await handlePoster(request);
+
+      return new Response('Not found', { status: 404, headers: corsHeaders() });
+    } catch {
+      return new Response('Internal media proxy error', { status: 500, headers: corsHeaders() });
     }
-
-    if (path === '/hls') return handleHls(request, workerOrigin, env);
-    if (path === '/vtt') return handleVtt(request);
-    if (path === '/poster') return handlePoster(request);
-
-    return new Response('Not found', { status: 404, headers: corsHeaders() });
   },
 };
