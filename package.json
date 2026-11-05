@@ -20,6 +20,7 @@
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "test:mobile": "playwright test tests/mobile",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "clean": "rm -rf dist node_modules/.cache",
@@ -37,6 +38,7 @@
     "hono": "^4.13.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/axios": "^0.14.4",
     "@types/node": "^25.5.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",

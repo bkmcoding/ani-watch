@@ -53,3 +53,5 @@ tmp_*.html
 tmp_rovodev_*.md
 .impeccable/
 .playwright-cli/
+test-results/
+playwright-report/
