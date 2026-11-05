@@ -1754,11 +1754,7 @@ function isMegaServer(s) {
 function pickMegaPlay(servers, category, server) {
   const picked = pickServer(servers, server, category);
   if (picked && isMegaServer(picked)) return picked;
-  return pickServer(
-    servers.filter(isMegaServer),
-    "hd-1",
-    category
-  );
+  return pickServer(servers.filter(isMegaServer), "hd-1", category);
 }
 function pickZoko(servers, category) {
   const pool = servers.filter(
@@ -9147,7 +9143,7 @@ var browseController = async (c) => {
           // HiAnime often labels chips "Episode 12" \u2014 don't show that twice.
           var generic =
             !raw ||
-            /^episodes*#?s*d+$/i.test(raw) ||
+            /^episode\\s*#?\\s*\\d+$/i.test(raw) ||
             (num != null && raw === String(num));
           var epTag = num != null ? 'Ep ' + num : 'Episode';
           var primary = generic ? epTag : raw;
@@ -9347,7 +9343,7 @@ var browseController = async (c) => {
           setStatus('Playing in cinema\u2026');
           var epNum = ep.number;
           var raw = String(ep.title || ep.alternativeTitle || '').trim();
-          var generic = !raw || /^episodes*#?s*d+$/i.test(raw) || (epNum != null && raw === String(epNum));
+          var generic = !raw || /^episode\\s*#?\\s*\\d+$/i.test(raw) || (epNum != null && raw === String(epNum));
           var epTag = epNum != null ? 'Ep ' + epNum : 'Episode';
           var epLabel = (generic ? epTag : epTag + ' \xB7 ' + raw) + ' (' + audioCat.toUpperCase() + ')';
           var animeName = (state.anime && (state.anime.name || state.anime.title)) || 'Anime';
