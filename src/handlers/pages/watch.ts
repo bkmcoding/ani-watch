@@ -817,13 +817,6 @@ export const watchController = async (c: Context) => {
     .ep-item:active {
       transform: scale(0.98);
     }
-      display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
-      padding: 8px 10px; border-radius: var(--radius-md, 12px); width: 100%;
-      transition: background 0.15s ease;
-      content-visibility: auto;
-      contain-intrinsic-size: auto 36px;
-    }
-    .ep-item:hover { background: rgba(255,255,255,0.06); }
     .ep-item.is-current { background: var(--accent-dim); color: var(--accent); }
     .ep-item .ep-n { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--muted); }
     .ep-item.is-current .ep-n { color: var(--accent); }
