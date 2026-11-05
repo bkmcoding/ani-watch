@@ -4,7 +4,7 @@ import { NOTICE_SHORT } from '../../lib/notices';
 import { vercelObservabilityScriptTags } from '../../lib/vercelObservability';
 import { mediaProxySecret, posterProxyBase, requestOrigin } from '../../lib/streamUrls';
 
-const browseController = async (c: Context) => {
+export const browseController = async (c: Context) => {
   const origin = requestOrigin(c);
   const posterProxy = posterProxyBase(origin);
   const posterKey = mediaProxySecret();
@@ -171,6 +171,11 @@ const browseController = async (c: Context) => {
     input:focus {
       border-color: rgba(61,214,198,0.45);
       box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    @media (max-width: 720px) {
+      input, select, textarea {
+        font-size: 16px !important;
+      }
     }
     .btn {
       appearance: none;
@@ -503,6 +508,7 @@ const browseController = async (c: Context) => {
       font-size: 0.85rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
       z-index: 2;
     }
     .wl-btn::after {
@@ -517,6 +523,7 @@ const browseController = async (c: Context) => {
     @media (hover: hover) {
       .wl-btn:hover { transform: scale(1.15); }
     }
+    .wl-btn:active { transform: scale(0.9); }
 
     /* Continue watching progress bar */
     .cw-card { text-decoration: none; display: grid; border-radius: var(--radius-lg); overflow: hidden; }
@@ -527,7 +534,8 @@ const browseController = async (c: Context) => {
       color: rgba(255,255,255,0.75); border-radius: var(--radius-pill); width: 24px; height: 24px;
       font-size: 0.75rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      opacity: 0; transition: opacity 0.15s ease, background 0.15s ease;
+      opacity: 0; transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
       z-index: 3;
     }
     .cw-remove-btn::after {
@@ -541,6 +549,7 @@ const browseController = async (c: Context) => {
     @media (hover: hover) {
       .cw-remove-btn:hover { background: var(--danger); color: #fff; }
     }
+    .cw-remove-btn:active { transform: scale(0.9); }
     @media (hover: none) or (pointer: coarse) {
       .wl-btn {
         opacity: 0.88;
@@ -548,11 +557,21 @@ const browseController = async (c: Context) => {
         height: 32px;
         font-size: 0.9rem;
       }
+      .wl-btn::after {
+        inset: -6px;
+        min-width: 44px;
+        min-height: 44px;
+      }
       .cw-remove-btn {
         opacity: 0.88;
         width: 28px;
         height: 28px;
         font-size: 0.75rem;
+      }
+      .cw-remove-btn::after {
+        inset: -8px;
+        min-width: 44px;
+        min-height: 44px;
       }
     }
     .cw-prog-bar {
@@ -719,7 +738,8 @@ const browseController = async (c: Context) => {
         color: var(--accent);
         border-radius: 999px;
         padding: 12px 18px;
-        min-height: 44px;
+        min-width: 48px;
+        min-height: 48px;
         font: inherit;
         font-weight: 700;
         font-size: 0.9rem;
@@ -742,7 +762,7 @@ const browseController = async (c: Context) => {
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         margin: -8px -14px 12px;
-        padding: 8px 14px;
+        padding: 8px max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));
         border-bottom: 1px solid var(--line);
         display: flex;
         gap: 6px;
@@ -1111,7 +1131,10 @@ const browseController = async (c: Context) => {
       display: none;
       align-items: center;
       justify-content: center;
-      padding: clamp(12px, 3vw, 24px);
+      padding-top: max(clamp(12px, 3vw, 24px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(12px, 3vw, 24px), env(safe-area-inset-bottom));
+      padding-left: max(clamp(12px, 3vw, 24px), env(safe-area-inset-left));
+      padding-right: max(clamp(12px, 3vw, 24px), env(safe-area-inset-right));
     }
     .cinema-overlay.is-open {
       display: flex;
@@ -1225,7 +1248,7 @@ const browseController = async (c: Context) => {
         width: 100vw;
         height: 100dvh;
         max-height: 100dvh;
-        padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+        padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
         justify-content: center;
       }
       .cinema-viewport {
@@ -1281,12 +1304,16 @@ const browseController = async (c: Context) => {
         padding-right: max(clamp(12px, 3vw, 20px), env(safe-area-inset-right));
         gap: 14px;
       }
+      header {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+      }
       .pill { padding: 9px 14px; font-size: 0.84rem; min-height: 40px; }
       .btn { padding: 12px 16px; min-height: 44px; }
       .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .rail .card { flex-basis: 116px; width: 116px; }
-      input[type="search"], input[type="password"], input[type="text"] { padding: 13px 14px; font-size: 1rem; }
+      input[type="search"], input[type="password"], input[type="text"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
     }
     /* Small phone: 375–480px */
     @media (max-width: 480px) {
@@ -1312,7 +1339,7 @@ const browseController = async (c: Context) => {
       .page, .pill, .btn, .card, .ep-card, .search-fab, .wl-btn, .cw-remove-btn, .cw-prog-fill, .ani-toast {
         transition: none;
       }
-      .btn:hover, .btn:active, .card:hover, .card:active, .card:focus-visible, .ep-card:hover, .ep-card:active, .search-fab:hover, .search-fab:active, .wl-btn:hover {
+      .btn:hover, .btn:active, .card:hover, .card:active, .card:focus-visible, .ep-card:hover, .ep-card:active, .search-fab:hover, .search-fab:active, .wl-btn:hover, .wl-btn:active, .cw-remove-btn:active {
         transform: none;
       }
       .skel .ph {
