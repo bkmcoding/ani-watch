@@ -718,7 +718,7 @@ export const watchController = async (c: Context) => {
       max-height: min(80dvh, 600px); overflow-y: auto; overflow-x: hidden;
       background: var(--panel); border: 1px solid var(--line);
       border-radius: var(--radius-lg, 14px); padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-      display: none; z-index: 5; backdrop-filter: blur(16px);
+      display: none; z-index: 100; backdrop-filter: blur(16px);
       overscroll-behavior: contain;
     }
     .menu.is-open {
@@ -781,7 +781,7 @@ export const watchController = async (c: Context) => {
       max-height: min(52vh, 420px);
       background: var(--panel); border: 1px solid var(--line);
       border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-      display: none; z-index: 5; backdrop-filter: blur(16px);
+      display: none; z-index: 100; backdrop-filter: blur(16px);
       flex-direction: column; overflow: hidden;
     }
     .ep-panel.is-open {
@@ -883,6 +883,15 @@ export const watchController = async (c: Context) => {
     /* Sheet & Gesture shared styles */
     .sheet-backdrop {
       display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 90;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s var(--ease);
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
     .sheet-handle {
       display: none;
@@ -1134,7 +1143,7 @@ export const watchController = async (c: Context) => {
         position: fixed !important;
         inset: 0 !important;
         background: rgba(0, 0, 0, 0.65) !important;
-        z-index: 998 !important;
+        z-index: 90 !important;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.25s var(--ease);
@@ -1164,7 +1173,7 @@ export const watchController = async (c: Context) => {
         backdrop-filter: blur(24px) !important;
         -webkit-backdrop-filter: blur(24px) !important;
         box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.8) !important;
-        z-index: 1000 !important;
+        z-index: 100 !important;
         padding: 0 !important;
         transform: translateY(100%);
         transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
@@ -1256,7 +1265,7 @@ export const watchController = async (c: Context) => {
       }
     }
     /* Desktop backdrop suppression */
-    @media (min-width: 721px) {
+    @media (min-width: 721px) and (min-height: 541px) {
       .sheet-backdrop {
         display: none !important;
         pointer-events: none !important;
