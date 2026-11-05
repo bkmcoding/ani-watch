@@ -1603,7 +1603,7 @@ export const watchController = async (c: Context) => {
             <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v10H4V6zm0 12h16v2H4v-2z"/></svg>
             </button>
-            <button type="button" class="ctrl" id="fs" aria-label="Fullscreen">
+            <button type="button" class="ctrl" id="fs" aria-label="Fullscreen" title="Fullscreen (F)">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
             </button>
           </div>
@@ -1949,12 +1949,38 @@ export const watchController = async (c: Context) => {
         video.muted = !video.muted;
         setMuted(video.muted);
       }
+      function isIosPhone() {
+        return /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      }
+
       function toggleFs() {
-        if (!document.fullscreenElement) {
-          if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
-          (stage.requestFullscreen && stage.requestFullscreen()) || (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen());
+        var isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        if (!isFs) {
+          if (settingsMenu && settingsMenu.classList.contains('is-open')) toggleSettings(false);
+          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+
+          if (isIosPhone() && typeof video.webkitEnterFullscreen === 'function' && !stage.requestFullscreen) {
+            video.webkitEnterFullscreen();
+            return;
+          }
+
+          var req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+          if (req) {
+            req.call(stage).then(function () {
+              if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                screen.orientation.lock('landscape').catch(function () {});
+              }
+            }).catch(function () {});
+          }
         } else {
-          document.exitFullscreen && document.exitFullscreen();
+          var exit = document.exitFullscreen || document.webkitExitFullscreen;
+          if (exit) {
+            exit.call(document).then(function () {
+              if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                screen.orientation.unlock();
+              }
+            }).catch(function () {});
+          }
         }
       }
 
@@ -2785,6 +2811,27 @@ export const watchController = async (c: Context) => {
         e.stopPropagation();
         toggleFs();
       });
+
+      function onFsChange() {
+        var isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        stage.classList.toggle('is-fullscreen', isFs);
+        document.body.classList.toggle('is-fullscreen', isFs);
+        fsBtn.setAttribute('title', isFs ? 'Exit Fullscreen (F)' : 'Fullscreen (F)');
+        fsBtn.setAttribute('aria-label', isFs ? 'Exit Fullscreen' : 'Fullscreen');
+        fsBtn.innerHTML = isFs
+          ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-14v3h3v2h-5V5h2z"/></svg>'
+          : '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+        if (!isFs && screen.orientation && typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+          document.activeElement.blur();
+        }
+        pokeControls();
+      }
+      document.addEventListener('fullscreenchange', onFsChange);
+      document.addEventListener('webkitfullscreenchange', onFsChange);
+      video.addEventListener('webkitendfullscreen', onFsChange);
       settingsBtn.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
