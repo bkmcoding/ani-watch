@@ -3112,7 +3112,7 @@ var watchController = async (c) => {
       max-height: min(80dvh, 600px); overflow-y: auto; overflow-x: hidden;
       background: var(--panel); border: 1px solid var(--line);
       border-radius: var(--radius-lg, 14px); padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-      display: none; z-index: 5; backdrop-filter: blur(16px);
+      display: none; z-index: 100; backdrop-filter: blur(16px);
       overscroll-behavior: contain;
     }
     .menu.is-open {
@@ -3175,7 +3175,7 @@ var watchController = async (c) => {
       max-height: min(52vh, 420px);
       background: var(--panel); border: 1px solid var(--line);
       border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-      display: none; z-index: 5; backdrop-filter: blur(16px);
+      display: none; z-index: 100; backdrop-filter: blur(16px);
       flex-direction: column; overflow: hidden;
     }
     .ep-panel.is-open {
@@ -3277,6 +3277,15 @@ var watchController = async (c) => {
     /* Sheet & Gesture shared styles */
     .sheet-backdrop {
       display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 90;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s var(--ease);
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
     .sheet-handle {
       display: none;
@@ -3521,14 +3530,16 @@ var watchController = async (c) => {
         line-height: 1.3 !important;
         -webkit-text-stroke: 1.5px #000 !important;
       }
+    }
 
-      /* Scrim for Mobile Bottom Sheets - Zero blur to preserve sticky video clarity */
+    /* Mobile Drawer Base & Shared Rules (Portrait Sheet & Landscape Slide-Over) */
+    @media (max-width: 720px), (max-height: 540px) and (orientation: landscape) {
       .sheet-backdrop {
         display: block !important;
         position: fixed !important;
         inset: 0 !important;
         background: rgba(0, 0, 0, 0.65) !important;
-        z-index: 998 !important;
+        z-index: 90 !important;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.25s var(--ease);
@@ -3540,37 +3551,19 @@ var watchController = async (c) => {
         pointer-events: auto !important;
       }
 
-      /* Native Bottom Sheets for Settings & Episodes */
       .menu, .ep-panel {
         animation: none !important;
-        position: fixed !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        top: auto !important;
-        width: 100vw !important;
-        max-width: 100vw !important;
-        max-height: 85dvh !important;
-        border-radius: 20px 20px 0 0 !important;
-        border: none !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
         background: rgba(14, 18, 26, 0.98) !important;
         backdrop-filter: blur(24px) !important;
         -webkit-backdrop-filter: blur(24px) !important;
         box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.8) !important;
-        z-index: 1000 !important;
+        z-index: 100 !important;
         padding: 0 !important;
-        transform: translateY(100%);
-        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
         display: flex !important;
         flex-direction: column !important;
         visibility: hidden;
       }
-      .menu.is-open, .ep-panel.is-open {
-        visibility: visible !important;
-        transform: translateY(0) !important;
-        animation: none !important;
-      }
+
       .sheet-handle {
         display: block !important;
         width: 36px;
@@ -3649,15 +3642,66 @@ var watchController = async (c) => {
         display: none !important;
       }
     }
+
+    /* Portrait mobile bottom sheet */
+    @media (max-width: 720px) and (orientation: portrait), (max-width: 540px) {
+      .menu, .ep-panel {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        top: auto !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: min(85dvh, 560px) !important;
+        border-radius: 20px 20px 0 0 !important;
+        border: none !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+        transform: translateY(100%) !important;
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        z-index: 100 !important;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        transform: translateY(0) !important;
+        visibility: visible !important;
+      }
+    }
+
+    /* Landscape phone right slide-over drawer */
+    @media (max-height: 540px) and (orientation: landscape) {
+      .menu, .ep-panel {
+        position: fixed !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        left: auto !important;
+        width: min(340px, 45vw) !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 16px 0 0 16px !important;
+        border: none !important;
+        border-left: 1px solid rgba(255, 255, 255, 0.16) !important;
+        transform: translateX(100%) !important;
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        z-index: 100 !important;
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        transform: translateX(0) !important;
+        visibility: visible !important;
+      }
+      .sheet-handle { display: none !important; }
+    }
+
     /* Desktop backdrop suppression */
-    @media (min-width: 721px) {
+    @media (min-width: 721px) and (min-height: 541px) {
       .sheet-backdrop {
         display: none !important;
         pointer-events: none !important;
       }
     }
     /* Landscape phone */
-    @media (max-height: 500px) and (orientation: landscape) {
+    @media (max-height: 540px) and (orientation: landscape) {
       .page {
         padding: 0 !important;
         gap: 0 !important;
@@ -3988,7 +4032,7 @@ var watchController = async (c) => {
             <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v10H4V6zm0 12h16v2H4v-2z"/></svg>
             </button>
-            <button type="button" class="ctrl" id="fs" aria-label="Fullscreen">
+            <button type="button" class="ctrl" id="fs" aria-label="Fullscreen" title="Fullscreen (F)">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
             </button>
           </div>
@@ -4334,12 +4378,38 @@ var watchController = async (c) => {
         video.muted = !video.muted;
         setMuted(video.muted);
       }
+      function isIosPhone() {
+        return /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      }
+
       function toggleFs() {
-        if (!document.fullscreenElement) {
-          if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
-          (stage.requestFullscreen && stage.requestFullscreen()) || (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen());
+        var isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        if (!isFs) {
+          if (settingsMenu && settingsMenu.classList.contains('is-open')) toggleSettings(false);
+          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+
+          if (isIosPhone() && typeof video.webkitEnterFullscreen === 'function' && !stage.requestFullscreen) {
+            video.webkitEnterFullscreen();
+            return;
+          }
+
+          var req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+          if (req) {
+            req.call(stage).then(function () {
+              if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                screen.orientation.lock('landscape').catch(function () {});
+              }
+            }).catch(function () {});
+          }
         } else {
-          document.exitFullscreen && document.exitFullscreen();
+          var exit = document.exitFullscreen || document.webkitExitFullscreen;
+          if (exit) {
+            exit.call(document).then(function () {
+              if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                screen.orientation.unlock();
+              }
+            }).catch(function () {});
+          }
         }
       }
 
@@ -4882,7 +4952,7 @@ var watchController = async (c) => {
       }
 
       function syncBackdrop() {
-        var isMobile = window.matchMedia('(max-width: 720px)').matches;
+        var isMobile = window.matchMedia('(max-width: 720px), (max-height: 540px)').matches;
         var anyOpen = (settingsMenu && settingsMenu.classList.contains('is-open')) ||
                       (epPanel && epPanel.classList.contains('is-open'));
         if (sheetBackdrop) {
@@ -5170,6 +5240,27 @@ var watchController = async (c) => {
         e.stopPropagation();
         toggleFs();
       });
+
+      function onFsChange() {
+        var isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        stage.classList.toggle('is-fullscreen', isFs);
+        document.body.classList.toggle('is-fullscreen', isFs);
+        fsBtn.setAttribute('title', isFs ? 'Exit Fullscreen (F)' : 'Fullscreen (F)');
+        fsBtn.setAttribute('aria-label', isFs ? 'Exit Fullscreen' : 'Fullscreen');
+        fsBtn.innerHTML = isFs
+          ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-14v3h3v2h-5V5h2z"/></svg>'
+          : '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+        if (!isFs && screen.orientation && typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+          document.activeElement.blur();
+        }
+        pokeControls();
+      }
+      document.addEventListener('fullscreenchange', onFsChange);
+      document.addEventListener('webkitfullscreenchange', onFsChange);
+      video.addEventListener('webkitendfullscreen', onFsChange);
       settingsBtn.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
@@ -6726,6 +6817,11 @@ var browseController = async (c) => {
       border-color: rgba(61,214,198,0.45);
       box-shadow: 0 0 0 3px var(--accent-dim);
     }
+    @media (max-width: 720px) {
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+    }
     .btn {
       appearance: none;
       border: 1px solid rgba(61,214,198,0.4);
@@ -7057,6 +7153,7 @@ var browseController = async (c) => {
       font-size: 0.85rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
       z-index: 2;
     }
     .wl-btn::after {
@@ -7071,6 +7168,7 @@ var browseController = async (c) => {
     @media (hover: hover) {
       .wl-btn:hover { transform: scale(1.15); }
     }
+    .wl-btn:active { transform: scale(0.9); }
 
     /* Continue watching progress bar */
     .cw-card { text-decoration: none; display: grid; border-radius: var(--radius-lg); overflow: hidden; }
@@ -7081,7 +7179,8 @@ var browseController = async (c) => {
       color: rgba(255,255,255,0.75); border-radius: var(--radius-pill); width: 24px; height: 24px;
       font-size: 0.75rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      opacity: 0; transition: opacity 0.15s ease, background 0.15s ease;
+      opacity: 0; transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
       z-index: 3;
     }
     .cw-remove-btn::after {
@@ -7095,6 +7194,7 @@ var browseController = async (c) => {
     @media (hover: hover) {
       .cw-remove-btn:hover { background: var(--danger); color: #fff; }
     }
+    .cw-remove-btn:active { transform: scale(0.9); }
     @media (hover: none) or (pointer: coarse) {
       .wl-btn {
         opacity: 0.88;
@@ -7102,11 +7202,21 @@ var browseController = async (c) => {
         height: 32px;
         font-size: 0.9rem;
       }
+      .wl-btn::after {
+        inset: -6px;
+        min-width: 44px;
+        min-height: 44px;
+      }
       .cw-remove-btn {
         opacity: 0.88;
         width: 28px;
         height: 28px;
         font-size: 0.75rem;
+      }
+      .cw-remove-btn::after {
+        inset: -8px;
+        min-width: 44px;
+        min-height: 44px;
       }
     }
     .cw-prog-bar {
@@ -7273,7 +7383,8 @@ var browseController = async (c) => {
         color: var(--accent);
         border-radius: 999px;
         padding: 12px 18px;
-        min-height: 44px;
+        min-width: 48px;
+        min-height: 48px;
         font: inherit;
         font-weight: 700;
         font-size: 0.9rem;
@@ -7296,7 +7407,7 @@ var browseController = async (c) => {
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         margin: -8px -14px 12px;
-        padding: 8px 14px;
+        padding: 8px max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));
         border-bottom: 1px solid var(--line);
         display: flex;
         gap: 6px;
@@ -7665,7 +7776,10 @@ var browseController = async (c) => {
       display: none;
       align-items: center;
       justify-content: center;
-      padding: clamp(12px, 3vw, 24px);
+      padding-top: max(clamp(12px, 3vw, 24px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(12px, 3vw, 24px), env(safe-area-inset-bottom));
+      padding-left: max(clamp(12px, 3vw, 24px), env(safe-area-inset-left));
+      padding-right: max(clamp(12px, 3vw, 24px), env(safe-area-inset-right));
     }
     .cinema-overlay.is-open {
       display: flex;
@@ -7779,7 +7893,7 @@ var browseController = async (c) => {
         width: 100vw;
         height: 100dvh;
         max-height: 100dvh;
-        padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+        padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
         justify-content: center;
       }
       .cinema-viewport {
@@ -7835,12 +7949,16 @@ var browseController = async (c) => {
         padding-right: max(clamp(12px, 3vw, 20px), env(safe-area-inset-right));
         gap: 14px;
       }
+      header {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+      }
       .pill { padding: 9px 14px; font-size: 0.84rem; min-height: 40px; }
       .btn { padding: 12px 16px; min-height: 44px; }
       .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .rail .card { flex-basis: 116px; width: 116px; }
-      input[type="search"], input[type="password"], input[type="text"] { padding: 13px 14px; font-size: 1rem; }
+      input[type="search"], input[type="password"], input[type="text"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
     }
     /* Small phone: 375\u2013480px */
     @media (max-width: 480px) {
@@ -7866,7 +7984,7 @@ var browseController = async (c) => {
       .page, .pill, .btn, .card, .ep-card, .search-fab, .wl-btn, .cw-remove-btn, .cw-prog-fill, .ani-toast {
         transition: none;
       }
-      .btn:hover, .btn:active, .card:hover, .card:active, .card:focus-visible, .ep-card:hover, .ep-card:active, .search-fab:hover, .search-fab:active, .wl-btn:hover {
+      .btn:hover, .btn:active, .card:hover, .card:active, .card:focus-visible, .ep-card:hover, .ep-card:active, .search-fab:hover, .search-fab:active, .wl-btn:hover, .wl-btn:active, .cw-remove-btn:active {
         transform: none;
       }
       .skel .ph {
