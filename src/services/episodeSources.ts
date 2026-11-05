@@ -35,11 +35,7 @@ function isMegaServer(s: ThemeServer): boolean {
 function pickMegaPlay(servers: ThemeServer[], category: string, server: string) {
   const picked = pickServer(servers, server, category);
   if (picked && isMegaServer(picked)) return picked;
-  return pickServer(
-    servers.filter(isMegaServer),
-    'hd-1',
-    category
-  );
+  return pickServer(servers.filter(isMegaServer), 'hd-1', category);
 }
 
 function pickZoko(servers: ThemeServer[], category: string) {
@@ -302,8 +298,7 @@ export async function resolveEpisodePlayback(
 ): Promise<EpisodePlayback> {
   const server = (opts?.server || 'hd-1').toLowerCase();
   const preferred = ((opts?.category || 'sub').toLowerCase() === 'dub' ? 'dub' : 'sub') as
-    | 'sub'
-    | 'dub';
+    'sub' | 'dub';
   const other = (preferred === 'sub' ? 'dub' : 'sub') as 'sub' | 'dub';
   const episodeId = normalizeEpisodeId(animeEpisodeId);
   const epNum = episodeNumericId(episodeId);

@@ -44,7 +44,10 @@ const listpageController = async (c: Context): Promise<ListPageResponse> => {
   let normalizeCategory = category ? category.replace(/\s+/g, '-').toLowerCase() : null;
   if (normalizeCategory === 'martial-arts') normalizeCategory = 'marial-arts';
 
-  if (normalizeCategory && (!/^[a-z0-9_-]+$/i.test(normalizeCategory) || normalizeCategory.includes('..'))) {
+  if (
+    normalizeCategory &&
+    (!/^[a-z0-9_-]+$/i.test(normalizeCategory) || normalizeCategory.includes('..'))
+  ) {
     throw new validationError('Invalid category parameter');
   }
 
