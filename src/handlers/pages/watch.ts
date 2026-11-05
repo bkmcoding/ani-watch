@@ -1291,6 +1291,7 @@ export const watchController = async (c: Context) => {
         transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
         z-index: 100 !important;
         padding-right: max(12px, env(safe-area-inset-right)) !important;
+        padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
       }
       .menu.is-open, .ep-panel.is-open {
         transform: translateX(0) !important;
