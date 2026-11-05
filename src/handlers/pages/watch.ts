@@ -1136,8 +1136,10 @@ export const watchController = async (c: Context) => {
         line-height: 1.3 !important;
         -webkit-text-stroke: 1.5px #000 !important;
       }
+    }
 
-      /* Scrim for Mobile Bottom Sheets - Zero blur to preserve sticky video clarity */
+    /* Mobile Drawer Base & Shared Rules (Portrait Sheet & Landscape Slide-Over) */
+    @media (max-width: 720px), (max-height: 540px) and (orientation: landscape) {
       .sheet-backdrop {
         display: block !important;
         position: fixed !important;
@@ -1155,37 +1157,19 @@ export const watchController = async (c: Context) => {
         pointer-events: auto !important;
       }
 
-      /* Native Bottom Sheets for Settings & Episodes */
       .menu, .ep-panel {
         animation: none !important;
-        position: fixed !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        top: auto !important;
-        width: 100vw !important;
-        max-width: 100vw !important;
-        max-height: 85dvh !important;
-        border-radius: 20px 20px 0 0 !important;
-        border: none !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
         background: rgba(14, 18, 26, 0.98) !important;
         backdrop-filter: blur(24px) !important;
         -webkit-backdrop-filter: blur(24px) !important;
         box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.8) !important;
         z-index: 100 !important;
         padding: 0 !important;
-        transform: translateY(100%);
-        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
         display: flex !important;
         flex-direction: column !important;
         visibility: hidden;
       }
-      .menu.is-open, .ep-panel.is-open {
-        visibility: visible !important;
-        transform: translateY(0) !important;
-        animation: none !important;
-      }
+
       .sheet-handle {
         display: block !important;
         width: 36px;
@@ -1264,6 +1248,57 @@ export const watchController = async (c: Context) => {
         display: none !important;
       }
     }
+
+    /* Portrait mobile bottom sheet */
+    @media (max-width: 720px) and (orientation: portrait), (max-width: 540px) {
+      .menu, .ep-panel {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        top: auto !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: min(85dvh, 560px) !important;
+        border-radius: 20px 20px 0 0 !important;
+        border: none !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+        transform: translateY(100%) !important;
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        z-index: 100 !important;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        transform: translateY(0) !important;
+        visibility: visible !important;
+      }
+    }
+
+    /* Landscape phone right slide-over drawer */
+    @media (max-height: 540px) and (orientation: landscape) {
+      .menu, .ep-panel {
+        position: fixed !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        left: auto !important;
+        width: min(340px, 45vw) !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 16px 0 0 16px !important;
+        border: none !important;
+        border-left: 1px solid rgba(255, 255, 255, 0.16) !important;
+        transform: translateX(100%) !important;
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        z-index: 100 !important;
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        transform: translateX(0) !important;
+        visibility: visible !important;
+      }
+      .sheet-handle { display: none !important; }
+    }
+
     /* Desktop backdrop suppression */
     @media (min-width: 721px) and (min-height: 541px) {
       .sheet-backdrop {
@@ -1272,7 +1307,7 @@ export const watchController = async (c: Context) => {
       }
     }
     /* Landscape phone */
-    @media (max-height: 500px) and (orientation: landscape) {
+    @media (max-height: 540px) and (orientation: landscape) {
       .page {
         padding: 0 !important;
         gap: 0 !important;
@@ -2523,7 +2558,7 @@ export const watchController = async (c: Context) => {
       }
 
       function syncBackdrop() {
-        var isMobile = window.matchMedia('(max-width: 720px)').matches;
+        var isMobile = window.matchMedia('(max-width: 720px), (max-height: 540px)').matches;
         var anyOpen = (settingsMenu && settingsMenu.classList.contains('is-open')) ||
                       (epPanel && epPanel.classList.contains('is-open'));
         if (sheetBackdrop) {
