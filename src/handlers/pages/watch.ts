@@ -86,7 +86,7 @@ function providerDisplayName(id: string | null | undefined): string {
   return '';
 }
 
-const watchController = async (c: Context) => {
+export const watchController = async (c: Context) => {
   const subCdn = parseAllowedUrl(c.req.query('sub') || undefined);
   const dubCdn = parseAllowedUrl(c.req.query('dub') || undefined);
   const legacy = parseAllowedUrl(c.req.query('url') || undefined);
@@ -497,24 +497,37 @@ const watchController = async (c: Context) => {
     .stage.is-paused .overlay, .stage.is-loading .overlay { opacity: 1; }
     .big-btn {
       width: 76px; height: 76px; border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(12, 16, 24, 0.55); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(12, 16, 24, 0.65); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       color: var(--ink); display: grid; place-items: center;
       pointer-events: auto; cursor: pointer;
-      transition: transform 0.25s var(--ease), background 0.25s ease;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 0 var(--accent-dim);
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease;
     }
-    .big-btn:hover { transform: scale(1.05); background: rgba(61, 214, 198, 0.2); }
+    .big-btn:hover {
+      transform: scale(1.1);
+      background: rgba(61, 214, 198, 0.2);
+      border-color: rgba(61, 214, 198, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 28px rgba(61, 214, 198, 0.35);
+      color: #fff;
+    }
+    .big-btn:active {
+      transform: scale(0.92);
+      transition-duration: 0.1s;
+    }
     .big-btn svg { width: 28px; height: 28px; }
     .skip-btn {
       position: absolute;
       right: 16px;
       bottom: 88px;
       z-index: 4;
-      padding: 10px 16px;
+      padding: 10px 18px;
       border-radius: 999px;
       border: 1px solid rgba(255,255,255,0.22);
-      background: rgba(12, 16, 24, 0.78);
-      backdrop-filter: blur(10px);
+      background: rgba(12, 16, 24, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       color: var(--ink);
       font-family: "DM Sans", system-ui, sans-serif;
       font-size: 14px;
@@ -522,8 +535,9 @@ const watchController = async (c: Context) => {
       letter-spacing: 0.02em;
       cursor: pointer;
       opacity: 0;
-      transform: translateY(6px);
-      transition: opacity 0.22s var(--ease), transform 0.22s var(--ease), background 0.2s ease;
+      transform: translateY(8px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      transition: opacity 0.24s var(--ease), transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
       pointer-events: none;
     }
     .skip-btn.is-visible {
@@ -531,7 +545,16 @@ const watchController = async (c: Context) => {
       transform: translateY(0);
       pointer-events: auto;
     }
-    .skip-btn:hover { background: rgba(61, 214, 198, 0.28); }
+    .skip-btn:hover {
+      background: rgba(61, 214, 198, 0.28);
+      border-color: rgba(61, 214, 198, 0.55);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(61, 214, 198, 0.3);
+    }
+    .skip-btn:active {
+      transform: translateY(0) scale(0.96);
+    }
     .stage.is-paused .skip-btn.is-visible,
     .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
       opacity: 1;
@@ -578,35 +601,84 @@ const watchController = async (c: Context) => {
       opacity: 0; transform: translateY(6px);
       transition: opacity 0.28s var(--ease), transform 0.28s var(--ease);
       z-index: 3;
+      pointer-events: none;
     }
     .stage.is-paused .controls,
-    .stage.show-controls .controls, .stage:focus-within .controls,
+    .stage.show-controls .controls,
     .stage.settings-open .controls {
       opacity: 1; transform: translateY(0);
+      pointer-events: auto;
+    }
+    @media (hover: hover) {
+      .stage:focus-within .controls {
+        pointer-events: auto;
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    .stage:has(:focus-visible) .controls {
+      pointer-events: auto;
+      transform: translateY(0);
+      opacity: 1;
     }
     .seek {
       width: 100%; height: 6px; appearance: none; background: transparent; cursor: pointer; margin: 0 0 10px;
+      transition: height 0.15s ease;
     }
     .seek::-webkit-slider-runnable-track {
       height: 6px; border-radius: 999px;
       background: linear-gradient(90deg, var(--accent) var(--progress, 0%), rgba(255,255,255,0.18) var(--progress, 0%));
+      transition: height 0.15s ease;
+    }
+    .seek:hover::-webkit-slider-runnable-track {
+      height: 8px;
     }
     .seek::-webkit-slider-thumb {
       appearance: none; width: 14px; height: 14px; margin-top: -4px;
       border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 4px var(--accent-dim);
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, background 0.18s ease;
     }
-    .seek::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); }
+    .seek:hover::-webkit-slider-thumb,
+    .seek:active::-webkit-slider-thumb {
+      transform: scale(1.3);
+      background: #fff;
+      box-shadow: 0 0 0 5px var(--accent-dim), 0 0 14px var(--accent);
+    }
+    .seek::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); transition: height 0.15s ease; }
+    .seek:hover::-moz-range-track { height: 8px; }
     .seek::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--accent); }
-    .seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink); }
+    .seek::-moz-range-thumb {
+      width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink);
+      box-shadow: 0 0 0 4px var(--accent-dim);
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, background 0.18s ease;
+    }
+    .seek:hover::-moz-range-thumb,
+    .seek:active::-moz-range-thumb {
+      transform: scale(1.3);
+      background: #fff;
+      box-shadow: 0 0 0 5px var(--accent-dim), 0 0 14px var(--accent);
+    }
     .row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     .row .spacer { flex: 1; min-width: 8px; }
     .ctrl {
       appearance: none; border: 0; background: transparent; color: var(--ink);
       width: 40px; height: 40px; border-radius: var(--radius-md, 12px);
       display: grid; place-items: center; cursor: pointer; position: relative;
-      transition: background 0.2s ease;
+      transition: background 0.18s ease, transform 0.15s ease, color 0.15s ease;
     }
-    .ctrl:hover, .ctrl.is-on { background: rgba(255,255,255,0.08); }
+    .ctrl:hover {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .ctrl:active {
+      transform: scale(0.92);
+      transition-duration: 0.08s;
+    }
+    .ctrl.is-on {
+      background: rgba(61, 214, 198, 0.18);
+      color: var(--accent);
+    }
     .ctrl svg { width: 20px; height: 20px; }
     .time {
       font-variant-numeric: tabular-nums; font-size: 0.82rem;
@@ -630,6 +702,16 @@ const watchController = async (c: Context) => {
       padding: 6px 10px; border-radius: var(--radius-pill, 999px); cursor: pointer; min-width: 42px;
     }
     .speed-chip:hover, .speed-chip.is-active { color: var(--accent); border-color: rgba(61,214,198,0.4); background: var(--accent-dim); }
+    @keyframes panelPopIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
     .menu {
       position: absolute; right: 12px; bottom: 58px;
       width: min(300px, calc(100% - 24px));
@@ -639,7 +721,10 @@ const watchController = async (c: Context) => {
       display: none; z-index: 5; backdrop-filter: blur(16px);
       overscroll-behavior: contain;
     }
-    .menu.is-open { display: block; }
+    .menu.is-open {
+      display: block;
+      animation: panelPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
     .menu h3 {
       margin: 0 0 10px; font-size: 0.72rem; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--muted); font-weight: 600;
@@ -662,13 +747,21 @@ const watchController = async (c: Context) => {
     .switch {
       position: relative; width: 42px; height: 24px; border-radius: 999px;
       background: rgba(255,255,255,0.12); border: 0; cursor: pointer; padding: 0;
+      transition: background 0.25s var(--ease), box-shadow 0.25s var(--ease);
     }
     .switch::after {
       content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
-      border-radius: 50%; background: #fff; transition: transform 0.2s var(--ease);
+      border-radius: 50%; background: #fff;
+      transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
     }
-    .switch.is-on { background: rgba(61, 214, 198, 0.55); }
-    .switch.is-on::after { transform: translateX(18px); }
+    .switch.is-on {
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(61, 214, 198, 0.4);
+    }
+    .switch.is-on::after {
+      transform: translateX(18px);
+      background: #0a0c10;
+    }
     .err {
       max-width: var(--stage-max); width: 100%; margin: 0 auto; color: var(--danger);
       background: rgba(255, 123, 114, 0.08); border: 1px solid rgba(255, 123, 114, 0.25);
@@ -691,7 +784,10 @@ const watchController = async (c: Context) => {
       display: none; z-index: 5; backdrop-filter: blur(16px);
       flex-direction: column; overflow: hidden;
     }
-    .ep-panel.is-open { display: flex; }
+    .ep-panel.is-open {
+      display: flex;
+      animation: panelPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
     .ep-panel-head {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
       padding: 12px 12px 8px; border-bottom: 1px solid var(--line);
@@ -708,6 +804,19 @@ const watchController = async (c: Context) => {
     .ep-item {
       appearance: none; border: 0; background: transparent; color: var(--ink);
       font: inherit; text-align: left; cursor: pointer;
+      display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
+      padding: 8px 10px; border-radius: var(--radius-md, 12px); width: 100%;
+      transition: background 0.15s ease, transform 0.12s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: auto 36px;
+    }
+    .ep-item:hover {
+      background: rgba(255,255,255,0.06);
+      transform: translateX(2px);
+    }
+    .ep-item:active {
+      transform: scale(0.98);
+    }
       display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
       padding: 8px 10px; border-radius: var(--radius-md, 12px); width: 100%;
       transition: background 0.15s ease;
@@ -780,19 +889,7 @@ const watchController = async (c: Context) => {
 
     /* Sheet & Gesture shared styles */
     .sheet-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.72);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 998;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.25s var(--ease);
-    }
-    .sheet-backdrop.is-active {
-      opacity: 1;
-      pointer-events: auto;
+      display: none;
     }
     .sheet-handle {
       display: none;
@@ -872,11 +969,16 @@ const watchController = async (c: Context) => {
       transition: transform 0.25s var(--ease);
       text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
     }
+    @keyframes gesturePulse {
+      0% { transform: scale(0.7) translateY(4px); opacity: 0; }
+      50% { transform: scale(1.18) translateY(-2px); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
     .gesture-indicator.is-active {
       opacity: 1;
     }
     .gesture-indicator.is-active .gesture-icon {
-      transform: scale(1.15);
+      animation: gesturePulse 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
     .mobile-nav-pill {
       display: none;
@@ -1033,8 +1135,27 @@ const watchController = async (c: Context) => {
         -webkit-text-stroke: 1.5px #000 !important;
       }
 
+      /* Scrim for Mobile Bottom Sheets - Zero blur to preserve sticky video clarity */
+      .sheet-backdrop {
+        display: block !important;
+        position: fixed !important;
+        inset: 0 !important;
+        background: rgba(0, 0, 0, 0.65) !important;
+        z-index: 998 !important;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s var(--ease);
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      .sheet-backdrop.is-active {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+      }
+
       /* Native Bottom Sheets for Settings & Episodes */
       .menu, .ep-panel {
+        animation: none !important;
         position: fixed !important;
         left: 0 !important;
         right: 0 !important;
@@ -1061,6 +1182,7 @@ const watchController = async (c: Context) => {
       .menu.is-open, .ep-panel.is-open {
         visibility: visible !important;
         transform: translateY(0) !important;
+        animation: none !important;
       }
       .sheet-handle {
         display: block !important;
@@ -1138,6 +1260,13 @@ const watchController = async (c: Context) => {
       }
       .shortcuts-row {
         display: none !important;
+      }
+    }
+    /* Desktop backdrop suppression */
+    @media (min-width: 721px) {
+      .sheet-backdrop {
+        display: none !important;
+        pointer-events: none !important;
       }
     }
     /* Landscape phone */
@@ -2366,13 +2495,16 @@ const watchController = async (c: Context) => {
       }
 
       function syncBackdrop() {
+        var isMobile = window.matchMedia('(max-width: 720px)').matches;
         var anyOpen = (settingsMenu && settingsMenu.classList.contains('is-open')) ||
                       (epPanel && epPanel.classList.contains('is-open'));
         if (sheetBackdrop) {
-          sheetBackdrop.classList.toggle('is-active', anyOpen);
-          sheetBackdrop.hidden = !anyOpen;
+          var show = anyOpen && isMobile;
+          sheetBackdrop.classList.toggle('is-active', show);
+          sheetBackdrop.hidden = !show;
         }
       }
+      window.addEventListener('resize', syncBackdrop);
 
       function toggleSettings(force) {
         var open = typeof force === 'boolean' ? force : !settingsMenu.classList.contains('is-open');
@@ -2569,8 +2701,16 @@ const watchController = async (c: Context) => {
         }, 400);
       }
 
-      playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
-      bigPlay.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+      playBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        togglePlay();
+      });
+      bigPlay.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        togglePlay();
+      });
       video.addEventListener('click', function () {
         if (window.matchMedia('(pointer: coarse)').matches) {
           // Handled by stage pointerup on touch devices
@@ -2623,6 +2763,7 @@ const watchController = async (c: Context) => {
               setEpPanel(false);
             } else {
               if (stage.classList.contains('show-controls') && !video.paused) {
+                clearTimeout(hideTimer);
                 stage.classList.remove('show-controls');
                 stage.classList.add('cursor-hidden');
               } else {
@@ -2632,9 +2773,18 @@ const watchController = async (c: Context) => {
           }, 280);
         }
       });
-      muteBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMute(); });
-      fsBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleFs(); });
+      muteBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        toggleMute();
+      });
+      fsBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        toggleFs();
+      });
       settingsBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         toggleSettings();
       });
@@ -2655,6 +2805,7 @@ const watchController = async (c: Context) => {
       }
       if (epListBtn) {
         epListBtn.addEventListener('click', function (e) {
+          if (window.matchMedia('(pointer: coarse)').matches) this.blur();
           e.preventDefault();
           e.stopPropagation();
           toggleEpPanel();
@@ -2676,6 +2827,7 @@ const watchController = async (c: Context) => {
         });
       }
       theaterBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         setTheater(!theater);
       });
@@ -2684,6 +2836,7 @@ const watchController = async (c: Context) => {
         setTheater(!theater);
       });
       function onCcClick(e) {
+        if (window.matchMedia('(pointer: coarse)').matches && this && this.blur) this.blur();
         e.preventDefault();
         e.stopPropagation();
         if (!captions[track]) return;
@@ -2868,10 +3021,12 @@ const watchController = async (c: Context) => {
         loopToggle.setAttribute('aria-checked', video.loop ? 'true' : 'false');
       });
       speedBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         toggleSettings(true);
       });
       pipBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         if (document.pictureInPictureElement) document.exitPictureInPicture();
         else if (video.requestPictureInPicture) video.requestPictureInPicture().catch(function () {});
