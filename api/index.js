@@ -2887,24 +2887,37 @@ var watchController = async (c) => {
     .stage.is-paused .overlay, .stage.is-loading .overlay { opacity: 1; }
     .big-btn {
       width: 76px; height: 76px; border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(12, 16, 24, 0.55); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(12, 16, 24, 0.65); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       color: var(--ink); display: grid; place-items: center;
       pointer-events: auto; cursor: pointer;
-      transition: transform 0.25s var(--ease), background 0.25s ease;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 0 var(--accent-dim);
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease;
     }
-    .big-btn:hover { transform: scale(1.05); background: rgba(61, 214, 198, 0.2); }
+    .big-btn:hover {
+      transform: scale(1.1);
+      background: rgba(61, 214, 198, 0.2);
+      border-color: rgba(61, 214, 198, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 28px rgba(61, 214, 198, 0.35);
+      color: #fff;
+    }
+    .big-btn:active {
+      transform: scale(0.92);
+      transition-duration: 0.1s;
+    }
     .big-btn svg { width: 28px; height: 28px; }
     .skip-btn {
       position: absolute;
       right: 16px;
       bottom: 88px;
       z-index: 4;
-      padding: 10px 16px;
+      padding: 10px 18px;
       border-radius: 999px;
       border: 1px solid rgba(255,255,255,0.22);
-      background: rgba(12, 16, 24, 0.78);
-      backdrop-filter: blur(10px);
+      background: rgba(12, 16, 24, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       color: var(--ink);
       font-family: "DM Sans", system-ui, sans-serif;
       font-size: 14px;
@@ -2912,8 +2925,9 @@ var watchController = async (c) => {
       letter-spacing: 0.02em;
       cursor: pointer;
       opacity: 0;
-      transform: translateY(6px);
-      transition: opacity 0.22s var(--ease), transform 0.22s var(--ease), background 0.2s ease;
+      transform: translateY(8px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      transition: opacity 0.24s var(--ease), transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
       pointer-events: none;
     }
     .skip-btn.is-visible {
@@ -2921,7 +2935,16 @@ var watchController = async (c) => {
       transform: translateY(0);
       pointer-events: auto;
     }
-    .skip-btn:hover { background: rgba(61, 214, 198, 0.28); }
+    .skip-btn:hover {
+      background: rgba(61, 214, 198, 0.28);
+      border-color: rgba(61, 214, 198, 0.55);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(61, 214, 198, 0.3);
+    }
+    .skip-btn:active {
+      transform: translateY(0) scale(0.96);
+    }
     .stage.is-paused .skip-btn.is-visible,
     .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
       opacity: 1;
@@ -2968,35 +2991,84 @@ var watchController = async (c) => {
       opacity: 0; transform: translateY(6px);
       transition: opacity 0.28s var(--ease), transform 0.28s var(--ease);
       z-index: 3;
+      pointer-events: none;
     }
     .stage.is-paused .controls,
-    .stage.show-controls .controls, .stage:focus-within .controls,
+    .stage.show-controls .controls,
     .stage.settings-open .controls {
       opacity: 1; transform: translateY(0);
+      pointer-events: auto;
+    }
+    @media (hover: hover) {
+      .stage:focus-within .controls {
+        pointer-events: auto;
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    .stage:has(:focus-visible) .controls {
+      pointer-events: auto;
+      transform: translateY(0);
+      opacity: 1;
     }
     .seek {
       width: 100%; height: 6px; appearance: none; background: transparent; cursor: pointer; margin: 0 0 10px;
+      transition: height 0.15s ease;
     }
     .seek::-webkit-slider-runnable-track {
       height: 6px; border-radius: 999px;
       background: linear-gradient(90deg, var(--accent) var(--progress, 0%), rgba(255,255,255,0.18) var(--progress, 0%));
+      transition: height 0.15s ease;
+    }
+    .seek:hover::-webkit-slider-runnable-track {
+      height: 8px;
     }
     .seek::-webkit-slider-thumb {
       appearance: none; width: 14px; height: 14px; margin-top: -4px;
       border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 4px var(--accent-dim);
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, background 0.18s ease;
     }
-    .seek::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); }
+    .seek:hover::-webkit-slider-thumb,
+    .seek:active::-webkit-slider-thumb {
+      transform: scale(1.3);
+      background: #fff;
+      box-shadow: 0 0 0 5px var(--accent-dim), 0 0 14px var(--accent);
+    }
+    .seek::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); transition: height 0.15s ease; }
+    .seek:hover::-moz-range-track { height: 8px; }
     .seek::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--accent); }
-    .seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink); }
+    .seek::-moz-range-thumb {
+      width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink);
+      box-shadow: 0 0 0 4px var(--accent-dim);
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, background 0.18s ease;
+    }
+    .seek:hover::-moz-range-thumb,
+    .seek:active::-moz-range-thumb {
+      transform: scale(1.3);
+      background: #fff;
+      box-shadow: 0 0 0 5px var(--accent-dim), 0 0 14px var(--accent);
+    }
     .row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     .row .spacer { flex: 1; min-width: 8px; }
     .ctrl {
       appearance: none; border: 0; background: transparent; color: var(--ink);
       width: 40px; height: 40px; border-radius: var(--radius-md, 12px);
       display: grid; place-items: center; cursor: pointer; position: relative;
-      transition: background 0.2s ease;
+      transition: background 0.18s ease, transform 0.15s ease, color 0.15s ease;
     }
-    .ctrl:hover, .ctrl.is-on { background: rgba(255,255,255,0.08); }
+    .ctrl:hover {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .ctrl:active {
+      transform: scale(0.92);
+      transition-duration: 0.08s;
+    }
+    .ctrl.is-on {
+      background: rgba(61, 214, 198, 0.18);
+      color: var(--accent);
+    }
     .ctrl svg { width: 20px; height: 20px; }
     .time {
       font-variant-numeric: tabular-nums; font-size: 0.82rem;
@@ -3020,16 +3092,29 @@ var watchController = async (c) => {
       padding: 6px 10px; border-radius: var(--radius-pill, 999px); cursor: pointer; min-width: 42px;
     }
     .speed-chip:hover, .speed-chip.is-active { color: var(--accent); border-color: rgba(61,214,198,0.4); background: var(--accent-dim); }
+    @keyframes panelPopIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
     .menu {
       position: absolute; right: 12px; bottom: 58px;
       width: min(300px, calc(100% - 24px));
       max-height: min(80dvh, 600px); overflow-y: auto; overflow-x: hidden;
       background: var(--panel); border: 1px solid var(--line);
       border-radius: var(--radius-lg, 14px); padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-      display: none; z-index: 5; backdrop-filter: blur(16px);
+      display: none; z-index: 100; backdrop-filter: blur(16px);
       overscroll-behavior: contain;
     }
-    .menu.is-open { display: block; }
+    .menu.is-open {
+      display: block;
+      animation: panelPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
     .menu h3 {
       margin: 0 0 10px; font-size: 0.72rem; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--muted); font-weight: 600;
@@ -3052,13 +3137,21 @@ var watchController = async (c) => {
     .switch {
       position: relative; width: 42px; height: 24px; border-radius: 999px;
       background: rgba(255,255,255,0.12); border: 0; cursor: pointer; padding: 0;
+      transition: background 0.25s var(--ease), box-shadow 0.25s var(--ease);
     }
     .switch::after {
       content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
-      border-radius: 50%; background: #fff; transition: transform 0.2s var(--ease);
+      border-radius: 50%; background: #fff;
+      transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
     }
-    .switch.is-on { background: rgba(61, 214, 198, 0.55); }
-    .switch.is-on::after { transform: translateX(18px); }
+    .switch.is-on {
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(61, 214, 198, 0.4);
+    }
+    .switch.is-on::after {
+      transform: translateX(18px);
+      background: #0a0c10;
+    }
     .err {
       max-width: var(--stage-max); width: 100%; margin: 0 auto; color: var(--danger);
       background: rgba(255, 123, 114, 0.08); border: 1px solid rgba(255, 123, 114, 0.25);
@@ -3078,10 +3171,13 @@ var watchController = async (c) => {
       max-height: min(52vh, 420px);
       background: var(--panel); border: 1px solid var(--line);
       border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-      display: none; z-index: 5; backdrop-filter: blur(16px);
+      display: none; z-index: 100; backdrop-filter: blur(16px);
       flex-direction: column; overflow: hidden;
     }
-    .ep-panel.is-open { display: flex; }
+    .ep-panel.is-open {
+      display: flex;
+      animation: panelPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
     .ep-panel-head {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
       padding: 12px 12px 8px; border-bottom: 1px solid var(--line);
@@ -3100,11 +3196,17 @@ var watchController = async (c) => {
       font: inherit; text-align: left; cursor: pointer;
       display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
       padding: 8px 10px; border-radius: var(--radius-md, 12px); width: 100%;
-      transition: background 0.15s ease;
+      transition: background 0.15s ease, transform 0.12s ease;
       content-visibility: auto;
       contain-intrinsic-size: auto 36px;
     }
-    .ep-item:hover { background: rgba(255,255,255,0.06); }
+    .ep-item:hover {
+      background: rgba(255,255,255,0.06);
+      transform: translateX(2px);
+    }
+    .ep-item:active {
+      transform: scale(0.98);
+    }
     .ep-item.is-current { background: var(--accent-dim); color: var(--accent); }
     .ep-item .ep-n { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--muted); }
     .ep-item.is-current .ep-n { color: var(--accent); }
@@ -3170,19 +3272,16 @@ var watchController = async (c) => {
 
     /* Sheet & Gesture shared styles */
     .sheet-backdrop {
+      display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.72);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 998;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 90;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.25s var(--ease);
-    }
-    .sheet-backdrop.is-active {
-      opacity: 1;
-      pointer-events: auto;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
     .sheet-handle {
       display: none;
@@ -3262,11 +3361,16 @@ var watchController = async (c) => {
       transition: transform 0.25s var(--ease);
       text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
     }
+    @keyframes gesturePulse {
+      0% { transform: scale(0.7) translateY(4px); opacity: 0; }
+      50% { transform: scale(1.18) translateY(-2px); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
     .gesture-indicator.is-active {
       opacity: 1;
     }
     .gesture-indicator.is-active .gesture-icon {
-      transform: scale(1.15);
+      animation: gesturePulse 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
     .mobile-nav-pill {
       display: none;
@@ -3422,36 +3526,40 @@ var watchController = async (c) => {
         line-height: 1.3 !important;
         -webkit-text-stroke: 1.5px #000 !important;
       }
+    }
 
-      /* Native Bottom Sheets for Settings & Episodes */
-      .menu, .ep-panel {
+    /* Mobile Drawer Base & Shared Rules (Portrait Sheet & Landscape Slide-Over) */
+    @media (max-width: 720px), (max-height: 540px) and (orientation: landscape) {
+      .sheet-backdrop {
+        display: block !important;
         position: fixed !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        top: auto !important;
-        width: 100vw !important;
-        max-width: 100vw !important;
-        max-height: 85dvh !important;
-        border-radius: 20px 20px 0 0 !important;
-        border: none !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+        inset: 0 !important;
+        background: rgba(0, 0, 0, 0.65) !important;
+        z-index: 90 !important;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s var(--ease);
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      .sheet-backdrop.is-active {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+      }
+
+      .menu, .ep-panel {
+        animation: none !important;
         background: rgba(14, 18, 26, 0.98) !important;
         backdrop-filter: blur(24px) !important;
         -webkit-backdrop-filter: blur(24px) !important;
         box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.8) !important;
-        z-index: 1000 !important;
+        z-index: 100 !important;
         padding: 0 !important;
-        transform: translateY(100%);
-        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
         display: flex !important;
         flex-direction: column !important;
         visibility: hidden;
       }
-      .menu.is-open, .ep-panel.is-open {
-        visibility: visible !important;
-        transform: translateY(0) !important;
-      }
+
       .sheet-handle {
         display: block !important;
         width: 36px;
@@ -3530,8 +3638,67 @@ var watchController = async (c) => {
         display: none !important;
       }
     }
+
+    /* Portrait mobile bottom sheet */
+    @media (max-width: 720px) and (orientation: portrait), (max-width: 540px) {
+      .menu, .ep-panel {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        top: auto !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: min(85dvh, 560px) !important;
+        border-radius: 20px 20px 0 0 !important;
+        border: none !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+        transform: translateY(100%) !important;
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        z-index: 100 !important;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        transform: translateY(0) !important;
+        visibility: visible !important;
+      }
+    }
+
+    /* Landscape phone right slide-over drawer */
+    @media (max-height: 540px) and (orientation: landscape) {
+      .menu, .ep-panel {
+        position: fixed !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        left: auto !important;
+        width: min(340px, 45vw) !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 16px 0 0 16px !important;
+        border: none !important;
+        border-left: 1px solid rgba(255, 255, 255, 0.16) !important;
+        transform: translateX(100%) !important;
+        transition: transform 0.28s var(--ease), opacity 0.2s ease !important;
+        z-index: 100 !important;
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+        padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+      }
+      .menu.is-open, .ep-panel.is-open {
+        transform: translateX(0) !important;
+        visibility: visible !important;
+      }
+      .sheet-handle { display: none !important; }
+    }
+
+    /* Desktop backdrop suppression */
+    @media (min-width: 721px) and (min-height: 541px) {
+      .sheet-backdrop {
+        display: none !important;
+        pointer-events: none !important;
+      }
+    }
     /* Landscape phone */
-    @media (max-height: 500px) and (orientation: landscape) {
+    @media (max-height: 540px) and (orientation: landscape) {
       .page {
         padding: 0 !important;
         gap: 0 !important;
@@ -3862,7 +4029,7 @@ var watchController = async (c) => {
             <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v10H4V6zm0 12h16v2H4v-2z"/></svg>
             </button>
-            <button type="button" class="ctrl" id="fs" aria-label="Fullscreen">
+            <button type="button" class="ctrl" id="fs" aria-label="Fullscreen" title="Fullscreen (F)">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
             </button>
           </div>
@@ -4208,12 +4375,38 @@ var watchController = async (c) => {
         video.muted = !video.muted;
         setMuted(video.muted);
       }
+      function isIosPhone() {
+        return /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      }
+
       function toggleFs() {
-        if (!document.fullscreenElement) {
-          if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
-          (stage.requestFullscreen && stage.requestFullscreen()) || (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen());
+        var isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        if (!isFs) {
+          if (settingsMenu && settingsMenu.classList.contains('is-open')) toggleSettings(false);
+          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+
+          if (isIosPhone() && typeof video.webkitEnterFullscreen === 'function' && !stage.requestFullscreen) {
+            video.webkitEnterFullscreen();
+            return;
+          }
+
+          var req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+          if (req) {
+            req.call(stage).then(function () {
+              if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                screen.orientation.lock('landscape').catch(function () {});
+              }
+            }).catch(function () {});
+          }
         } else {
-          document.exitFullscreen && document.exitFullscreen();
+          var exit = document.exitFullscreen || document.webkitExitFullscreen;
+          if (exit) {
+            exit.call(document).then(function () {
+              if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                screen.orientation.unlock();
+              }
+            }).catch(function () {});
+          }
         }
       }
 
@@ -4756,13 +4949,16 @@ var watchController = async (c) => {
       }
 
       function syncBackdrop() {
+        var isMobile = window.matchMedia('(max-width: 720px), (max-height: 540px)').matches;
         var anyOpen = (settingsMenu && settingsMenu.classList.contains('is-open')) ||
                       (epPanel && epPanel.classList.contains('is-open'));
         if (sheetBackdrop) {
-          sheetBackdrop.classList.toggle('is-active', anyOpen);
-          sheetBackdrop.hidden = !anyOpen;
+          var show = anyOpen && isMobile;
+          sheetBackdrop.classList.toggle('is-active', show);
+          sheetBackdrop.hidden = !show;
         }
       }
+      window.addEventListener('resize', syncBackdrop);
 
       function toggleSettings(force) {
         var open = typeof force === 'boolean' ? force : !settingsMenu.classList.contains('is-open');
@@ -4959,8 +5155,16 @@ var watchController = async (c) => {
         }, 400);
       }
 
-      playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
-      bigPlay.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+      playBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        togglePlay();
+      });
+      bigPlay.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        togglePlay();
+      });
       video.addEventListener('click', function () {
         if (window.matchMedia('(pointer: coarse)').matches) {
           // Handled by stage pointerup on touch devices
@@ -5013,6 +5217,7 @@ var watchController = async (c) => {
               setEpPanel(false);
             } else {
               if (stage.classList.contains('show-controls') && !video.paused) {
+                clearTimeout(hideTimer);
                 stage.classList.remove('show-controls');
                 stage.classList.add('cursor-hidden');
               } else {
@@ -5022,9 +5227,39 @@ var watchController = async (c) => {
           }, 280);
         }
       });
-      muteBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMute(); });
-      fsBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleFs(); });
+      muteBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        toggleMute();
+      });
+      fsBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+        e.stopPropagation();
+        toggleFs();
+      });
+
+      function onFsChange() {
+        var isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        stage.classList.toggle('is-fullscreen', isFs);
+        document.body.classList.toggle('is-fullscreen', isFs);
+        fsBtn.setAttribute('title', isFs ? 'Exit Fullscreen (F)' : 'Fullscreen (F)');
+        fsBtn.setAttribute('aria-label', isFs ? 'Exit Fullscreen' : 'Fullscreen');
+        fsBtn.innerHTML = isFs
+          ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-14v3h3v2h-5V5h2z"/></svg>'
+          : '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+        if (!isFs && screen.orientation && typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+          document.activeElement.blur();
+        }
+        pokeControls();
+      }
+      document.addEventListener('fullscreenchange', onFsChange);
+      document.addEventListener('webkitfullscreenchange', onFsChange);
+      video.addEventListener('webkitendfullscreen', onFsChange);
       settingsBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         toggleSettings();
       });
@@ -5045,6 +5280,7 @@ var watchController = async (c) => {
       }
       if (epListBtn) {
         epListBtn.addEventListener('click', function (e) {
+          if (window.matchMedia('(pointer: coarse)').matches) this.blur();
           e.preventDefault();
           e.stopPropagation();
           toggleEpPanel();
@@ -5066,6 +5302,7 @@ var watchController = async (c) => {
         });
       }
       theaterBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         setTheater(!theater);
       });
@@ -5074,6 +5311,7 @@ var watchController = async (c) => {
         setTheater(!theater);
       });
       function onCcClick(e) {
+        if (window.matchMedia('(pointer: coarse)').matches && this && this.blur) this.blur();
         e.preventDefault();
         e.stopPropagation();
         if (!captions[track]) return;
@@ -5258,10 +5496,12 @@ var watchController = async (c) => {
         loopToggle.setAttribute('aria-checked', video.loop ? 'true' : 'false');
       });
       speedBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         toggleSettings(true);
       });
       pipBtn.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
         if (document.pictureInPictureElement) document.exitPictureInPicture();
         else if (video.requestPictureInPicture) video.requestPictureInPicture().catch(function () {});
@@ -6574,6 +6814,11 @@ var browseController = async (c) => {
       border-color: rgba(61,214,198,0.45);
       box-shadow: 0 0 0 3px var(--accent-dim);
     }
+    @media (max-width: 720px) {
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+    }
     .btn {
       appearance: none;
       border: 1px solid rgba(61,214,198,0.4);
@@ -6905,6 +7150,7 @@ var browseController = async (c) => {
       font-size: 0.85rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
       z-index: 2;
     }
     .wl-btn::after {
@@ -6919,6 +7165,7 @@ var browseController = async (c) => {
     @media (hover: hover) {
       .wl-btn:hover { transform: scale(1.15); }
     }
+    .wl-btn:active { transform: scale(0.9); }
 
     /* Continue watching progress bar */
     .cw-card { text-decoration: none; display: grid; border-radius: var(--radius-lg); overflow: hidden; }
@@ -6929,7 +7176,8 @@ var browseController = async (c) => {
       color: rgba(255,255,255,0.75); border-radius: var(--radius-pill); width: 24px; height: 24px;
       font-size: 0.75rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      opacity: 0; transition: opacity 0.15s ease, background 0.15s ease;
+      opacity: 0; transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
       z-index: 3;
     }
     .cw-remove-btn::after {
@@ -6943,6 +7191,7 @@ var browseController = async (c) => {
     @media (hover: hover) {
       .cw-remove-btn:hover { background: var(--danger); color: #fff; }
     }
+    .cw-remove-btn:active { transform: scale(0.9); }
     @media (hover: none) or (pointer: coarse) {
       .wl-btn {
         opacity: 0.88;
@@ -6950,11 +7199,21 @@ var browseController = async (c) => {
         height: 32px;
         font-size: 0.9rem;
       }
+      .wl-btn::after {
+        inset: -6px;
+        min-width: 44px;
+        min-height: 44px;
+      }
       .cw-remove-btn {
         opacity: 0.88;
         width: 28px;
         height: 28px;
         font-size: 0.75rem;
+      }
+      .cw-remove-btn::after {
+        inset: -8px;
+        min-width: 44px;
+        min-height: 44px;
       }
     }
     .cw-prog-bar {
@@ -7121,7 +7380,8 @@ var browseController = async (c) => {
         color: var(--accent);
         border-radius: 999px;
         padding: 12px 18px;
-        min-height: 44px;
+        min-width: 48px;
+        min-height: 48px;
         font: inherit;
         font-weight: 700;
         font-size: 0.9rem;
@@ -7144,7 +7404,7 @@ var browseController = async (c) => {
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         margin: -8px -14px 12px;
-        padding: 8px 14px;
+        padding: 8px max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));
         border-bottom: 1px solid var(--line);
         display: flex;
         gap: 6px;
@@ -7513,7 +7773,10 @@ var browseController = async (c) => {
       display: none;
       align-items: center;
       justify-content: center;
-      padding: clamp(12px, 3vw, 24px);
+      padding-top: max(clamp(12px, 3vw, 24px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(12px, 3vw, 24px), env(safe-area-inset-bottom));
+      padding-left: max(clamp(12px, 3vw, 24px), env(safe-area-inset-left));
+      padding-right: max(clamp(12px, 3vw, 24px), env(safe-area-inset-right));
     }
     .cinema-overlay.is-open {
       display: flex;
@@ -7627,7 +7890,7 @@ var browseController = async (c) => {
         width: 100vw;
         height: 100dvh;
         max-height: 100dvh;
-        padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+        padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
         justify-content: center;
       }
       .cinema-viewport {
@@ -7683,12 +7946,16 @@ var browseController = async (c) => {
         padding-right: max(clamp(12px, 3vw, 20px), env(safe-area-inset-right));
         gap: 14px;
       }
+      header {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+      }
       .pill { padding: 9px 14px; font-size: 0.84rem; min-height: 40px; }
       .btn { padding: 12px 16px; min-height: 44px; }
       .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .rail .card { flex-basis: 116px; width: 116px; }
-      input[type="search"], input[type="password"], input[type="text"] { padding: 13px 14px; font-size: 1rem; }
+      input[type="search"], input[type="password"], input[type="text"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
     }
     /* Small phone: 375\u2013480px */
     @media (max-width: 480px) {
@@ -7714,7 +7981,7 @@ var browseController = async (c) => {
       .page, .pill, .btn, .card, .ep-card, .search-fab, .wl-btn, .cw-remove-btn, .cw-prog-fill, .ani-toast {
         transition: none;
       }
-      .btn:hover, .btn:active, .card:hover, .card:active, .card:focus-visible, .ep-card:hover, .ep-card:active, .search-fab:hover, .search-fab:active, .wl-btn:hover {
+      .btn:hover, .btn:active, .card:hover, .card:active, .card:focus-visible, .ep-card:hover, .ep-card:active, .search-fab:hover, .search-fab:active, .wl-btn:hover, .wl-btn:active, .cw-remove-btn:active {
         transform: none;
       }
       .skel .ph {
