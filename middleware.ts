@@ -57,13 +57,20 @@ export default function middleware(request: Request) {
   const providedKey = (headerKey || bearerKey || '').trim();
 
   if (!providedKey || !timingSafeEqual(providedKey, expected)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized: Invalid or Missing API Key' }), {
-      status: 401,
-      headers: {
-        'content-type': 'application/json',
-        ...corsHeaders,
-      },
-    });
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: 'Unauthorized: Invalid or missing x-api-key',
+        details: null,
+      }),
+      {
+        status: 401,
+        headers: {
+          'content-type': 'application/json',
+          ...corsHeaders,
+        },
+      }
+    );
   }
 
   return next();
