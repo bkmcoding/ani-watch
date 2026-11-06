@@ -33,11 +33,10 @@
     "aniwatch": "^2.27.9",
     "axios": "^1.21.0",
     "cheerio": "^1.2.0",
-    "esbuild": "^0.25.12",
+    "esbuild": "^0.28.2",
     "hono": "^4.13.16"
   },
   "devDependencies": {
-    "@types/axios": "^0.14.4",
     "@types/node": "^25.9.9",
     "@typescript-eslint/eslint-plugin": "^8.72.1",
     "@typescript-eslint/parser": "^8.72.1",
