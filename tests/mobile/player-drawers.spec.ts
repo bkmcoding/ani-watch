@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Mobile Player Drawers (Portrait vs Landscape)', () => {
-  const watchUrl = '/api/v2/hianime/watch?sub=https://megacloud.blog/embed-2/e-1/hls.m3u8&title=Mobile+Drawer+Test';
+  const watchUrl =
+    '/api/v2/hianime/watch?sub=https://megacloud.blog/embed-2/e-1/hls.m3u8&title=Mobile+Drawer+Test';
 
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/v2/hianime/hls*', route => {
@@ -81,7 +82,9 @@ test.describe('Mobile Player Drawers (Portrait vs Landscape)', () => {
     await expect(backdrop).toHaveClass(/is-active/);
 
     // Backdrop sits behind menu: z-index(backdrop) < z-index(menu)
-    const backdropZ = await backdrop.evaluate(el => parseInt(window.getComputedStyle(el).zIndex, 10));
+    const backdropZ = await backdrop.evaluate(el =>
+      parseInt(window.getComputedStyle(el).zIndex, 10)
+    );
     const menuZ = await menu.evaluate(el => parseInt(window.getComputedStyle(el).zIndex, 10));
     expect(backdropZ).toBeLessThan(menuZ);
     expect(backdropZ).toBe(90);
@@ -89,7 +92,10 @@ test.describe('Mobile Player Drawers (Portrait vs Landscape)', () => {
 
     // Backdrop has zero blur (backdrop-filter: none)
     const backdropFilter = await backdrop.evaluate(
-      el => window.getComputedStyle(el).backdropFilter || (window.getComputedStyle(el) as any).webkitBackdropFilter || 'none'
+      el =>
+        window.getComputedStyle(el).backdropFilter ||
+        (window.getComputedStyle(el) as any).webkitBackdropFilter ||
+        'none'
     );
     expect(backdropFilter).toBe('none');
 
@@ -97,7 +103,9 @@ test.describe('Mobile Player Drawers (Portrait vs Landscape)', () => {
     const menuFilter = await menu.evaluate(el => window.getComputedStyle(el).filter);
     expect(menuFilter === 'none' || menuFilter === '').toBe(true);
 
-    const headTextFilter = await page.locator('.sheet-head h3').evaluate(el => window.getComputedStyle(el).filter);
+    const headTextFilter = await page
+      .locator('.sheet-head h3')
+      .evaluate(el => window.getComputedStyle(el).filter);
     expect(headTextFilter === 'none' || headTextFilter === '').toBe(true);
   });
 });

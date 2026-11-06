@@ -19,14 +19,18 @@ describe('XSS & Input Sanitization Defenses', () => {
   });
 
   it('rejects plain http stream URLs to prevent mixed content and insecure protocols', async () => {
-    const res = await app.request('/api/v2/hianime/watch?sub=http://megacloud.blog/embed-2/e-1/hls.m3u8');
+    const res = await app.request(
+      '/api/v2/hianime/watch?sub=http://megacloud.blog/embed-2/e-1/hls.m3u8'
+    );
     expect(res.status).toBe(400);
     const html = await res.text();
     expect(html).toContain('Episode unavailable');
   });
 
   it('includes Subresource Integrity (SRI) on external Hls.js script tag', async () => {
-    const res = await app.request('/api/v2/hianime/watch?sub=https://megacloud.blog/embed-2/e-1/hls.m3u8');
+    const res = await app.request(
+      '/api/v2/hianime/watch?sub=https://megacloud.blog/embed-2/e-1/hls.m3u8'
+    );
     expect(res.status).toBe(200);
     const html = await res.text();
 

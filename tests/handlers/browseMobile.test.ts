@@ -33,7 +33,9 @@ describe('Browse Mobile Ergonomics', () => {
 
     // Verify ::after hit-slop provides min 44px touch target
     expect(html).toMatch(/\.wl-btn::after\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
-    expect(html).toMatch(/\.cw-remove-btn::after\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
+    expect(html).toMatch(
+      /\.cw-remove-btn::after\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/
+    );
 
     // Verify active tactile scaling exists for touch feedback
     expect(html).toMatch(/\.wl-btn:active\s*\{[^}]*transform:\s*scale\(/);

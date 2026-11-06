@@ -31,7 +31,7 @@ export function apiKeyAuth(configuredSecret?: string) {
     }
 
     const path = new URL(c.req.url).pathname;
-    if (PUBLIC_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+    if (PUBLIC_PATH_PREFIXES.some(prefix => path === prefix || path.startsWith(prefix + '/'))) {
       return next();
     }
 

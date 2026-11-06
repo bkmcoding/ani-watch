@@ -43,10 +43,14 @@ test.describe('Browse Mobile Ergonomics', () => {
     const searchInput = page.locator('#q');
     const mobileSearchInput = page.locator('#qMobile');
 
-    const searchFontSize = await searchInput.evaluate(el => parseFloat(window.getComputedStyle(el).fontSize));
+    const searchFontSize = await searchInput.evaluate(el =>
+      parseFloat(window.getComputedStyle(el).fontSize)
+    );
     expect(searchFontSize).toBeGreaterThanOrEqual(16);
 
-    const mobileSearchFontSize = await mobileSearchInput.evaluate(el => parseFloat(window.getComputedStyle(el).fontSize));
+    const mobileSearchFontSize = await mobileSearchInput.evaluate(el =>
+      parseFloat(window.getComputedStyle(el).fontSize)
+    );
     expect(mobileSearchFontSize).toBeGreaterThanOrEqual(16);
   });
 
@@ -75,7 +79,9 @@ test.describe('Browse Mobile Ergonomics', () => {
     expect(styles.minHeight).toBeGreaterThanOrEqual(48);
   });
 
-  test('quick actions have >= 44x44px touch targets and tactile active feedback', async ({ page }) => {
+  test('quick actions have >= 44x44px touch targets and tactile active feedback', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/browse');
 
@@ -137,7 +143,9 @@ test.describe('Browse Mobile Ergonomics', () => {
 
     // Verify category pills have touch-friendly height
     const firstPill = catBar.locator('.pill').first();
-    const pillHeight = await firstPill.evaluate(el => parseFloat(window.getComputedStyle(el).minHeight || window.getComputedStyle(el).height));
+    const pillHeight = await firstPill.evaluate(el =>
+      parseFloat(window.getComputedStyle(el).minHeight || window.getComputedStyle(el).height)
+    );
     expect(pillHeight).toBeGreaterThanOrEqual(38);
   });
 });

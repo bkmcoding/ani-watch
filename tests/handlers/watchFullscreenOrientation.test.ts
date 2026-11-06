@@ -25,8 +25,12 @@ describe('Watch Fullscreen & Orientation Handlers', () => {
     // State sync: .is-fullscreen, aria-label, title, blur, pokeControls
     expect(html).toContain("stage.classList.toggle('is-fullscreen', isFs)");
     expect(html).toContain("document.body.classList.toggle('is-fullscreen', isFs)");
-    expect(html).toContain("fsBtn.setAttribute('title', isFs ? 'Exit Fullscreen (F)' : 'Fullscreen (F)')");
-    expect(html).toContain("fsBtn.setAttribute('aria-label', isFs ? 'Exit Fullscreen' : 'Fullscreen')");
+    expect(html).toContain(
+      "fsBtn.setAttribute('title', isFs ? 'Exit Fullscreen (F)' : 'Fullscreen (F)')"
+    );
+    expect(html).toContain(
+      "fsBtn.setAttribute('aria-label', isFs ? 'Exit Fullscreen' : 'Fullscreen')"
+    );
     expect(html).toContain('document.activeElement.blur');
     expect(html).toContain('pokeControls()');
   });

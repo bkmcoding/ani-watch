@@ -2768,7 +2768,7 @@ export const browseController = async (c: Context) => {
           // HiAnime often labels chips "Episode 12" — don't show that twice.
           var generic =
             !raw ||
-            /^episode\s*#?\s*\d+$/i.test(raw) ||
+            /^episode\\s*#?\\s*\\d+$/i.test(raw) ||
             (num != null && raw === String(num));
           var epTag = num != null ? 'Ep ' + num : 'Episode';
           var primary = generic ? epTag : raw;
@@ -2968,7 +2968,7 @@ export const browseController = async (c: Context) => {
           setStatus('Playing in cinema…');
           var epNum = ep.number;
           var raw = String(ep.title || ep.alternativeTitle || '').trim();
-          var generic = !raw || /^episode\s*#?\s*\d+$/i.test(raw) || (epNum != null && raw === String(epNum));
+          var generic = !raw || /^episode\\s*#?\\s*\\d+$/i.test(raw) || (epNum != null && raw === String(epNum));
           var epTag = epNum != null ? 'Ep ' + epNum : 'Episode';
           var epLabel = (generic ? epTag : epTag + ' · ' + raw) + ' (' + audioCat.toUpperCase() + ')';
           var animeName = (state.anime && (state.anime.name || state.anime.title)) || 'Anime';

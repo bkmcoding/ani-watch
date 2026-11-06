@@ -9,7 +9,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      'node -e "import(\'./build-vercel.mjs\').then(()=>import(\'node:http\')).then(async h=>{const {default:m}=await import(\'./api/index.js\');h.createServer(m).listen(3000,()=>console.log(\'Ready on port 3000\'));})"',
+      "node -e \"import('./build-vercel.mjs').then(()=>import('node:http')).then(async h=>{const {default:m}=await import('./api/index.js');h.createServer(m).listen(3000,()=>console.log('Ready on port 3000'));})\"",
     port: 3000,
     reuseExistingServer: !process.env.CI,
   },

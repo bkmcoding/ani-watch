@@ -6,6 +6,9 @@ import prettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 
 export default [
+  {
+    ignores: ['node_modules/**', 'dist/**', 'public/**', 'api/**', 'test-results/**', '**/*.mjs'],
+  },
   js.configs.recommended,
   {
     files: ['**/*.{js,ts}'],
@@ -33,8 +36,5 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': 'off',
     },
-  },
-  {
-    ignores: ['node_modules/**', 'dist/**', 'public/**'],
   },
 ];

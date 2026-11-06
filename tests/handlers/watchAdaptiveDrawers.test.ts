@@ -14,7 +14,9 @@ describe('Watch Adaptive Drawers System', () => {
     expect(html).toContain('translateX(100%)');
 
     // Portrait mobile bottom sheet rules
-    expect(html).toContain('@media (max-width: 720px) and (orientation: portrait), (max-width: 540px)');
+    expect(html).toContain(
+      '@media (max-width: 720px) and (orientation: portrait), (max-width: 540px)'
+    );
     expect(html).toContain('max-height: min(85dvh, 560px)');
     expect(html).toContain('translateY(100%)');
 

@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Mobile Player Controls', () => {
-  const watchUrl = '/api/v2/hianime/watch?sub=https://megacloud.blog/embed-2/e-1/hls.m3u8&title=Mobile+Player+Test';
+  const watchUrl =
+    '/api/v2/hianime/watch?sub=https://megacloud.blog/embed-2/e-1/hls.m3u8&title=Mobile+Player+Test';
 
   test.beforeEach(async ({ page }) => {
     // Intercept upstream stream calls so tests are fast, offline, and reliable
@@ -21,7 +22,8 @@ test.describe('Mobile Player Controls', () => {
 
     // Simulate playing state where controls are initially hidden
     await page.evaluate(() => {
-      const video = (document.getElementById('v') || document.querySelector('video')) as HTMLVideoElement;
+      const video = (document.getElementById('v') ||
+        document.querySelector('video')) as HTMLVideoElement;
       const stageEl = document.getElementById('stage')!;
       Object.defineProperty(video, 'paused', { value: false, configurable: true });
       video.dispatchEvent(new Event('play'));
@@ -41,7 +43,9 @@ test.describe('Mobile Player Controls', () => {
     expect(parseFloat(opacity)).toBeGreaterThan(0);
   });
 
-  test('clicking fullscreen triggers orientation lock/fullscreen and drops focus', async ({ page }) => {
+  test('clicking fullscreen triggers orientation lock/fullscreen and drops focus', async ({
+    page,
+  }) => {
     await page.goto(watchUrl);
     const fsBtn = page.locator('#fs');
 
@@ -105,7 +109,8 @@ test.describe('Mobile Player Controls', () => {
 
     // Put video in playing state and trigger pokeControls()
     await page.evaluate(() => {
-      const video = (document.getElementById('v') || document.querySelector('video')) as HTMLVideoElement;
+      const video = (document.getElementById('v') ||
+        document.querySelector('video')) as HTMLVideoElement;
       const stageEl = document.getElementById('stage')!;
       Object.defineProperty(video, 'paused', { value: false, configurable: true });
       video.dispatchEvent(new Event('play'));
