@@ -4,7 +4,7 @@ import { NOTICE_SHORT } from '../../lib/notices';
 import { vercelObservabilityScriptTags } from '../../lib/vercelObservability';
 import { requestOrigin } from '../../lib/streamUrls';
 
-const landingController = async (c: Context) => {
+export const landingController = async (c: Context) => {
   const origin = requestOrigin(c);
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -174,15 +174,141 @@ const landingController = async (c: Context) => {
       color: var(--muted);
       opacity: 0.9;
     }
+    .hero-search {
+      width: 100%;
+      max-width: 640px;
+      margin: 4px 0 0;
+    }
+    .hero-search-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 4px 6px 4px 18px;
+      backdrop-filter: blur(14px);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hero-search-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .hero-search-box input[type="search"] {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 16px;
+    }
+    .hero-search-box input[type="search"]::placeholder {
+      color: var(--muted);
+      opacity: 0.8;
+    }
+    .hero-search-box .btn {
+      flex-shrink: 0;
+      min-height: 44px;
+      padding: 8px 20px;
+      cursor: pointer;
+    }
+    .resume-section {
+      width: 100%;
+      max-width: 640px;
+      animation: rise 0.75s var(--ease) both;
+    }
+    .resume-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border: 1px solid rgba(61, 214, 198, 0.25);
+      border-radius: var(--radius-md);
+      backdrop-filter: blur(14px);
+    }
+    .resume-thumb {
+      width: 52px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+    .resume-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .resume-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .resume-title {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .resume-sub {
+      margin: 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .resume-bar {
+      height: 4px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .resume-prog {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .resume-btn {
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-height: 44px;
+      min-width: 44px;
+    }
     footer {
       padding: 18px max(clamp(20px, 5vw, 40px), env(safe-area-inset-right)) 28px max(clamp(20px, 5vw, 40px), env(safe-area-inset-left));
       color: var(--muted);
       font-size: 0.75rem;
       text-align: center;
     }
+    @media (max-width: 600px) {
+      .hero-search-box {
+        padding-left: 14px;
+      }
+      .hero-search-box input[type="search"] {
+        font-size: 16px !important;
+      }
+      .resume-card {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .resume-btn {
+        width: 100%;
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       body { animation: none; }
-      .hero, .panel, .btn {
+      .hero, .panel, .btn, .resume-section {
         animation: none;
         transition: none;
         transform: none !important;
@@ -196,6 +322,13 @@ const landingController = async (c: Context) => {
       <h1 class="brand"><a href="/">ani<span>.</span>watch</a></h1>
       <p class="byline">by <em>wab</em></p>
       <p class="lede">Private, theater-grade anime streaming. Browse catalog titles, explore curated rails, and unlock high-definition Sub/Dub playback with your instance access key.</p>
+      <form class="hero-search" action="/browse" method="get">
+        <div class="hero-search-box">
+          <input type="search" name="q" placeholder="Search anime by title, e.g. Frieren, Solo Leveling, Bleach…" autocomplete="off" required />
+          <button type="submit" class="btn" aria-label="Search">Search</button>
+        </div>
+      </form>
+      <div class="resume-section" id="resumeSection" style="display: none;"></div>
       <div class="cta">
         <a class="btn" href="/browse">Discover anime</a>
         <a class="btn ghost" href="/browse?cat=most-popular">Popular</a>
@@ -210,6 +343,48 @@ const landingController = async (c: Context) => {
     </main>
     <footer>${SITE_NAME} · ${SITE_TAGLINE} · cinema streaming</footer>
   </div>
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem('ani.cw');
+        if (!raw) return;
+        var list = JSON.parse(raw);
+        if (!list || !list.length) return;
+        var item = list[0];
+        var sec = document.getElementById('resumeSection');
+        if (!sec) return;
+        var dur = item.dur || 0;
+        var time = item.time || item.t || 0;
+        var pct = dur > 0 ? Math.min(100, Math.round((time / dur) * 100)) : 0;
+        var watchUrl = item.href || ('/watch?animeId=' + encodeURIComponent(item.id) + (item.epId ? '&episodeId=' + encodeURIComponent(item.epId) : ''));
+        var posterUrl = item.poster;
+        if (!posterUrl && item.id) {
+          try {
+            var meta = JSON.parse(localStorage.getItem('ani.meta.' + item.id) || 'null');
+            if (meta && meta.poster) posterUrl = meta.poster;
+          } catch (e) {}
+        }
+        function esc(s) {
+          return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        var poster = posterUrl ? '<img src="' + esc(posterUrl) + '" alt="" class="resume-thumb" />' : '';
+        var title = esc(item.title || item.name || item.id || 'Anime');
+        var epNum = esc(String(item.epNum || 1));
+        sec.innerHTML =
+          '<div class="resume-card">' +
+            poster +
+            '<div class="resume-info">' +
+              '<span class="resume-label">Continue Watching</span>' +
+              '<h3 class="resume-title">' + title + '</h3>' +
+              '<p class="resume-sub">Episode ' + epNum + (pct > 0 ? ' · ' + pct + '% complete' : '') + '</p>' +
+              '<div class="resume-bar"><div class="resume-prog" style="width:' + pct + '%;"></div></div>' +
+            '</div>' +
+            '<a class="btn resume-btn" href="' + esc(watchUrl) + '">▶ Resume</a>' +
+          '</div>';
+        sec.style.display = 'block';
+      } catch (e) {}
+    })();
+  </script>
   ${vercelObservabilityScriptTags()}
 </body>
 </html>`;
