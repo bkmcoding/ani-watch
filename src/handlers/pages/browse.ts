@@ -148,6 +148,61 @@ export const browseController = async (c: Context) => {
     @media (max-width: 640px) {
       .search-row { grid-template-columns: 1fr; }
     }
+    .search-field-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    .search-field-wrap input[type="search"] {
+      padding-right: 44px;
+    }
+    input[type="search"]::-webkit-search-cancel-button,
+    input[type="search"]::-webkit-search-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+      display: none;
+    }
+    .search-clear-btn {
+      position: absolute;
+      right: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.1rem;
+      line-height: 1;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-pill);
+      transition: color 0.15s ease, background 0.15s ease;
+      touch-action: manipulation;
+    }
+    .search-clear-btn.is-visible {
+      display: flex;
+    }
+    @media (hover: hover) {
+      .search-clear-btn:hover {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.08);
+      }
+    }
+    .search-clear-btn:active {
+      transform: translateY(-50%) scale(0.92);
+    }
+    .search-clear-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
     label.field-label {
       display: block;
       color: var(--muted);
@@ -970,6 +1025,66 @@ export const browseController = async (c: Context) => {
       .detail { grid-template-columns: 96px 1fr; gap: 12px; padding: 12px; }
       .detail-stats { grid-template-columns: repeat(2, 1fr); }
     }
+    .ep-chunk-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .ep-chunk-scroll {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px;
+      max-width: 100%;
+      flex: 1;
+    }
+    .ep-chunk-pill {
+      flex: 0 0 auto;
+      min-height: 44px;
+      min-width: 44px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .ep-chunk-pill.is-active {
+      background: var(--accent-dim);
+      border-color: rgba(61, 214, 198, 0.45);
+      color: var(--accent);
+    }
+    .ep-jump-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+    .ep-jump-input {
+      min-height: 44px;
+      min-width: 130px;
+      width: 140px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.32);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .ep-jump-input:focus {
+      border-color: rgba(61, 214, 198, 0.45);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
     .ep-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1046,6 +1161,12 @@ export const browseController = async (c: Context) => {
       justify-content: center;
       gap: 10px;
       flex-wrap: wrap;
+    }
+    .empty-actions .pill,
+    .empty-actions .btn {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
     .welcome-banner {
       display: flex;
@@ -1313,7 +1434,10 @@ export const browseController = async (c: Context) => {
       .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .rail .card { flex-basis: 116px; width: 116px; }
-      input[type="search"], input[type="password"], input[type="text"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
+      input[type="search"], input[type="password"], input[type="text"], input[type="number"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
+      .ep-chunk-bar { flex-direction: column; align-items: stretch; }
+      .ep-jump-wrap { width: 100%; }
+      .ep-jump-input { width: 100%; font-size: 16px !important; }
     }
     /* Small phone: 375–480px */
     @media (max-width: 480px) {
@@ -1367,7 +1491,10 @@ export const browseController = async (c: Context) => {
       <div>
         <label class="field-label" for="q">Search anime</label>
         <div class="search-row">
-          <input id="q" type="search" placeholder="One Piece, Citrus, Jujutsu Kaisen…" autocomplete="off" />
+          <div class="search-field-wrap">
+            <input id="q" type="search" placeholder="One Piece, Citrus, Jujutsu Kaisen…" autocomplete="off" />
+            <button type="button" class="search-clear-btn" id="qClear" aria-label="Clear search">✕</button>
+          </div>
           <button type="button" class="btn" id="searchBtn">Search</button>
         </div>
       </div>
@@ -1436,7 +1563,10 @@ export const browseController = async (c: Context) => {
       </div>
       <div>
         <div class="search-row" style="grid-template-columns: 1fr auto">
-          <input id="qMobile" type="search" placeholder="One Piece, Citrus…" autocomplete="off" />
+          <div class="search-field-wrap">
+            <input id="qMobile" type="search" placeholder="One Piece, Citrus…" autocomplete="off" />
+            <button type="button" class="search-clear-btn" id="qMobileClear" aria-label="Clear search">✕</button>
+          </div>
           <button type="button" class="btn" id="searchBtnMobile">Go</button>
         </div>
       </div>
@@ -1505,7 +1635,22 @@ export const browseController = async (c: Context) => {
       var RAIL_CAP = 18;
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
+      var qClear = document.getElementById('qClear');
       var searchBtn = document.getElementById('searchBtn');
+      var qMobile = document.getElementById('qMobile');
+      var qMobileClear = document.getElementById('qMobileClear');
+      var searchDebounceTimer = null;
+
+      function updateClearBtnVisibility() {
+        if (qClear && q) qClear.classList.toggle('is-visible', q.value.trim().length > 0);
+        if (qMobileClear && qMobile) qMobileClear.classList.toggle('is-visible', qMobile.value.trim().length > 0);
+      }
+
+      function selectCat(cat) {
+        if (!cat || cat === 'discover') navigate({ view: 'discover' });
+        else if (cat === 'watchlist') navigate({ view: 'watchlist' });
+        else navigate({ view: 'list', query: cat, label: cat, page: 1 });
+      }
       var browseTab = document.getElementById('browseTab');
       var saveKey = document.getElementById('saveKey');
       var clearKey = document.getElementById('clearKey');
@@ -1810,6 +1955,8 @@ export const browseController = async (c: Context) => {
         } else if (target.view === 'search') {
           if (target.keyword) {
             if (q) q.value = target.keyword;
+            if (qMobile) qMobile.value = target.keyword;
+            updateClearBtnVisibility();
             doSearch();
           } else {
             loadDiscover();
@@ -2566,7 +2713,8 @@ export const browseController = async (c: Context) => {
         });
       }
 
-      function renderSearch(animes) {
+      function renderSearch(animes, keyword) {
+        keyword = keyword || (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         state.view = 'search';
         state.source = 'search';
         state.anime = null;
@@ -2578,13 +2726,35 @@ export const browseController = async (c: Context) => {
         ]);
         if (!animes.length) {
           main.innerHTML =
-            '<div class="empty">' +
-              "<h2>No matches found</h2>" +
-              "<p>We couldn't find any titles matching your search. Try another spelling or a shorter keyword.</p>" +
-              '<div class="empty-actions"><button type="button" class="btn ghost" id="searchBackBtn">Back to Discover</button></div>' +
+            '<div class="empty empty-search">' +
+              '<h2>No anime found for "' + esc(keyword) + '"</h2>' +
+              '<p>Check for typos or try searching with alternative Japanese titles.</p>' +
+              '<div class="empty-actions">' +
+                '<button type="button" class="btn ghost" id="emptyClearBtn">Clear search</button>' +
+                '<button type="button" class="pill" data-cat="discover">🔥 Discover</button>' +
+                '<button type="button" class="pill" data-cat="most-popular">⭐ Popular</button>' +
+                '<button type="button" class="pill" data-cat="top-airing">📺 Top Airing</button>' +
+              '</div>' +
             '</div>';
-          var sBackBtn = document.getElementById('searchBackBtn');
-          if (sBackBtn) sBackBtn.addEventListener('click', function () { navigate({ view: 'discover' }); });
+          var emptyClear = document.getElementById('emptyClearBtn');
+          if (emptyClear) {
+            emptyClear.addEventListener('click', function () {
+              if (q) q.value = '';
+              if (qMobile) qMobile.value = '';
+              updateClearBtnVisibility();
+              selectCat('discover');
+            });
+          }
+          var searchPills = main.querySelectorAll('.empty-search .pill[data-cat]');
+          searchPills.forEach(function (pill) {
+            pill.addEventListener('click', function () {
+              var cat = pill.getAttribute('data-cat');
+              if (q) q.value = '';
+              if (qMobile) qMobile.value = '';
+              updateClearBtnVisibility();
+              selectCat(cat);
+            });
+          });
           return;
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div>';
@@ -2673,6 +2843,29 @@ export const browseController = async (c: Context) => {
             '</div>';
         }
 
+        var CHUNK_SIZE = 50;
+        var activeChunk = 0;
+
+        function renderChunkBar() {
+          if (episodes.length <= CHUNK_SIZE) return '';
+          var totalChunks = Math.ceil(episodes.length / CHUNK_SIZE);
+          var pills = '';
+          for (var c = 0; c < totalChunks; c++) {
+            var start = c * CHUNK_SIZE + 1;
+            var end = Math.min(episodes.length, (c + 1) * CHUNK_SIZE);
+            var isSel = c === activeChunk;
+            pills += '<button type="button" class="pill ep-chunk-pill' + (isSel ? ' is-active' : '') + '" data-chunk="' + c + '">' + start + '–' + end + '</button>';
+          }
+          return (
+            '<div class="ep-chunk-bar">' +
+              '<div class="ep-chunk-scroll">' + pills + '</div>' +
+              '<div class="ep-jump-wrap">' +
+                '<input type="number" class="ep-jump-input" id="epJumpInput" placeholder="Jump to ep #" aria-label="Jump to episode number" min="1" max="' + episodes.length + '" />' +
+              '</div>' +
+            '</div>'
+          );
+        }
+
         var detailHtml =
           '<section class="detail">' +
             posterImg(posterFallbacks, title) +
@@ -2704,6 +2897,7 @@ export const browseController = async (c: Context) => {
             '</div>' +
             seasonBar +
           '</div>' +
+          renderChunkBar() +
           '<div class="ep-grid" id="epGrid"></div>';
 
         main.innerHTML = detailHtml;
@@ -2757,13 +2951,13 @@ export const browseController = async (c: Context) => {
           });
         }
 
-        var grid = document.getElementById('epGrid');
-        var frag = document.createDocumentFragment();
-        episodes.forEach(function (ep) {
+        function createEpCard(ep, idx) {
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'ep-card';
           var num = ep.number;
+          var epNumAttr = num != null ? num : (idx != null ? idx + 1 : null);
+          if (epNumAttr != null) btn.setAttribute('data-ep-num', String(epNumAttr));
           var raw = String(ep.title || ep.alternativeTitle || '').trim();
           // HiAnime often labels chips "Episode 12" — don't show that twice.
           var generic =
@@ -2781,9 +2975,88 @@ export const browseController = async (c: Context) => {
             (secondary ? '<div class="sub">' + esc(secondary) + '</div>' : '') +
             '</div>';
           btn.addEventListener('click', function () { playEpisode(ep, btn); });
-          frag.appendChild(btn);
-        });
-        grid.appendChild(frag);
+          return btn;
+        }
+
+        function mountCurrentChunk() {
+          var grid = document.getElementById('epGrid');
+          if (!grid) return;
+          grid.innerHTML = '';
+          var startIdx = activeChunk * CHUNK_SIZE;
+          var endIdx = Math.min(episodes.length, startIdx + CHUNK_SIZE);
+          var currentSlice = episodes.slice(startIdx, endIdx);
+          var frag = document.createDocumentFragment();
+          currentSlice.forEach(function (ep, sliceIdx) {
+            frag.appendChild(createEpCard(ep, startIdx + sliceIdx));
+          });
+          grid.appendChild(frag);
+        }
+
+        mountCurrentChunk();
+
+        var chunkBar = main.querySelector('.ep-chunk-bar');
+        if (chunkBar) {
+          chunkBar.addEventListener('click', function (e) {
+            var pill = e.target && e.target.closest ? e.target.closest('.ep-chunk-pill') : null;
+            if (!pill) return;
+            var c = parseInt(pill.getAttribute('data-chunk'), 10);
+            if (isNaN(c) || c === activeChunk) return;
+            activeChunk = c;
+            chunkBar.querySelectorAll('.ep-chunk-pill').forEach(function (p) {
+              var pChunk = parseInt(p.getAttribute('data-chunk'), 10);
+              p.classList.toggle('is-active', pChunk === activeChunk);
+            });
+            mountCurrentChunk();
+          });
+        }
+
+        var epJumpInput = document.getElementById('epJumpInput');
+        if (epJumpInput) {
+          function jumpToEpisode(epNum) {
+            if (isNaN(epNum) || epNum < 1 || epNum > episodes.length) return;
+            var targetIdx = -1;
+            for (var i = 0; i < episodes.length; i++) {
+              if (episodes[i].number === epNum) {
+                targetIdx = i;
+                break;
+              }
+            }
+            if (targetIdx === -1) {
+              targetIdx = Math.min(episodes.length - 1, Math.max(0, epNum - 1));
+            }
+            var targetChunk = Math.floor(targetIdx / CHUNK_SIZE);
+            if (targetChunk !== activeChunk) {
+              activeChunk = targetChunk;
+              if (chunkBar) {
+                chunkBar.querySelectorAll('.ep-chunk-pill').forEach(function (p) {
+                  var pChunk = parseInt(p.getAttribute('data-chunk'), 10);
+                  var isMatch = pChunk === activeChunk;
+                  p.classList.toggle('is-active', isMatch);
+                  if (isMatch && p.scrollIntoView) {
+                    p.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  }
+                });
+              }
+              mountCurrentChunk();
+            }
+            var grid = document.getElementById('epGrid');
+            var card = grid ? grid.querySelector('[data-ep-num="' + epNum + '"]') : null;
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              try { card.focus(); } catch (e) {}
+            }
+          }
+
+          epJumpInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              jumpToEpisode(parseInt(epJumpInput.value, 10));
+            }
+          });
+          epJumpInput.addEventListener('change', function () {
+            jumpToEpisode(parseInt(epJumpInput.value, 10));
+          });
+        }
       }
 
       async function loadDiscover() {
@@ -2848,13 +3121,14 @@ export const browseController = async (c: Context) => {
       }
 
       async function doSearch() {
-        var keyword = q.value.trim();
+        var keyword = (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
         var seq = ++loadSeq;
-        searchBtn.disabled = true;
+        if (searchBtn) searchBtn.disabled = true;
+        if (searchBtnMobile) searchBtnMobile.disabled = true;
         setStatus('Searching…');
         showSkeleton(10);
         try {
@@ -2862,7 +3136,7 @@ export const browseController = async (c: Context) => {
           if (seq !== loadSeq) return;
           var animes = (data && (data.animes || data.response)) || [];
           setStatus(animes.length + ' result' + (animes.length === 1 ? '' : 's'));
-          renderSearch(animes);
+          renderSearch(animes, keyword);
         } catch (err) {
           if (seq !== loadSeq) return;
           setStatus((err && err.message) || 'Search failed', true);
@@ -2875,7 +3149,10 @@ export const browseController = async (c: Context) => {
           var sRetry = document.getElementById('searchRetryBtn');
           if (sRetry) sRetry.addEventListener('click', function () { doSearch(); });
         } finally {
-          if (seq === loadSeq) searchBtn.disabled = false;
+          if (seq === loadSeq) {
+            if (searchBtn) searchBtn.disabled = false;
+            if (searchBtnMobile) searchBtnMobile.disabled = false;
+          }
         }
       }
 
@@ -2998,25 +3275,65 @@ export const browseController = async (c: Context) => {
         else navigate({ view: 'list', query: query, label: label, page: 1 });
       });
 
-      function submitSearch() {
-        var keyword = q.value.trim();
+      function submitSearch(replace) {
+        var keyword = (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
-        navigate({ view: 'search', keyword: keyword });
+        if (q) q.value = keyword;
+        if (qMobile) qMobile.value = keyword;
+        updateClearBtnVisibility();
+        var shouldReplace = replace !== undefined ? replace : (state.view === 'search');
+        navigate({ view: 'search', keyword: keyword }, shouldReplace);
       }
 
-      searchBtn.addEventListener('click', submitSearch);
-      q.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') submitSearch();
-      });
+      if (searchBtn) searchBtn.addEventListener('click', function () { submitSearch(false); });
+      if (q) {
+        q.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            clearTimeout(searchDebounceTimer);
+            submitSearch(false);
+          }
+        });
+        q.addEventListener('input', function () {
+          updateClearBtnVisibility();
+          clearTimeout(searchDebounceTimer);
+          var val = q.value.trim();
+          if (val.length >= 2) {
+            searchDebounceTimer = setTimeout(function () {
+              submitSearch(true);
+            }, 300);
+          }
+        });
+      }
+
+      if (qClear) {
+        qClear.addEventListener('click', function () {
+          clearTimeout(searchDebounceTimer);
+          if (q) q.value = '';
+          if (qMobile) qMobile.value = '';
+          updateClearBtnVisibility();
+          if (q) q.focus();
+          selectCat('discover');
+        });
+      }
+
+      if (qMobileClear) {
+        qMobileClear.addEventListener('click', function () {
+          clearTimeout(searchDebounceTimer);
+          if (q) q.value = '';
+          if (qMobile) qMobile.value = '';
+          updateClearBtnVisibility();
+          if (qMobile) qMobile.focus();
+          selectCat('discover');
+        });
+      }
 
       // Mobile search FAB + overlay
       var searchFab = document.getElementById('searchFab');
       var searchOverlay = document.getElementById('searchOverlay');
       var searchOverlayClose = document.getElementById('searchOverlayClose');
-      var qMobile = document.getElementById('qMobile');
       var searchBtnMobile = document.getElementById('searchBtnMobile');
       var lastFocusedTrigger = null;
 
@@ -3025,7 +3342,9 @@ export const browseController = async (c: Context) => {
         searchOverlay.classList.add('is-open');
         document.body.style.overflow = 'hidden';
         apiKeyMobile.value = apiKey.value;
+        if (qMobile && q) qMobile.value = q.value;
         updateKeyUI();
+        updateClearBtnVisibility();
         setTimeout(function () { if (qMobile) qMobile.focus(); }, 80);
       }
       function closeSearchOverlay() {
@@ -3095,19 +3414,35 @@ export const browseController = async (c: Context) => {
         var keyword = (qMobile && qMobile.value.trim()) || '';
         if (!keyword) return;
         // Sync to desktop input
-        q.value = keyword;
+        if (q) q.value = keyword;
+        updateClearBtnVisibility();
         closeSearchOverlay();
         navigate({ view: 'search', keyword: keyword });
       }
       if (searchBtnMobile) searchBtnMobile.addEventListener('click', doMobileSearch);
       if (qMobile) {
         qMobile.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter') doMobileSearch();
+          if (e.key === 'Enter') {
+            clearTimeout(searchDebounceTimer);
+            doMobileSearch();
+          }
+        });
+        qMobile.addEventListener('input', function () {
+          updateClearBtnVisibility();
+          clearTimeout(searchDebounceTimer);
+          var val = qMobile.value.trim();
+          if (val.length >= 2) {
+            searchDebounceTimer = setTimeout(function () {
+              if (q) q.value = val;
+              submitSearch(true);
+            }, 300);
+          }
         });
       }
 
       var initialRoute = readCurrentRouteFromUrl();
       history.replaceState(initialRoute, '', window.location.href);
+      updateClearBtnVisibility();
       applyRoute(initialRoute);
       if (initialRoute.view === 'discover' && window.innerWidth > 640 && !apiKey.value.trim()) {
         setTimeout(function () { try { q.focus(); } catch (e) {} }, 150);
