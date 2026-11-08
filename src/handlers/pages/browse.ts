@@ -1025,6 +1025,66 @@ export const browseController = async (c: Context) => {
       .detail { grid-template-columns: 96px 1fr; gap: 12px; padding: 12px; }
       .detail-stats { grid-template-columns: repeat(2, 1fr); }
     }
+    .ep-chunk-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .ep-chunk-scroll {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px;
+      max-width: 100%;
+      flex: 1;
+    }
+    .ep-chunk-pill {
+      flex: 0 0 auto;
+      min-height: 44px;
+      min-width: 44px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .ep-chunk-pill.is-active {
+      background: var(--accent-dim);
+      border-color: rgba(61, 214, 198, 0.45);
+      color: var(--accent);
+    }
+    .ep-jump-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+    .ep-jump-input {
+      min-height: 44px;
+      min-width: 130px;
+      width: 140px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.32);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .ep-jump-input:focus {
+      border-color: rgba(61, 214, 198, 0.45);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
     .ep-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1374,7 +1434,10 @@ export const browseController = async (c: Context) => {
       .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .rail .card { flex-basis: 116px; width: 116px; }
-      input[type="search"], input[type="password"], input[type="text"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
+      input[type="search"], input[type="password"], input[type="text"], input[type="number"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
+      .ep-chunk-bar { flex-direction: column; align-items: stretch; }
+      .ep-jump-wrap { width: 100%; }
+      .ep-jump-input { width: 100%; font-size: 16px !important; }
     }
     /* Small phone: 375–480px */
     @media (max-width: 480px) {
@@ -2780,6 +2843,29 @@ export const browseController = async (c: Context) => {
             '</div>';
         }
 
+        var CHUNK_SIZE = 50;
+        var activeChunk = 0;
+
+        function renderChunkBar() {
+          if (episodes.length <= CHUNK_SIZE) return '';
+          var totalChunks = Math.ceil(episodes.length / CHUNK_SIZE);
+          var pills = '';
+          for (var c = 0; c < totalChunks; c++) {
+            var start = c * CHUNK_SIZE + 1;
+            var end = Math.min(episodes.length, (c + 1) * CHUNK_SIZE);
+            var isSel = c === activeChunk;
+            pills += '<button type="button" class="pill ep-chunk-pill' + (isSel ? ' is-active' : '') + '" data-chunk="' + c + '">' + start + '–' + end + '</button>';
+          }
+          return (
+            '<div class="ep-chunk-bar">' +
+              '<div class="ep-chunk-scroll">' + pills + '</div>' +
+              '<div class="ep-jump-wrap">' +
+                '<input type="number" class="ep-jump-input" id="epJumpInput" placeholder="Jump to ep #" aria-label="Jump to episode number" min="1" max="' + episodes.length + '" />' +
+              '</div>' +
+            '</div>'
+          );
+        }
+
         var detailHtml =
           '<section class="detail">' +
             posterImg(posterFallbacks, title) +
@@ -2811,6 +2897,7 @@ export const browseController = async (c: Context) => {
             '</div>' +
             seasonBar +
           '</div>' +
+          renderChunkBar() +
           '<div class="ep-grid" id="epGrid"></div>';
 
         main.innerHTML = detailHtml;
@@ -2864,13 +2951,13 @@ export const browseController = async (c: Context) => {
           });
         }
 
-        var grid = document.getElementById('epGrid');
-        var frag = document.createDocumentFragment();
-        episodes.forEach(function (ep) {
+        function createEpCard(ep, idx) {
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'ep-card';
           var num = ep.number;
+          var epNumAttr = num != null ? num : (idx != null ? idx + 1 : null);
+          if (epNumAttr != null) btn.setAttribute('data-ep-num', String(epNumAttr));
           var raw = String(ep.title || ep.alternativeTitle || '').trim();
           // HiAnime often labels chips "Episode 12" — don't show that twice.
           var generic =
@@ -2888,9 +2975,88 @@ export const browseController = async (c: Context) => {
             (secondary ? '<div class="sub">' + esc(secondary) + '</div>' : '') +
             '</div>';
           btn.addEventListener('click', function () { playEpisode(ep, btn); });
-          frag.appendChild(btn);
-        });
-        grid.appendChild(frag);
+          return btn;
+        }
+
+        function mountCurrentChunk() {
+          var grid = document.getElementById('epGrid');
+          if (!grid) return;
+          grid.innerHTML = '';
+          var startIdx = activeChunk * CHUNK_SIZE;
+          var endIdx = Math.min(episodes.length, startIdx + CHUNK_SIZE);
+          var currentSlice = episodes.slice(startIdx, endIdx);
+          var frag = document.createDocumentFragment();
+          currentSlice.forEach(function (ep, sliceIdx) {
+            frag.appendChild(createEpCard(ep, startIdx + sliceIdx));
+          });
+          grid.appendChild(frag);
+        }
+
+        mountCurrentChunk();
+
+        var chunkBar = main.querySelector('.ep-chunk-bar');
+        if (chunkBar) {
+          chunkBar.addEventListener('click', function (e) {
+            var pill = e.target && e.target.closest ? e.target.closest('.ep-chunk-pill') : null;
+            if (!pill) return;
+            var c = parseInt(pill.getAttribute('data-chunk'), 10);
+            if (isNaN(c) || c === activeChunk) return;
+            activeChunk = c;
+            chunkBar.querySelectorAll('.ep-chunk-pill').forEach(function (p) {
+              var pChunk = parseInt(p.getAttribute('data-chunk'), 10);
+              p.classList.toggle('is-active', pChunk === activeChunk);
+            });
+            mountCurrentChunk();
+          });
+        }
+
+        var epJumpInput = document.getElementById('epJumpInput');
+        if (epJumpInput) {
+          function jumpToEpisode(epNum) {
+            if (isNaN(epNum) || epNum < 1 || epNum > episodes.length) return;
+            var targetIdx = -1;
+            for (var i = 0; i < episodes.length; i++) {
+              if (episodes[i].number === epNum) {
+                targetIdx = i;
+                break;
+              }
+            }
+            if (targetIdx === -1) {
+              targetIdx = Math.min(episodes.length - 1, Math.max(0, epNum - 1));
+            }
+            var targetChunk = Math.floor(targetIdx / CHUNK_SIZE);
+            if (targetChunk !== activeChunk) {
+              activeChunk = targetChunk;
+              if (chunkBar) {
+                chunkBar.querySelectorAll('.ep-chunk-pill').forEach(function (p) {
+                  var pChunk = parseInt(p.getAttribute('data-chunk'), 10);
+                  var isMatch = pChunk === activeChunk;
+                  p.classList.toggle('is-active', isMatch);
+                  if (isMatch && p.scrollIntoView) {
+                    p.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  }
+                });
+              }
+              mountCurrentChunk();
+            }
+            var grid = document.getElementById('epGrid');
+            var card = grid ? grid.querySelector('[data-ep-num="' + epNum + '"]') : null;
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              try { card.focus(); } catch (e) {}
+            }
+          }
+
+          epJumpInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              jumpToEpisode(parseInt(epJumpInput.value, 10));
+            }
+          });
+          epJumpInput.addEventListener('change', function () {
+            jumpToEpisode(parseInt(epJumpInput.value, 10));
+          });
+        }
       }
 
       async function loadDiscover() {
