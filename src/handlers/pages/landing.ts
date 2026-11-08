@@ -351,6 +351,7 @@ export const landingController = async (c: Context) => {
         var list = JSON.parse(raw);
         if (!list || !list.length) return;
         var item = list[0];
+        if (!item || (!item.id && !item.href)) return;
         var sec = document.getElementById('resumeSection');
         if (!sec) return;
         var dur = item.dur || 0;

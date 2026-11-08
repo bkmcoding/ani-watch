@@ -3310,6 +3310,7 @@ export const browseController = async (c: Context) => {
 
       if (qClear) {
         qClear.addEventListener('click', function () {
+          clearTimeout(searchDebounceTimer);
           if (q) q.value = '';
           if (qMobile) qMobile.value = '';
           updateClearBtnVisibility();
@@ -3320,6 +3321,7 @@ export const browseController = async (c: Context) => {
 
       if (qMobileClear) {
         qMobileClear.addEventListener('click', function () {
+          clearTimeout(searchDebounceTimer);
           if (q) q.value = '';
           if (qMobile) qMobile.value = '';
           updateClearBtnVisibility();

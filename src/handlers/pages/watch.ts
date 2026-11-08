@@ -3205,12 +3205,10 @@ export const watchController = async (c: Context) => {
       });
 
       var wasVisibleAtTouchStart = false;
-      var stageTouchTarget = null;
 
       stage.addEventListener('pointerdown', function (e) {
         if (e.pointerType === 'touch' || e.pointerType === 'pen') {
-          stageTouchTarget = e.target;
-          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-dialog, .seek-wrap, button, input'));
+          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .seek-wrap, button, input'));
           if (!inInteractive) {
             wasVisibleAtTouchStart = stage.classList.contains('show-controls');
           }
