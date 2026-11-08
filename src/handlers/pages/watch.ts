@@ -886,6 +886,201 @@ export const watchController = async (c: Context) => {
     .ep-item.is-filler .ep-n::after {
       content: "F"; margin-left: 4px; font-size: 0.72rem; opacity: 0.7;
     }
+    .ep-search-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      gap: 6px;
+    }
+    #epSearchInput {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm, 6px);
+      padding: 7px 32px 7px 10px;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+      -webkit-appearance: none;
+    }
+    #epSearchInput:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.1);
+    }
+    #epSearchInput::-webkit-search-cancel-button {
+      display: none;
+    }
+    .ep-search-clear {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      min-width: 44px;
+      min-height: 44px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm, 6px);
+      font-size: 0.85rem;
+      padding: 0;
+      transition: color 0.15s;
+    }
+    .ep-search-clear:hover {
+      color: var(--ink);
+    }
+    .ep-search-clear.is-visible {
+      display: inline-flex;
+    }
+
+    /* Action & Volume OSD HUD */
+    .action-osd {
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px) scale(0.95);
+      background: rgba(10, 12, 16, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--ink);
+      padding: 8px 18px;
+      border-radius: var(--radius-pill, 999px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 80;
+      opacity: 0;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+    .action-osd.is-active {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+    .action-osd .osd-icon {
+      font-size: 1.15rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .action-osd .osd-text {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+
+    /* Shortcuts Modal & Backdrop */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 105;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s var(--ease);
+    }
+    .modal-backdrop.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .shortcuts-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.96);
+      width: min(440px, calc(100% - 32px));
+      max-height: min(85%, 480px);
+      background: var(--panel, #12161f);
+      border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+      border-radius: var(--radius-lg, 14px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      z-index: 110;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    .shortcuts-modal.is-open {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto;
+    }
+    .shortcuts-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .shortcuts-head h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+    }
+    .shortcuts-modal .btn-icon {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm, 6px);
+      transition: color 0.15s, background 0.15s;
+    }
+    .shortcuts-modal .btn-icon:hover {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .shortcuts-body {
+      padding: 12px 16px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .shortcut-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 4px 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .shortcut-row kbd {
+      font-family: monospace;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm, 6px);
+      padding: 2px 7px;
+      font-size: 0.78rem;
+      color: var(--ink);
+    }
+    .shortcut-row span {
+      text-align: right;
+    }
 
     /* Theater mode */
     body.theater { background: #000; }
@@ -1309,6 +1504,13 @@ export const watchController = async (c: Context) => {
       .shortcuts-row {
         display: none !important;
       }
+      #epSearchInput {
+        font-size: 16px !important;
+      }
+      .ep-search-clear, .shortcuts-modal .btn-icon {
+        min-width: 44px;
+        min-height: 44px;
+      }
     }
 
     /* Portrait mobile bottom sheet */
@@ -1449,6 +1651,10 @@ export const watchController = async (c: Context) => {
         <div class="cc-layer" id="ccLayer" aria-live="polite">
           <div class="cc-box" id="ccBox" title="Drag to move"></div>
         </div>
+        <div class="action-osd" id="actionOsd" aria-live="polite" aria-atomic="true">
+          <span class="osd-icon" id="osdIcon"></span>
+          <span class="osd-text" id="osdText"></span>
+        </div>
         <div class="gesture-indicator gesture-left" id="gestureLeft" aria-hidden="true">
           <div class="gesture-icon">
             <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
@@ -1470,6 +1676,25 @@ export const watchController = async (c: Context) => {
         </div>
         <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
 
+        <div class="modal-backdrop" id="shortcutsBackdrop" aria-hidden="true"></div>
+        <div class="shortcuts-modal" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle" aria-hidden="true">
+          <div class="shortcuts-head">
+            <h3 id="shortcutsTitle">Keyboard Shortcuts</h3>
+            <button type="button" class="btn-icon" id="shortcutsClose" aria-label="Close shortcuts">✕</button>
+          </div>
+          <div class="shortcuts-body">
+            <div class="shortcut-row"><kbd>Space</kbd> / <kbd>K</kbd> <span>Play / Pause</span></div>
+            <div class="shortcut-row"><kbd>J</kbd> / <kbd>L</kbd> <span>Seek -10s / +10s</span></div>
+            <div class="shortcut-row"><kbd>←</kbd> / <kbd>→</kbd> <span>Seek -5s / +5s</span></div>
+            <div class="shortcut-row"><kbd>↑</kbd> / <kbd>↓</kbd> <span>Volume Up / Down</span></div>
+            <div class="shortcut-row"><kbd>M</kbd> <span>Mute / Unmute</span></div>
+            <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
+            <div class="shortcut-row"><kbd>C</kbd> <span>Toggle Captions</span></div>
+            <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> <span>Previous / Next Episode</span></div>
+            <div class="shortcut-row"><kbd>?</kbd> <span>Show Shortcuts</span></div>
+          </div>
+        </div>
+
         <div class="ap-overlay" id="autoplayOverlay" hidden>
           <div class="ap-card">
             <p class="ap-label">Next episode in</p>
@@ -1486,6 +1711,10 @@ export const watchController = async (c: Context) => {
           <div class="ep-panel-head">
             <h3>Episodes</h3>
             <button type="button" class="pill" id="epPanelClose" style="padding:6px 10px">Close</button>
+          </div>
+          <div class="ep-search-wrap">
+            <input type="search" id="epSearchInput" placeholder="Filter episodes (e.g. 12, canon)..." autocomplete="off" />
+            <button type="button" class="ep-search-clear" id="epSearchClear" title="Clear filter" aria-label="Clear filter">✕</button>
           </div>
           <p class="ep-panel-status" id="epPanelStatus">Loading…</p>
           <div class="ep-list" id="epList" hidden></div>
@@ -1773,6 +2002,15 @@ export const watchController = async (c: Context) => {
       var epPanelClose = document.getElementById('epPanelClose');
       var epPanelStatus = document.getElementById('epPanelStatus');
       var epList = document.getElementById('epList');
+      var actionOsd = document.getElementById('actionOsd');
+      var osdIcon = document.getElementById('osdIcon');
+      var osdText = document.getElementById('osdText');
+      var osdTimer = null;
+      var shortcutsModal = document.getElementById('shortcutsModal');
+      var shortcutsBackdrop = document.getElementById('shortcutsBackdrop');
+      var shortcutsClose = document.getElementById('shortcutsClose');
+      var epSearchInput = document.getElementById('epSearchInput');
+      var epSearchClear = document.getElementById('epSearchClear');
       var sheetBackdrop = document.getElementById('sheetBackdrop');
       var settingsClose = document.getElementById('settingsClose');
       var gestureLeft = document.getElementById('gestureLeft');
@@ -1986,7 +2224,18 @@ export const watchController = async (c: Context) => {
         muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
       }
 
-      function applyVolume(val) {
+      function showOsd(icon, text) {
+        if (!actionOsd || !osdIcon || !osdText) return;
+        osdIcon.textContent = icon;
+        osdText.textContent = text;
+        actionOsd.classList.add('is-active');
+        clearTimeout(osdTimer);
+        osdTimer = setTimeout(function () {
+          actionOsd.classList.remove('is-active');
+        }, 1200);
+      }
+
+      function applyVolume(val, showHud) {
         var v = Math.max(0, Math.min(1, Number(val)));
         if (!isFinite(v)) v = 1;
         video.volume = v;
@@ -1995,6 +2244,10 @@ export const watchController = async (c: Context) => {
         vol.style.setProperty('--vol', (v * 100) + '%');
         setMuted(video.muted);
         try { localStorage.setItem('ani.vol', String(v)); } catch (e) {}
+        if (showHud) {
+          var icon = video.muted || v === 0 ? '🔇' : (v < 0.5 ? '🔉' : '🔊');
+          showOsd(icon, Math.round(v * 100) + '%');
+        }
       }
 
       function updateProgress() {
@@ -2047,6 +2300,7 @@ export const watchController = async (c: Context) => {
         var pack = currentSkip();
         var range = skipMode === 'outro' ? pack.outro : pack.intro;
         if (!range || !isFinite(range.end)) return;
+        var skippedType = skipMode === 'outro' ? 'Skipped Outro' : 'Skipped Intro';
         var target = range.end;
         var d = video.duration;
         if (isFinite(d) && d > 0) target = Math.min(target, Math.max(0, d - 0.25));
@@ -2054,6 +2308,7 @@ export const watchController = async (c: Context) => {
         updateProgress();
         updateSkip();
         pokeControls();
+        showOsd('⏭', skippedType);
       }
 
       function startHideTimer(ms) {
@@ -2084,6 +2339,12 @@ export const watchController = async (c: Context) => {
       function toggleMute() {
         video.muted = !video.muted;
         setMuted(video.muted);
+        if (video.muted) {
+          showOsd('🔇', 'Muted');
+        } else {
+          var icon = video.volume < 0.5 ? '🔉' : '🔊';
+          showOsd(icon, Math.round(video.volume * 100) + '%');
+        }
       }
       function isIosPhone() {
         return /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -2434,6 +2695,7 @@ export const watchController = async (c: Context) => {
         if (i < 0) i = SPEEDS.indexOf(1);
         i = Math.max(0, Math.min(SPEEDS.length - 1, i + dir));
         setRate(SPEEDS[i]);
+        showOsd('⚡', (rate % 1 === 0 ? rate.toFixed(0) : String(rate)) + 'x');
       }
 
       function fillSpeeds() {
@@ -2448,6 +2710,7 @@ export const watchController = async (c: Context) => {
             e.preventDefault();
             e.stopPropagation();
             setRate(s);
+            showOsd('⚡', (s % 1 === 0 ? s.toFixed(0) : String(s)) + 'x');
           });
           speedRow.appendChild(b);
         });
@@ -2680,6 +2943,7 @@ export const watchController = async (c: Context) => {
         if (open) {
           lastSettingsTrigger = document.activeElement;
           setEpPanel(false);
+          toggleShortcuts(false);
           pokeControls();
           var firstFocus = settingsMenu.querySelector('button:not([disabled]), select:not([disabled]), input:not([disabled])');
           if (firstFocus) {
@@ -2706,6 +2970,7 @@ export const watchController = async (c: Context) => {
         if (open) {
           lastEpTrigger = document.activeElement;
           toggleSettings(false);
+          toggleShortcuts(false);
           pokeControls();
           loadEpisodeList();
           if (epPanelClose) {
@@ -2720,6 +2985,22 @@ export const watchController = async (c: Context) => {
       function toggleEpPanel() {
         if (!animeId) return;
         setEpPanel(!(epPanel && epPanel.classList.contains('is-open')));
+      }
+
+      function toggleShortcuts(show) {
+        if (!shortcutsModal) return;
+        var willOpen = typeof show === 'boolean' ? show : !shortcutsModal.classList.contains('is-open');
+        shortcutsModal.classList.toggle('is-open', willOpen);
+        if (shortcutsBackdrop) shortcutsBackdrop.classList.toggle('is-open', willOpen);
+        shortcutsModal.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
+        if (shortcutsBackdrop) shortcutsBackdrop.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
+        if (willOpen) {
+          if (settingsMenu && settingsMenu.classList.contains('is-open')) toggleSettings(false);
+          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+          if (shortcutsClose) {
+            try { shortcutsClose.focus(); } catch (e) {}
+          }
+        }
       }
 
       function playEpisodeId(episodeId, btn) {
@@ -2800,8 +3081,47 @@ export const watchController = async (c: Context) => {
           })(ep.id, btn);
           epList.appendChild(btn);
         });
+        filterEpisodeItems();
         if (currentEl && typeof currentEl.scrollIntoView === 'function') {
           try { currentEl.scrollIntoView({ block: 'center' }); } catch (e) {}
+        }
+      }
+
+      function filterEpisodeItems() {
+        if (!epList) return;
+        var q = (epSearchInput ? epSearchInput.value : '').trim().toLowerCase();
+        if (epSearchClear) {
+          epSearchClear.classList.toggle('is-visible', q.length > 0);
+        }
+        var items = epList.querySelectorAll('.ep-item');
+        var matched = 0;
+        items.forEach(function (el) {
+          var epn = (el.getAttribute('data-epn') || '').toLowerCase();
+          var epTitleEl = el.querySelector('.ep-t');
+          var epTitle = (epTitleEl ? epTitleEl.textContent : '').toLowerCase();
+          var isFiller = el.classList.contains('is-filler');
+          var match = true;
+
+          if (q) {
+            if (q === 'filler') {
+              match = isFiller;
+            } else if (q === 'canon') {
+              match = !isFiller;
+            } else {
+              match = epn.indexOf(q) >= 0 || epTitle.indexOf(q) >= 0;
+            }
+          }
+          el.style.display = match ? '' : 'none';
+          if (match) matched++;
+        });
+
+        if (epPanelStatus && items.length > 0) {
+          if (matched === 0) {
+            epPanelStatus.textContent = 'No matching episodes.';
+            epPanelStatus.hidden = false;
+          } else {
+            epPanelStatus.hidden = true;
+          }
         }
       }
 
@@ -3034,6 +3354,41 @@ export const watchController = async (c: Context) => {
           setEpPanel(false);
         });
       }
+      if (shortcutsClose) {
+        shortcutsClose.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleShortcuts(false);
+        });
+      }
+      if (shortcutsBackdrop) {
+        shortcutsBackdrop.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleShortcuts(false);
+        });
+      }
+      if (epSearchInput) {
+        epSearchInput.addEventListener('input', filterEpisodeItems);
+        epSearchInput.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && epSearchInput.value) {
+            e.stopPropagation();
+            epSearchInput.value = '';
+            filterEpisodeItems();
+          }
+        });
+      }
+      if (epSearchClear) {
+        epSearchClear.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (epSearchInput) {
+            epSearchInput.value = '';
+            filterEpisodeItems();
+            try { epSearchInput.focus(); } catch (err) {}
+          }
+        });
+      }
       theaterBtn.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
@@ -3221,6 +3576,11 @@ export const watchController = async (c: Context) => {
           trapDialogFocus(e, epPanel, function () { setEpPanel(false); });
         });
       }
+      if (shortcutsModal) {
+        shortcutsModal.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, shortcutsModal, function () { toggleShortcuts(false); });
+        });
+      }
       loopToggle.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         video.loop = !video.loop;
@@ -3324,7 +3684,7 @@ export const watchController = async (c: Context) => {
         updateSkip();
       });
       vol.addEventListener('input', function () {
-        applyVolume(vol.value);
+        applyVolume(vol.value, true);
       });
 
       video.addEventListener('progress', updateBufferTrack);
@@ -3445,12 +3805,29 @@ export const watchController = async (c: Context) => {
           if (epListBtnMenu && epListBtnMenu.contains(e.target)) return;
           setEpPanel(false);
         }
+        if (shortcutsModal && shortcutsModal.classList.contains('is-open')) {
+          if (!shortcutsModal.contains(e.target)) toggleShortcuts(false);
+        }
       });
 
       document.addEventListener('keydown', function (e) {
         if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+        if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); togglePlay(); }
+        else if (e.key === 'j' || e.key === 'J') {
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 10);
+          showOsd('⏪', '-10s');
+        }
+        else if (e.key === 'l' || e.key === 'L') {
+          e.preventDefault();
+          video.currentTime = Math.min((video.duration || 0), video.currentTime + 10);
+          showOsd('⏩', '+10s');
+        }
+        else if (e.key === '?') {
+          e.preventDefault();
+          toggleShortcuts();
+        }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
         else if (e.key === 'e' || e.key === 'E') {
@@ -3474,12 +3851,21 @@ export const watchController = async (c: Context) => {
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
         else if (e.key === ',' || e.key === '<') cycleRate(-1);
         else if (e.key === '.' || e.key === '>') cycleRate(1);
-        else if (e.key === 'ArrowRight') { e.preventDefault(); video.currentTime = Math.min((video.duration || 0), video.currentTime + 10); }
-        else if (e.key === 'ArrowLeft') { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05); }
-        else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05); }
+        else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          video.currentTime = Math.min((video.duration || 0), video.currentTime + 5);
+          showOsd('⏩', '+5s');
+        }
+        else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 5);
+          showOsd('⏪', '-5s');
+        }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05, true); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05, true); }
         else if (e.key === 'Escape') {
-          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+          if (shortcutsModal && shortcutsModal.classList.contains('is-open')) toggleShortcuts(false);
+          else if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
           else if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
           else if (theater && !document.fullscreenElement) setTheater(false);
         }
