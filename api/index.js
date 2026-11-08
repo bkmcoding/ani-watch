@@ -3011,13 +3011,61 @@ var watchController = async (c) => {
       transform: translateY(0);
       opacity: 1;
     }
+    .seek-wrap {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      margin: 0 0 10px;
+    }
+    .seek-tooltip {
+      position: absolute;
+      bottom: 24px;
+      left: 0;
+      transform: translateX(-50%);
+      background: rgba(12, 16, 24, 0.92);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      white-space: nowrap;
+      z-index: 10;
+    }
+    .seek-wrap:hover .seek-tooltip,
+    .seek-wrap.is-scrubbing .seek-tooltip {
+      opacity: 1;
+    }
     .seek {
-      width: 100%; height: 6px; appearance: none; background: transparent; cursor: pointer; margin: 0 0 10px;
+      --progress: 0%;
+      --buffered: 0%;
+      width: 100%; height: 6px; appearance: none;
+      background: linear-gradient(to right,
+        var(--accent) 0%,
+        var(--accent) var(--progress),
+        rgba(255, 255, 255, 0.35) var(--progress),
+        rgba(255, 255, 255, 0.35) var(--buffered),
+        rgba(255, 255, 255, 0.12) var(--buffered),
+        rgba(255, 255, 255, 0.12) 100%
+      );
+      border-radius: 999px;
+      cursor: pointer; margin: 0;
       transition: height 0.15s ease;
     }
     .seek::-webkit-slider-runnable-track {
       height: 6px; border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent) var(--progress, 0%), rgba(255,255,255,0.18) var(--progress, 0%));
+      background: linear-gradient(to right,
+        var(--accent) 0%,
+        var(--accent) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) 100%
+      );
       transition: height 0.15s ease;
     }
     .seek:hover::-webkit-slider-runnable-track {
@@ -3034,9 +3082,20 @@ var watchController = async (c) => {
       background: #fff;
       box-shadow: 0 0 0 5px var(--accent-dim), 0 0 14px var(--accent);
     }
-    .seek::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); transition: height 0.15s ease; }
+    .seek::-moz-range-track {
+      height: 6px; border-radius: 999px;
+      background: linear-gradient(to right,
+        var(--accent) 0%,
+        var(--accent) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) 100%
+      );
+      transition: height 0.15s ease;
+    }
     .seek:hover::-moz-range-track { height: 8px; }
-    .seek::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--accent); }
+    .seek::-moz-range-progress { height: 6px; border-radius: 999px; background: transparent; }
     .seek::-moz-range-thumb {
       width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink);
       box-shadow: 0 0 0 4px var(--accent-dim);
@@ -3216,6 +3275,201 @@ var watchController = async (c) => {
     }
     .ep-item.is-filler .ep-n::after {
       content: "F"; margin-left: 4px; font-size: 0.72rem; opacity: 0.7;
+    }
+    .ep-search-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      gap: 6px;
+    }
+    #epSearchInput {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm, 6px);
+      padding: 7px 32px 7px 10px;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+      -webkit-appearance: none;
+    }
+    #epSearchInput:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.1);
+    }
+    #epSearchInput::-webkit-search-cancel-button {
+      display: none;
+    }
+    .ep-search-clear {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      min-width: 44px;
+      min-height: 44px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm, 6px);
+      font-size: 0.85rem;
+      padding: 0;
+      transition: color 0.15s;
+    }
+    .ep-search-clear:hover {
+      color: var(--ink);
+    }
+    .ep-search-clear.is-visible {
+      display: inline-flex;
+    }
+
+    /* Action & Volume OSD HUD */
+    .action-osd {
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px) scale(0.95);
+      background: rgba(10, 12, 16, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--ink);
+      padding: 8px 18px;
+      border-radius: var(--radius-pill, 999px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 80;
+      opacity: 0;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+    .action-osd.is-active {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+    .action-osd .osd-icon {
+      font-size: 1.15rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .action-osd .osd-text {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+
+    /* Shortcuts Modal & Backdrop */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 105;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s var(--ease);
+    }
+    .modal-backdrop.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .shortcuts-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.96);
+      width: min(440px, calc(100% - 32px));
+      max-height: min(85%, 480px);
+      background: var(--panel, #12161f);
+      border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+      border-radius: var(--radius-lg, 14px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      z-index: 110;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    .shortcuts-modal.is-open {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto;
+    }
+    .shortcuts-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .shortcuts-head h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+    }
+    .shortcuts-modal .btn-icon {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm, 6px);
+      transition: color 0.15s, background 0.15s;
+    }
+    .shortcuts-modal .btn-icon:hover {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .shortcuts-body {
+      padding: 12px 16px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .shortcut-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 4px 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .shortcut-row kbd {
+      font-family: monospace;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm, 6px);
+      padding: 2px 7px;
+      font-size: 0.78rem;
+      color: var(--ink);
+    }
+    .shortcut-row span {
+      text-align: right;
     }
 
     /* Theater mode */
@@ -3466,9 +3720,12 @@ var watchController = async (c) => {
         padding: 24px 12px 8px;
         background: linear-gradient(transparent 0%, rgba(0, 0, 0, 0.88) 60%);
       }
+      .seek-wrap {
+        margin-bottom: 8px;
+      }
       .seek {
         height: 8px;
-        margin-bottom: 8px;
+        margin: 0;
       }
       .seek::-webkit-slider-thumb {
         width: 18px;
@@ -3637,6 +3894,13 @@ var watchController = async (c) => {
       .shortcuts-row {
         display: none !important;
       }
+      #epSearchInput {
+        font-size: 16px !important;
+      }
+      .ep-search-clear, .shortcuts-modal .btn-icon {
+        min-width: 44px;
+        min-height: 44px;
+      }
     }
 
     /* Portrait mobile bottom sheet */
@@ -3777,6 +4041,10 @@ var watchController = async (c) => {
         <div class="cc-layer" id="ccLayer" aria-live="polite">
           <div class="cc-box" id="ccBox" title="Drag to move"></div>
         </div>
+        <div class="action-osd" id="actionOsd" aria-live="polite" aria-atomic="true">
+          <span class="osd-icon" id="osdIcon"></span>
+          <span class="osd-text" id="osdText"></span>
+        </div>
         <div class="gesture-indicator gesture-left" id="gestureLeft" aria-hidden="true">
           <div class="gesture-icon">
             <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
@@ -3798,6 +4066,25 @@ var watchController = async (c) => {
         </div>
         <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
 
+        <div class="modal-backdrop" id="shortcutsBackdrop" aria-hidden="true"></div>
+        <div class="shortcuts-modal" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle" aria-hidden="true">
+          <div class="shortcuts-head">
+            <h3 id="shortcutsTitle">Keyboard Shortcuts</h3>
+            <button type="button" class="btn-icon" id="shortcutsClose" aria-label="Close shortcuts">\u2715</button>
+          </div>
+          <div class="shortcuts-body">
+            <div class="shortcut-row"><kbd>Space</kbd> / <kbd>K</kbd> <span>Play / Pause</span></div>
+            <div class="shortcut-row"><kbd>J</kbd> / <kbd>L</kbd> <span>Seek -10s / +10s</span></div>
+            <div class="shortcut-row"><kbd>\u2190</kbd> / <kbd>\u2192</kbd> <span>Seek -5s / +5s</span></div>
+            <div class="shortcut-row"><kbd>\u2191</kbd> / <kbd>\u2193</kbd> <span>Volume Up / Down</span></div>
+            <div class="shortcut-row"><kbd>M</kbd> <span>Mute / Unmute</span></div>
+            <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
+            <div class="shortcut-row"><kbd>C</kbd> <span>Toggle Captions</span></div>
+            <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> <span>Previous / Next Episode</span></div>
+            <div class="shortcut-row"><kbd>?</kbd> <span>Show Shortcuts</span></div>
+          </div>
+        </div>
+
         <div class="ap-overlay" id="autoplayOverlay" hidden>
           <div class="ap-card">
             <p class="ap-label">Next episode in</p>
@@ -3814,6 +4101,10 @@ var watchController = async (c) => {
           <div class="ep-panel-head">
             <h3>Episodes</h3>
             <button type="button" class="pill" id="epPanelClose" style="padding:6px 10px">Close</button>
+          </div>
+          <div class="ep-search-wrap">
+            <input type="search" id="epSearchInput" placeholder="Filter episodes (e.g. 12, canon)..." autocomplete="off" />
+            <button type="button" class="ep-search-clear" id="epSearchClear" title="Clear filter" aria-label="Clear filter">\u2715</button>
           </div>
           <p class="ep-panel-status" id="epPanelStatus">Loading\u2026</p>
           <div class="ep-list" id="epList" hidden></div>
@@ -4006,7 +4297,10 @@ var watchController = async (c) => {
         </div>
 
         <div class="controls" id="controls">
-          <input class="seek" id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+          <div class="seek-wrap" id="seekWrap">
+            <div class="seek-tooltip" id="seekTooltip">00:00</div>
+            <input class="seek" id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek video" />
+          </div>
           <div class="row">
             <button type="button" class="ctrl" id="play" aria-label="Play">
               <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -4062,6 +4356,8 @@ var watchController = async (c) => {
       var stage = document.getElementById('stage');
       var err = document.getElementById('err');
       var seek = document.getElementById('seek');
+      var seekWrap = document.getElementById('seekWrap');
+      var seekTooltip = document.getElementById('seekTooltip');
       var vol = document.getElementById('vol');
       var timeEl = document.getElementById('time');
       var playBtn = document.getElementById('play');
@@ -4096,6 +4392,15 @@ var watchController = async (c) => {
       var epPanelClose = document.getElementById('epPanelClose');
       var epPanelStatus = document.getElementById('epPanelStatus');
       var epList = document.getElementById('epList');
+      var actionOsd = document.getElementById('actionOsd');
+      var osdIcon = document.getElementById('osdIcon');
+      var osdText = document.getElementById('osdText');
+      var osdTimer = null;
+      var shortcutsModal = document.getElementById('shortcutsModal');
+      var shortcutsBackdrop = document.getElementById('shortcutsBackdrop');
+      var shortcutsClose = document.getElementById('shortcutsClose');
+      var epSearchInput = document.getElementById('epSearchInput');
+      var epSearchClear = document.getElementById('epSearchClear');
       var sheetBackdrop = document.getElementById('sheetBackdrop');
       var settingsClose = document.getElementById('settingsClose');
       var gestureLeft = document.getElementById('gestureLeft');
@@ -4261,6 +4566,35 @@ var watchController = async (c) => {
         var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
         return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
       }
+      var formatTime = fmt;
+
+      function updateBufferTrack() {
+        if (!video.duration || !video.buffered || !video.buffered.length) {
+          seek.style.setProperty('--buffered', '0%');
+          return;
+        }
+        var dur = video.duration;
+        var cur = video.currentTime;
+        var bufEnd = 0;
+        for (var i = 0; i < video.buffered.length; i++) {
+          if (video.buffered.start(i) <= cur && video.buffered.end(i) >= cur) {
+            bufEnd = video.buffered.end(i);
+            break;
+          }
+          if (video.buffered.end(i) > bufEnd) bufEnd = video.buffered.end(i);
+        }
+        var pct = Math.min(100, Math.max(0, (bufEnd / dur) * 100));
+        seek.style.setProperty('--buffered', pct.toFixed(1) + '%');
+      }
+
+      function updateScrubTooltip(clientX) {
+        if (!seekWrap || !seekTooltip || !video.duration) return;
+        var rect = seekWrap.getBoundingClientRect();
+        var frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        var time = frac * video.duration;
+        seekTooltip.textContent = formatTime(time);
+        seekTooltip.style.left = (frac * 100).toFixed(1) + '%';
+      }
 
       function setPlaying(playing) {
         stage.classList.toggle('is-paused', !playing);
@@ -4280,7 +4614,18 @@ var watchController = async (c) => {
         muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
       }
 
-      function applyVolume(val) {
+      function showOsd(icon, text) {
+        if (!actionOsd || !osdIcon || !osdText) return;
+        osdIcon.textContent = icon;
+        osdText.textContent = text;
+        actionOsd.classList.add('is-active');
+        clearTimeout(osdTimer);
+        osdTimer = setTimeout(function () {
+          actionOsd.classList.remove('is-active');
+        }, 1200);
+      }
+
+      function applyVolume(val, showHud) {
         var v = Math.max(0, Math.min(1, Number(val)));
         if (!isFinite(v)) v = 1;
         video.volume = v;
@@ -4289,6 +4634,10 @@ var watchController = async (c) => {
         vol.style.setProperty('--vol', (v * 100) + '%');
         setMuted(video.muted);
         try { localStorage.setItem('ani.vol', String(v)); } catch (e) {}
+        if (showHud) {
+          var icon = video.muted || v === 0 ? '\u{1F507}' : (v < 0.5 ? '\u{1F509}' : '\u{1F50A}');
+          showOsd(icon, Math.round(v * 100) + '%');
+        }
       }
 
       function updateProgress() {
@@ -4341,6 +4690,7 @@ var watchController = async (c) => {
         var pack = currentSkip();
         var range = skipMode === 'outro' ? pack.outro : pack.intro;
         if (!range || !isFinite(range.end)) return;
+        var skippedType = skipMode === 'outro' ? 'Skipped Outro' : 'Skipped Intro';
         var target = range.end;
         var d = video.duration;
         if (isFinite(d) && d > 0) target = Math.min(target, Math.max(0, d - 0.25));
@@ -4348,18 +4698,23 @@ var watchController = async (c) => {
         updateProgress();
         updateSkip();
         pokeControls();
+        showOsd('\u23ED', skippedType);
       }
 
-      function pokeControls() {
-        stage.classList.add('show-controls');
-        stage.classList.remove('cursor-hidden');
+      function startHideTimer(ms) {
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
           if (!video.paused && !settingsMenu.classList.contains('is-open')) {
             stage.classList.remove('show-controls');
             stage.classList.add('cursor-hidden');
           }
-        }, 3500);
+        }, ms || 4000);
+      }
+
+      function pokeControls() {
+        stage.classList.add('show-controls');
+        stage.classList.remove('cursor-hidden');
+        startHideTimer(4000);
       }
 
       function togglePlay() {
@@ -4374,6 +4729,12 @@ var watchController = async (c) => {
       function toggleMute() {
         video.muted = !video.muted;
         setMuted(video.muted);
+        if (video.muted) {
+          showOsd('\u{1F507}', 'Muted');
+        } else {
+          var icon = video.volume < 0.5 ? '\u{1F509}' : '\u{1F50A}';
+          showOsd(icon, Math.round(video.volume * 100) + '%');
+        }
       }
       function isIosPhone() {
         return /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -4724,6 +5085,7 @@ var watchController = async (c) => {
         if (i < 0) i = SPEEDS.indexOf(1);
         i = Math.max(0, Math.min(SPEEDS.length - 1, i + dir));
         setRate(SPEEDS[i]);
+        showOsd('\u26A1', (rate % 1 === 0 ? rate.toFixed(0) : String(rate)) + 'x');
       }
 
       function fillSpeeds() {
@@ -4738,6 +5100,7 @@ var watchController = async (c) => {
             e.preventDefault();
             e.stopPropagation();
             setRate(s);
+            showOsd('\u26A1', (s % 1 === 0 ? s.toFixed(0) : String(s)) + 'x');
           });
           speedRow.appendChild(b);
         });
@@ -4970,6 +5333,7 @@ var watchController = async (c) => {
         if (open) {
           lastSettingsTrigger = document.activeElement;
           setEpPanel(false);
+          toggleShortcuts(false);
           pokeControls();
           var firstFocus = settingsMenu.querySelector('button:not([disabled]), select:not([disabled]), input:not([disabled])');
           if (firstFocus) {
@@ -4996,6 +5360,7 @@ var watchController = async (c) => {
         if (open) {
           lastEpTrigger = document.activeElement;
           toggleSettings(false);
+          toggleShortcuts(false);
           pokeControls();
           loadEpisodeList();
           if (epPanelClose) {
@@ -5010,6 +5375,22 @@ var watchController = async (c) => {
       function toggleEpPanel() {
         if (!animeId) return;
         setEpPanel(!(epPanel && epPanel.classList.contains('is-open')));
+      }
+
+      function toggleShortcuts(show) {
+        if (!shortcutsModal) return;
+        var willOpen = typeof show === 'boolean' ? show : !shortcutsModal.classList.contains('is-open');
+        shortcutsModal.classList.toggle('is-open', willOpen);
+        if (shortcutsBackdrop) shortcutsBackdrop.classList.toggle('is-open', willOpen);
+        shortcutsModal.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
+        if (shortcutsBackdrop) shortcutsBackdrop.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
+        if (willOpen) {
+          if (settingsMenu && settingsMenu.classList.contains('is-open')) toggleSettings(false);
+          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+          if (shortcutsClose) {
+            try { shortcutsClose.focus(); } catch (e) {}
+          }
+        }
       }
 
       function playEpisodeId(episodeId, btn) {
@@ -5090,8 +5471,47 @@ var watchController = async (c) => {
           })(ep.id, btn);
           epList.appendChild(btn);
         });
+        filterEpisodeItems();
         if (currentEl && typeof currentEl.scrollIntoView === 'function') {
           try { currentEl.scrollIntoView({ block: 'center' }); } catch (e) {}
+        }
+      }
+
+      function filterEpisodeItems() {
+        if (!epList) return;
+        var q = (epSearchInput ? epSearchInput.value : '').trim().toLowerCase();
+        if (epSearchClear) {
+          epSearchClear.classList.toggle('is-visible', q.length > 0);
+        }
+        var items = epList.querySelectorAll('.ep-item');
+        var matched = 0;
+        items.forEach(function (el) {
+          var epn = (el.getAttribute('data-epn') || '').toLowerCase();
+          var epTitleEl = el.querySelector('.ep-t');
+          var epTitle = (epTitleEl ? epTitleEl.textContent : '').toLowerCase();
+          var isFiller = el.classList.contains('is-filler');
+          var match = true;
+
+          if (q) {
+            if (q === 'filler') {
+              match = isFiller;
+            } else if (q === 'canon') {
+              match = !isFiller;
+            } else {
+              match = epn.indexOf(q) >= 0 || epTitle.indexOf(q) >= 0;
+            }
+          }
+          el.style.display = match ? '' : 'none';
+          if (match) matched++;
+        });
+
+        if (epPanelStatus && items.length > 0) {
+          if (matched === 0) {
+            epPanelStatus.textContent = 'No matching episodes.';
+            epPanelStatus.hidden = false;
+          } else {
+            epPanelStatus.hidden = true;
+          }
         }
       }
 
@@ -5174,6 +5594,35 @@ var watchController = async (c) => {
         else togglePlay();
       });
 
+      var wasVisibleAtTouchStart = false;
+      var stageTouchTarget = null;
+
+      stage.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+          stageTouchTarget = e.target;
+          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-dialog, .seek-wrap, button, input'));
+          if (!inInteractive) {
+            wasVisibleAtTouchStart = stage.classList.contains('show-controls');
+          }
+        }
+      }, { passive: true });
+
+      function handleStageSingleTap() {
+        if (!wasVisibleAtTouchStart) {
+          // Controls were hidden -> reveal them and keep open for 4 seconds
+          stage.classList.add('show-controls');
+          stage.classList.remove('cursor-hidden');
+          startHideTimer(4000);
+        } else {
+          // Controls were visibly open -> single tap on blank area hides them
+          if (!video.paused) {
+            clearTimeout(hideTimer);
+            stage.classList.remove('show-controls');
+            stage.classList.add('cursor-hidden');
+          }
+        }
+      }
+
       stage.addEventListener('pointerup', function (e) {
         if (!window.matchMedia('(pointer: coarse)').matches) return;
         if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
@@ -5216,13 +5665,7 @@ var watchController = async (c) => {
             } else if (epPanel && epPanel.classList.contains('is-open')) {
               setEpPanel(false);
             } else {
-              if (stage.classList.contains('show-controls') && !video.paused) {
-                clearTimeout(hideTimer);
-                stage.classList.remove('show-controls');
-                stage.classList.add('cursor-hidden');
-              } else {
-                pokeControls();
-              }
+              handleStageSingleTap();
             }
           }, 280);
         }
@@ -5299,6 +5742,41 @@ var watchController = async (c) => {
           e.preventDefault();
           e.stopPropagation();
           setEpPanel(false);
+        });
+      }
+      if (shortcutsClose) {
+        shortcutsClose.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleShortcuts(false);
+        });
+      }
+      if (shortcutsBackdrop) {
+        shortcutsBackdrop.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleShortcuts(false);
+        });
+      }
+      if (epSearchInput) {
+        epSearchInput.addEventListener('input', filterEpisodeItems);
+        epSearchInput.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && epSearchInput.value) {
+            e.stopPropagation();
+            epSearchInput.value = '';
+            filterEpisodeItems();
+          }
+        });
+      }
+      if (epSearchClear) {
+        epSearchClear.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (epSearchInput) {
+            epSearchInput.value = '';
+            filterEpisodeItems();
+            try { epSearchInput.focus(); } catch (err) {}
+          }
         });
       }
       theaterBtn.addEventListener('click', function (e) {
@@ -5488,6 +5966,11 @@ var watchController = async (c) => {
           trapDialogFocus(e, epPanel, function () { setEpPanel(false); });
         });
       }
+      if (shortcutsModal) {
+        shortcutsModal.addEventListener('keydown', function (e) {
+          trapDialogFocus(e, shortcutsModal, function () { toggleShortcuts(false); });
+        });
+      }
       loopToggle.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         video.loop = !video.loop;
@@ -5591,8 +6074,30 @@ var watchController = async (c) => {
         updateSkip();
       });
       vol.addEventListener('input', function () {
-        applyVolume(vol.value);
+        applyVolume(vol.value, true);
       });
+
+      video.addEventListener('progress', updateBufferTrack);
+      video.addEventListener('timeupdate', updateBufferTrack);
+
+      if (seekWrap) {
+        seekWrap.addEventListener('pointermove', function (e) {
+          updateScrubTooltip(e.clientX);
+        });
+        seekWrap.addEventListener('pointerdown', function (e) {
+          seekWrap.classList.add('is-scrubbing');
+          updateScrubTooltip(e.clientX);
+        });
+        window.addEventListener('pointerup', function () {
+          seekWrap.classList.remove('is-scrubbing');
+        });
+        window.addEventListener('pointercancel', function () {
+          seekWrap.classList.remove('is-scrubbing');
+        });
+        seekWrap.addEventListener('touchmove', function (e) {
+          if (e.touches && e.touches[0]) updateScrubTooltip(e.touches[0].clientX);
+        }, { passive: true });
+      }
 
       if (skipBtn) {
         skipBtn.addEventListener('click', function (e) {
@@ -5678,7 +6183,6 @@ var watchController = async (c) => {
         }
       });
       stage.addEventListener('mouseenter', pokeControls);
-      stage.addEventListener('touchstart', pokeControls, { passive: true });
       document.addEventListener('click', function (e) {
         if (settingsMenu.classList.contains('is-open')) {
           if (!(settingsMenu.contains(e.target) || settingsBtn.contains(e.target) || speedBtn.contains(e.target))) {
@@ -5691,12 +6195,29 @@ var watchController = async (c) => {
           if (epListBtnMenu && epListBtnMenu.contains(e.target)) return;
           setEpPanel(false);
         }
+        if (shortcutsModal && shortcutsModal.classList.contains('is-open')) {
+          if (!shortcutsModal.contains(e.target)) toggleShortcuts(false);
+        }
       });
 
       document.addEventListener('keydown', function (e) {
         if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+        if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); togglePlay(); }
+        else if (e.key === 'j' || e.key === 'J') {
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 10);
+          showOsd('\u23EA', '-10s');
+        }
+        else if (e.key === 'l' || e.key === 'L') {
+          e.preventDefault();
+          video.currentTime = Math.min((video.duration || 0), video.currentTime + 10);
+          showOsd('\u23E9', '+10s');
+        }
+        else if (e.key === '?') {
+          e.preventDefault();
+          toggleShortcuts();
+        }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
         else if (e.key === 'e' || e.key === 'E') {
@@ -5720,12 +6241,21 @@ var watchController = async (c) => {
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
         else if (e.key === ',' || e.key === '<') cycleRate(-1);
         else if (e.key === '.' || e.key === '>') cycleRate(1);
-        else if (e.key === 'ArrowRight') { e.preventDefault(); video.currentTime = Math.min((video.duration || 0), video.currentTime + 10); }
-        else if (e.key === 'ArrowLeft') { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05); }
-        else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05); }
+        else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          video.currentTime = Math.min((video.duration || 0), video.currentTime + 5);
+          showOsd('\u23E9', '+5s');
+        }
+        else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 5);
+          showOsd('\u23EA', '-5s');
+        }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05, true); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05, true); }
         else if (e.key === 'Escape') {
-          if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
+          if (shortcutsModal && shortcutsModal.classList.contains('is-open')) toggleShortcuts(false);
+          else if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
           else if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
           else if (theater && !document.fullscreenElement) setTheater(false);
         }
@@ -6596,15 +7126,141 @@ var landingController = async (c) => {
       color: var(--muted);
       opacity: 0.9;
     }
+    .hero-search {
+      width: 100%;
+      max-width: 640px;
+      margin: 4px 0 0;
+    }
+    .hero-search-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 4px 6px 4px 18px;
+      backdrop-filter: blur(14px);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hero-search-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .hero-search-box input[type="search"] {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 16px;
+    }
+    .hero-search-box input[type="search"]::placeholder {
+      color: var(--muted);
+      opacity: 0.8;
+    }
+    .hero-search-box .btn {
+      flex-shrink: 0;
+      min-height: 44px;
+      padding: 8px 20px;
+      cursor: pointer;
+    }
+    .resume-section {
+      width: 100%;
+      max-width: 640px;
+      animation: rise 0.75s var(--ease) both;
+    }
+    .resume-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border: 1px solid rgba(61, 214, 198, 0.25);
+      border-radius: var(--radius-md);
+      backdrop-filter: blur(14px);
+    }
+    .resume-thumb {
+      width: 52px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+    .resume-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .resume-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .resume-title {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .resume-sub {
+      margin: 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .resume-bar {
+      height: 4px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .resume-prog {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .resume-btn {
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-height: 44px;
+      min-width: 44px;
+    }
     footer {
       padding: 18px max(clamp(20px, 5vw, 40px), env(safe-area-inset-right)) 28px max(clamp(20px, 5vw, 40px), env(safe-area-inset-left));
       color: var(--muted);
       font-size: 0.75rem;
       text-align: center;
     }
+    @media (max-width: 600px) {
+      .hero-search-box {
+        padding-left: 14px;
+      }
+      .hero-search-box input[type="search"] {
+        font-size: 16px !important;
+      }
+      .resume-card {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .resume-btn {
+        width: 100%;
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       body { animation: none; }
-      .hero, .panel, .btn {
+      .hero, .panel, .btn, .resume-section {
         animation: none;
         transition: none;
         transform: none !important;
@@ -6618,6 +7274,13 @@ var landingController = async (c) => {
       <h1 class="brand"><a href="/">ani<span>.</span>watch</a></h1>
       <p class="byline">by <em>wab</em></p>
       <p class="lede">Private, theater-grade anime streaming. Browse catalog titles, explore curated rails, and unlock high-definition Sub/Dub playback with your instance access key.</p>
+      <form class="hero-search" action="/browse" method="get">
+        <div class="hero-search-box">
+          <input type="search" name="q" placeholder="Search anime by title, e.g. Frieren, Solo Leveling, Bleach\u2026" autocomplete="off" required />
+          <button type="submit" class="btn" aria-label="Search">Search</button>
+        </div>
+      </form>
+      <div class="resume-section" id="resumeSection" style="display: none;"></div>
       <div class="cta">
         <a class="btn" href="/browse">Discover anime</a>
         <a class="btn ghost" href="/browse?cat=most-popular">Popular</a>
@@ -6632,6 +7295,48 @@ var landingController = async (c) => {
     </main>
     <footer>${SITE_NAME} \xB7 ${SITE_TAGLINE} \xB7 cinema streaming</footer>
   </div>
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem('ani.cw');
+        if (!raw) return;
+        var list = JSON.parse(raw);
+        if (!list || !list.length) return;
+        var item = list[0];
+        var sec = document.getElementById('resumeSection');
+        if (!sec) return;
+        var dur = item.dur || 0;
+        var time = item.time || item.t || 0;
+        var pct = dur > 0 ? Math.min(100, Math.round((time / dur) * 100)) : 0;
+        var watchUrl = item.href || ('/watch?animeId=' + encodeURIComponent(item.id) + (item.epId ? '&episodeId=' + encodeURIComponent(item.epId) : ''));
+        var posterUrl = item.poster;
+        if (!posterUrl && item.id) {
+          try {
+            var meta = JSON.parse(localStorage.getItem('ani.meta.' + item.id) || 'null');
+            if (meta && meta.poster) posterUrl = meta.poster;
+          } catch (e) {}
+        }
+        function esc(s) {
+          return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        var poster = posterUrl ? '<img src="' + esc(posterUrl) + '" alt="" class="resume-thumb" />' : '';
+        var title = esc(item.title || item.name || item.id || 'Anime');
+        var epNum = esc(String(item.epNum || 1));
+        sec.innerHTML =
+          '<div class="resume-card">' +
+            poster +
+            '<div class="resume-info">' +
+              '<span class="resume-label">Continue Watching</span>' +
+              '<h3 class="resume-title">' + title + '</h3>' +
+              '<p class="resume-sub">Episode ' + epNum + (pct > 0 ? ' \xB7 ' + pct + '% complete' : '') + '</p>' +
+              '<div class="resume-bar"><div class="resume-prog" style="width:' + pct + '%;"></div></div>' +
+            '</div>' +
+            '<a class="btn resume-btn" href="' + esc(watchUrl) + '">\u25B6 Resume</a>' +
+          '</div>';
+        sec.style.display = 'block';
+      } catch (e) {}
+    })();
+  </script>
   ${vercelObservabilityScriptTags()}
 </body>
 </html>`;
@@ -6789,6 +7494,61 @@ var browseController = async (c) => {
     }
     @media (max-width: 640px) {
       .search-row { grid-template-columns: 1fr; }
+    }
+    .search-field-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    .search-field-wrap input[type="search"] {
+      padding-right: 44px;
+    }
+    input[type="search"]::-webkit-search-cancel-button,
+    input[type="search"]::-webkit-search-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+      display: none;
+    }
+    .search-clear-btn {
+      position: absolute;
+      right: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.1rem;
+      line-height: 1;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-pill);
+      transition: color 0.15s ease, background 0.15s ease;
+      touch-action: manipulation;
+    }
+    .search-clear-btn.is-visible {
+      display: flex;
+    }
+    @media (hover: hover) {
+      .search-clear-btn:hover {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.08);
+      }
+    }
+    .search-clear-btn:active {
+      transform: translateY(-50%) scale(0.92);
+    }
+    .search-clear-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     label.field-label {
       display: block;
@@ -7612,6 +8372,66 @@ var browseController = async (c) => {
       .detail { grid-template-columns: 96px 1fr; gap: 12px; padding: 12px; }
       .detail-stats { grid-template-columns: repeat(2, 1fr); }
     }
+    .ep-chunk-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .ep-chunk-scroll {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px;
+      max-width: 100%;
+      flex: 1;
+    }
+    .ep-chunk-pill {
+      flex: 0 0 auto;
+      min-height: 44px;
+      min-width: 44px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .ep-chunk-pill.is-active {
+      background: var(--accent-dim);
+      border-color: rgba(61, 214, 198, 0.45);
+      color: var(--accent);
+    }
+    .ep-jump-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+    .ep-jump-input {
+      min-height: 44px;
+      min-width: 130px;
+      width: 140px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.32);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .ep-jump-input:focus {
+      border-color: rgba(61, 214, 198, 0.45);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
     .ep-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -7688,6 +8508,12 @@ var browseController = async (c) => {
       justify-content: center;
       gap: 10px;
       flex-wrap: wrap;
+    }
+    .empty-actions .pill,
+    .empty-actions .btn {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
     .welcome-banner {
       display: flex;
@@ -7955,7 +8781,10 @@ var browseController = async (c) => {
       .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
       .rail .card { flex-basis: 116px; width: 116px; }
-      input[type="search"], input[type="password"], input[type="text"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
+      input[type="search"], input[type="password"], input[type="text"], input[type="number"], select, textarea { padding: 13px 14px; font-size: 16px !important; }
+      .ep-chunk-bar { flex-direction: column; align-items: stretch; }
+      .ep-jump-wrap { width: 100%; }
+      .ep-jump-input { width: 100%; font-size: 16px !important; }
     }
     /* Small phone: 375\u2013480px */
     @media (max-width: 480px) {
@@ -8009,7 +8838,10 @@ var browseController = async (c) => {
       <div>
         <label class="field-label" for="q">Search anime</label>
         <div class="search-row">
-          <input id="q" type="search" placeholder="One Piece, Citrus, Jujutsu Kaisen\u2026" autocomplete="off" />
+          <div class="search-field-wrap">
+            <input id="q" type="search" placeholder="One Piece, Citrus, Jujutsu Kaisen\u2026" autocomplete="off" />
+            <button type="button" class="search-clear-btn" id="qClear" aria-label="Clear search">\u2715</button>
+          </div>
           <button type="button" class="btn" id="searchBtn">Search</button>
         </div>
       </div>
@@ -8078,7 +8910,10 @@ var browseController = async (c) => {
       </div>
       <div>
         <div class="search-row" style="grid-template-columns: 1fr auto">
-          <input id="qMobile" type="search" placeholder="One Piece, Citrus\u2026" autocomplete="off" />
+          <div class="search-field-wrap">
+            <input id="qMobile" type="search" placeholder="One Piece, Citrus\u2026" autocomplete="off" />
+            <button type="button" class="search-clear-btn" id="qMobileClear" aria-label="Clear search">\u2715</button>
+          </div>
           <button type="button" class="btn" id="searchBtnMobile">Go</button>
         </div>
       </div>
@@ -8147,7 +8982,22 @@ var browseController = async (c) => {
       var RAIL_CAP = 18;
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
+      var qClear = document.getElementById('qClear');
       var searchBtn = document.getElementById('searchBtn');
+      var qMobile = document.getElementById('qMobile');
+      var qMobileClear = document.getElementById('qMobileClear');
+      var searchDebounceTimer = null;
+
+      function updateClearBtnVisibility() {
+        if (qClear && q) qClear.classList.toggle('is-visible', q.value.trim().length > 0);
+        if (qMobileClear && qMobile) qMobileClear.classList.toggle('is-visible', qMobile.value.trim().length > 0);
+      }
+
+      function selectCat(cat) {
+        if (!cat || cat === 'discover') navigate({ view: 'discover' });
+        else if (cat === 'watchlist') navigate({ view: 'watchlist' });
+        else navigate({ view: 'list', query: cat, label: cat, page: 1 });
+      }
       var browseTab = document.getElementById('browseTab');
       var saveKey = document.getElementById('saveKey');
       var clearKey = document.getElementById('clearKey');
@@ -8452,6 +9302,8 @@ var browseController = async (c) => {
         } else if (target.view === 'search') {
           if (target.keyword) {
             if (q) q.value = target.keyword;
+            if (qMobile) qMobile.value = target.keyword;
+            updateClearBtnVisibility();
             doSearch();
           } else {
             loadDiscover();
@@ -9208,7 +10060,8 @@ var browseController = async (c) => {
         });
       }
 
-      function renderSearch(animes) {
+      function renderSearch(animes, keyword) {
+        keyword = keyword || (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         state.view = 'search';
         state.source = 'search';
         state.anime = null;
@@ -9220,13 +10073,35 @@ var browseController = async (c) => {
         ]);
         if (!animes.length) {
           main.innerHTML =
-            '<div class="empty">' +
-              "<h2>No matches found</h2>" +
-              "<p>We couldn't find any titles matching your search. Try another spelling or a shorter keyword.</p>" +
-              '<div class="empty-actions"><button type="button" class="btn ghost" id="searchBackBtn">Back to Discover</button></div>' +
+            '<div class="empty empty-search">' +
+              '<h2>No anime found for "' + esc(keyword) + '"</h2>' +
+              '<p>Check for typos or try searching with alternative Japanese titles.</p>' +
+              '<div class="empty-actions">' +
+                '<button type="button" class="btn ghost" id="emptyClearBtn">Clear search</button>' +
+                '<button type="button" class="pill" data-cat="discover">\u{1F525} Discover</button>' +
+                '<button type="button" class="pill" data-cat="most-popular">\u2B50 Popular</button>' +
+                '<button type="button" class="pill" data-cat="top-airing">\u{1F4FA} Top Airing</button>' +
+              '</div>' +
             '</div>';
-          var sBackBtn = document.getElementById('searchBackBtn');
-          if (sBackBtn) sBackBtn.addEventListener('click', function () { navigate({ view: 'discover' }); });
+          var emptyClear = document.getElementById('emptyClearBtn');
+          if (emptyClear) {
+            emptyClear.addEventListener('click', function () {
+              if (q) q.value = '';
+              if (qMobile) qMobile.value = '';
+              updateClearBtnVisibility();
+              selectCat('discover');
+            });
+          }
+          var searchPills = main.querySelectorAll('.empty-search .pill[data-cat]');
+          searchPills.forEach(function (pill) {
+            pill.addEventListener('click', function () {
+              var cat = pill.getAttribute('data-cat');
+              if (q) q.value = '';
+              if (qMobile) qMobile.value = '';
+              updateClearBtnVisibility();
+              selectCat(cat);
+            });
+          });
           return;
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div>';
@@ -9315,6 +10190,29 @@ var browseController = async (c) => {
             '</div>';
         }
 
+        var CHUNK_SIZE = 50;
+        var activeChunk = 0;
+
+        function renderChunkBar() {
+          if (episodes.length <= CHUNK_SIZE) return '';
+          var totalChunks = Math.ceil(episodes.length / CHUNK_SIZE);
+          var pills = '';
+          for (var c = 0; c < totalChunks; c++) {
+            var start = c * CHUNK_SIZE + 1;
+            var end = Math.min(episodes.length, (c + 1) * CHUNK_SIZE);
+            var isSel = c === activeChunk;
+            pills += '<button type="button" class="pill ep-chunk-pill' + (isSel ? ' is-active' : '') + '" data-chunk="' + c + '">' + start + '\u2013' + end + '</button>';
+          }
+          return (
+            '<div class="ep-chunk-bar">' +
+              '<div class="ep-chunk-scroll">' + pills + '</div>' +
+              '<div class="ep-jump-wrap">' +
+                '<input type="number" class="ep-jump-input" id="epJumpInput" placeholder="Jump to ep #" aria-label="Jump to episode number" min="1" max="' + episodes.length + '" />' +
+              '</div>' +
+            '</div>'
+          );
+        }
+
         var detailHtml =
           '<section class="detail">' +
             posterImg(posterFallbacks, title) +
@@ -9346,6 +10244,7 @@ var browseController = async (c) => {
             '</div>' +
             seasonBar +
           '</div>' +
+          renderChunkBar() +
           '<div class="ep-grid" id="epGrid"></div>';
 
         main.innerHTML = detailHtml;
@@ -9399,13 +10298,13 @@ var browseController = async (c) => {
           });
         }
 
-        var grid = document.getElementById('epGrid');
-        var frag = document.createDocumentFragment();
-        episodes.forEach(function (ep) {
+        function createEpCard(ep, idx) {
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'ep-card';
           var num = ep.number;
+          var epNumAttr = num != null ? num : (idx != null ? idx + 1 : null);
+          if (epNumAttr != null) btn.setAttribute('data-ep-num', String(epNumAttr));
           var raw = String(ep.title || ep.alternativeTitle || '').trim();
           // HiAnime often labels chips "Episode 12" \u2014 don't show that twice.
           var generic =
@@ -9423,9 +10322,88 @@ var browseController = async (c) => {
             (secondary ? '<div class="sub">' + esc(secondary) + '</div>' : '') +
             '</div>';
           btn.addEventListener('click', function () { playEpisode(ep, btn); });
-          frag.appendChild(btn);
-        });
-        grid.appendChild(frag);
+          return btn;
+        }
+
+        function mountCurrentChunk() {
+          var grid = document.getElementById('epGrid');
+          if (!grid) return;
+          grid.innerHTML = '';
+          var startIdx = activeChunk * CHUNK_SIZE;
+          var endIdx = Math.min(episodes.length, startIdx + CHUNK_SIZE);
+          var currentSlice = episodes.slice(startIdx, endIdx);
+          var frag = document.createDocumentFragment();
+          currentSlice.forEach(function (ep, sliceIdx) {
+            frag.appendChild(createEpCard(ep, startIdx + sliceIdx));
+          });
+          grid.appendChild(frag);
+        }
+
+        mountCurrentChunk();
+
+        var chunkBar = main.querySelector('.ep-chunk-bar');
+        if (chunkBar) {
+          chunkBar.addEventListener('click', function (e) {
+            var pill = e.target && e.target.closest ? e.target.closest('.ep-chunk-pill') : null;
+            if (!pill) return;
+            var c = parseInt(pill.getAttribute('data-chunk'), 10);
+            if (isNaN(c) || c === activeChunk) return;
+            activeChunk = c;
+            chunkBar.querySelectorAll('.ep-chunk-pill').forEach(function (p) {
+              var pChunk = parseInt(p.getAttribute('data-chunk'), 10);
+              p.classList.toggle('is-active', pChunk === activeChunk);
+            });
+            mountCurrentChunk();
+          });
+        }
+
+        var epJumpInput = document.getElementById('epJumpInput');
+        if (epJumpInput) {
+          function jumpToEpisode(epNum) {
+            if (isNaN(epNum) || epNum < 1 || epNum > episodes.length) return;
+            var targetIdx = -1;
+            for (var i = 0; i < episodes.length; i++) {
+              if (episodes[i].number === epNum) {
+                targetIdx = i;
+                break;
+              }
+            }
+            if (targetIdx === -1) {
+              targetIdx = Math.min(episodes.length - 1, Math.max(0, epNum - 1));
+            }
+            var targetChunk = Math.floor(targetIdx / CHUNK_SIZE);
+            if (targetChunk !== activeChunk) {
+              activeChunk = targetChunk;
+              if (chunkBar) {
+                chunkBar.querySelectorAll('.ep-chunk-pill').forEach(function (p) {
+                  var pChunk = parseInt(p.getAttribute('data-chunk'), 10);
+                  var isMatch = pChunk === activeChunk;
+                  p.classList.toggle('is-active', isMatch);
+                  if (isMatch && p.scrollIntoView) {
+                    p.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  }
+                });
+              }
+              mountCurrentChunk();
+            }
+            var grid = document.getElementById('epGrid');
+            var card = grid ? grid.querySelector('[data-ep-num="' + epNum + '"]') : null;
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              try { card.focus(); } catch (e) {}
+            }
+          }
+
+          epJumpInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              jumpToEpisode(parseInt(epJumpInput.value, 10));
+            }
+          });
+          epJumpInput.addEventListener('change', function () {
+            jumpToEpisode(parseInt(epJumpInput.value, 10));
+          });
+        }
       }
 
       async function loadDiscover() {
@@ -9490,13 +10468,14 @@ var browseController = async (c) => {
       }
 
       async function doSearch() {
-        var keyword = q.value.trim();
+        var keyword = (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
         var seq = ++loadSeq;
-        searchBtn.disabled = true;
+        if (searchBtn) searchBtn.disabled = true;
+        if (searchBtnMobile) searchBtnMobile.disabled = true;
         setStatus('Searching\u2026');
         showSkeleton(10);
         try {
@@ -9504,7 +10483,7 @@ var browseController = async (c) => {
           if (seq !== loadSeq) return;
           var animes = (data && (data.animes || data.response)) || [];
           setStatus(animes.length + ' result' + (animes.length === 1 ? '' : 's'));
-          renderSearch(animes);
+          renderSearch(animes, keyword);
         } catch (err) {
           if (seq !== loadSeq) return;
           setStatus((err && err.message) || 'Search failed', true);
@@ -9517,7 +10496,10 @@ var browseController = async (c) => {
           var sRetry = document.getElementById('searchRetryBtn');
           if (sRetry) sRetry.addEventListener('click', function () { doSearch(); });
         } finally {
-          if (seq === loadSeq) searchBtn.disabled = false;
+          if (seq === loadSeq) {
+            if (searchBtn) searchBtn.disabled = false;
+            if (searchBtnMobile) searchBtnMobile.disabled = false;
+          }
         }
       }
 
@@ -9640,25 +10622,63 @@ var browseController = async (c) => {
         else navigate({ view: 'list', query: query, label: label, page: 1 });
       });
 
-      function submitSearch() {
-        var keyword = q.value.trim();
+      function submitSearch(replace) {
+        var keyword = (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
-        navigate({ view: 'search', keyword: keyword });
+        if (q) q.value = keyword;
+        if (qMobile) qMobile.value = keyword;
+        updateClearBtnVisibility();
+        var shouldReplace = replace !== undefined ? replace : (state.view === 'search');
+        navigate({ view: 'search', keyword: keyword }, shouldReplace);
       }
 
-      searchBtn.addEventListener('click', submitSearch);
-      q.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') submitSearch();
-      });
+      if (searchBtn) searchBtn.addEventListener('click', function () { submitSearch(false); });
+      if (q) {
+        q.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            clearTimeout(searchDebounceTimer);
+            submitSearch(false);
+          }
+        });
+        q.addEventListener('input', function () {
+          updateClearBtnVisibility();
+          clearTimeout(searchDebounceTimer);
+          var val = q.value.trim();
+          if (val.length >= 2) {
+            searchDebounceTimer = setTimeout(function () {
+              submitSearch(true);
+            }, 300);
+          }
+        });
+      }
+
+      if (qClear) {
+        qClear.addEventListener('click', function () {
+          if (q) q.value = '';
+          if (qMobile) qMobile.value = '';
+          updateClearBtnVisibility();
+          if (q) q.focus();
+          selectCat('discover');
+        });
+      }
+
+      if (qMobileClear) {
+        qMobileClear.addEventListener('click', function () {
+          if (q) q.value = '';
+          if (qMobile) qMobile.value = '';
+          updateClearBtnVisibility();
+          if (qMobile) qMobile.focus();
+          selectCat('discover');
+        });
+      }
 
       // Mobile search FAB + overlay
       var searchFab = document.getElementById('searchFab');
       var searchOverlay = document.getElementById('searchOverlay');
       var searchOverlayClose = document.getElementById('searchOverlayClose');
-      var qMobile = document.getElementById('qMobile');
       var searchBtnMobile = document.getElementById('searchBtnMobile');
       var lastFocusedTrigger = null;
 
@@ -9667,7 +10687,9 @@ var browseController = async (c) => {
         searchOverlay.classList.add('is-open');
         document.body.style.overflow = 'hidden';
         apiKeyMobile.value = apiKey.value;
+        if (qMobile && q) qMobile.value = q.value;
         updateKeyUI();
+        updateClearBtnVisibility();
         setTimeout(function () { if (qMobile) qMobile.focus(); }, 80);
       }
       function closeSearchOverlay() {
@@ -9737,19 +10759,35 @@ var browseController = async (c) => {
         var keyword = (qMobile && qMobile.value.trim()) || '';
         if (!keyword) return;
         // Sync to desktop input
-        q.value = keyword;
+        if (q) q.value = keyword;
+        updateClearBtnVisibility();
         closeSearchOverlay();
         navigate({ view: 'search', keyword: keyword });
       }
       if (searchBtnMobile) searchBtnMobile.addEventListener('click', doMobileSearch);
       if (qMobile) {
         qMobile.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter') doMobileSearch();
+          if (e.key === 'Enter') {
+            clearTimeout(searchDebounceTimer);
+            doMobileSearch();
+          }
+        });
+        qMobile.addEventListener('input', function () {
+          updateClearBtnVisibility();
+          clearTimeout(searchDebounceTimer);
+          var val = qMobile.value.trim();
+          if (val.length >= 2) {
+            searchDebounceTimer = setTimeout(function () {
+              if (q) q.value = val;
+              submitSearch(true);
+            }, 300);
+          }
         });
       }
 
       var initialRoute = readCurrentRouteFromUrl();
       history.replaceState(initialRoute, '', window.location.href);
+      updateClearBtnVisibility();
       applyRoute(initialRoute);
       if (initialRoute.view === 'discover' && window.innerWidth > 640 && !apiKey.value.trim()) {
         setTimeout(function () { try { q.focus(); } catch (e) {} }, 150);
