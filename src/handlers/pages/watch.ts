@@ -621,13 +621,61 @@ export const watchController = async (c: Context) => {
       transform: translateY(0);
       opacity: 1;
     }
+    .seek-wrap {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      margin: 0 0 10px;
+    }
+    .seek-tooltip {
+      position: absolute;
+      bottom: 24px;
+      left: 0;
+      transform: translateX(-50%);
+      background: rgba(12, 16, 24, 0.92);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      white-space: nowrap;
+      z-index: 10;
+    }
+    .seek-wrap:hover .seek-tooltip,
+    .seek-wrap.is-scrubbing .seek-tooltip {
+      opacity: 1;
+    }
     .seek {
-      width: 100%; height: 6px; appearance: none; background: transparent; cursor: pointer; margin: 0 0 10px;
+      --progress: 0%;
+      --buffered: 0%;
+      width: 100%; height: 6px; appearance: none;
+      background: linear-gradient(to right,
+        var(--accent) 0%,
+        var(--accent) var(--progress),
+        rgba(255, 255, 255, 0.35) var(--progress),
+        rgba(255, 255, 255, 0.35) var(--buffered),
+        rgba(255, 255, 255, 0.12) var(--buffered),
+        rgba(255, 255, 255, 0.12) 100%
+      );
+      border-radius: 999px;
+      cursor: pointer; margin: 0;
       transition: height 0.15s ease;
     }
     .seek::-webkit-slider-runnable-track {
       height: 6px; border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent) var(--progress, 0%), rgba(255,255,255,0.18) var(--progress, 0%));
+      background: linear-gradient(to right,
+        var(--accent) 0%,
+        var(--accent) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) 100%
+      );
       transition: height 0.15s ease;
     }
     .seek:hover::-webkit-slider-runnable-track {
@@ -644,9 +692,20 @@ export const watchController = async (c: Context) => {
       background: #fff;
       box-shadow: 0 0 0 5px var(--accent-dim), 0 0 14px var(--accent);
     }
-    .seek::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); transition: height 0.15s ease; }
+    .seek::-moz-range-track {
+      height: 6px; border-radius: 999px;
+      background: linear-gradient(to right,
+        var(--accent) 0%,
+        var(--accent) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--progress, 0%),
+        rgba(255, 255, 255, 0.35) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) var(--buffered, 0%),
+        rgba(255, 255, 255, 0.12) 100%
+      );
+      transition: height 0.15s ease;
+    }
     .seek:hover::-moz-range-track { height: 8px; }
-    .seek::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--accent); }
+    .seek::-moz-range-progress { height: 6px; border-radius: 999px; background: transparent; }
     .seek::-moz-range-thumb {
       width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink);
       box-shadow: 0 0 0 4px var(--accent-dim);
@@ -1076,9 +1135,12 @@ export const watchController = async (c: Context) => {
         padding: 24px 12px 8px;
         background: linear-gradient(transparent 0%, rgba(0, 0, 0, 0.88) 60%);
       }
+      .seek-wrap {
+        margin-bottom: 8px;
+      }
       .seek {
         height: 8px;
-        margin-bottom: 8px;
+        margin: 0;
       }
       .seek::-webkit-slider-thumb {
         width: 18px;
@@ -1616,7 +1678,10 @@ export const watchController = async (c: Context) => {
         </div>
 
         <div class="controls" id="controls">
-          <input class="seek" id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+          <div class="seek-wrap" id="seekWrap">
+            <div class="seek-tooltip" id="seekTooltip">00:00</div>
+            <input class="seek" id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek video" />
+          </div>
           <div class="row">
             <button type="button" class="ctrl" id="play" aria-label="Play">
               <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -1672,6 +1737,8 @@ export const watchController = async (c: Context) => {
       var stage = document.getElementById('stage');
       var err = document.getElementById('err');
       var seek = document.getElementById('seek');
+      var seekWrap = document.getElementById('seekWrap');
+      var seekTooltip = document.getElementById('seekTooltip');
       var vol = document.getElementById('vol');
       var timeEl = document.getElementById('time');
       var playBtn = document.getElementById('play');
@@ -1870,6 +1937,35 @@ export const watchController = async (c: Context) => {
         var h = Math.floor(sec / 3600);
         var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
         return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+      }
+      var formatTime = fmt;
+
+      function updateBufferTrack() {
+        if (!video.duration || !video.buffered || !video.buffered.length) {
+          seek.style.setProperty('--buffered', '0%');
+          return;
+        }
+        var dur = video.duration;
+        var cur = video.currentTime;
+        var bufEnd = 0;
+        for (var i = 0; i < video.buffered.length; i++) {
+          if (video.buffered.start(i) <= cur && video.buffered.end(i) >= cur) {
+            bufEnd = video.buffered.end(i);
+            break;
+          }
+          if (video.buffered.end(i) > bufEnd) bufEnd = video.buffered.end(i);
+        }
+        var pct = Math.min(100, Math.max(0, (bufEnd / dur) * 100));
+        seek.style.setProperty('--buffered', pct.toFixed(1) + '%');
+      }
+
+      function updateScrubTooltip(clientX) {
+        if (!seekWrap || !seekTooltip || !video.duration) return;
+        var rect = seekWrap.getBoundingClientRect();
+        var frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        var time = frac * video.duration;
+        seekTooltip.textContent = formatTime(time);
+        seekTooltip.style.left = (frac * 100).toFixed(1) + '%';
       }
 
       function setPlaying(playing) {
@@ -3230,6 +3326,28 @@ export const watchController = async (c: Context) => {
       vol.addEventListener('input', function () {
         applyVolume(vol.value);
       });
+
+      video.addEventListener('progress', updateBufferTrack);
+      video.addEventListener('timeupdate', updateBufferTrack);
+
+      if (seekWrap) {
+        seekWrap.addEventListener('pointermove', function (e) {
+          updateScrubTooltip(e.clientX);
+        });
+        seekWrap.addEventListener('pointerdown', function (e) {
+          seekWrap.classList.add('is-scrubbing');
+          updateScrubTooltip(e.clientX);
+        });
+        window.addEventListener('pointerup', function () {
+          seekWrap.classList.remove('is-scrubbing');
+        });
+        window.addEventListener('pointercancel', function () {
+          seekWrap.classList.remove('is-scrubbing');
+        });
+        seekWrap.addEventListener('touchmove', function (e) {
+          if (e.touches && e.touches[0]) updateScrubTooltip(e.touches[0].clientX);
+        }, { passive: true });
+      }
 
       if (skipBtn) {
         skipBtn.addEventListener('click', function (e) {
