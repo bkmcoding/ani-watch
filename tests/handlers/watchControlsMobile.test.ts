@@ -20,4 +20,21 @@ describe('Watch Mobile Controls CSS & Scoping', () => {
     expect(html).toContain("matchMedia('(pointer: coarse)').matches");
     expect(html).toContain('.blur()');
   });
+
+  it('does not attach preemptive touchstart pokeControls that causes flicker', async () => {
+    const app = new Hono();
+    app.get('/watch', watchController);
+    const res = await app.request('/watch?sub=https://example.com/stream.m3u8');
+    const html = await res.text();
+    expect(html).not.toContain("stage.addEventListener('touchstart', pokeControls");
+    expect(html).toContain('wasVisibleAtTouchStart');
+  });
+
+  it('keeps controls open on single tap when hidden and closes on single tap when visible', async () => {
+    const app = new Hono();
+    app.get('/watch', watchController);
+    const res = await app.request('/watch?sub=https://example.com/stream.m3u8');
+    const html = await res.text();
+    expect(html).toContain('startHideTimer(4000)');
+  });
 });

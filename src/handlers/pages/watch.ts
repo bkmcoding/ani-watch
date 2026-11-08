@@ -1960,16 +1960,20 @@ export const watchController = async (c: Context) => {
         pokeControls();
       }
 
-      function pokeControls() {
-        stage.classList.add('show-controls');
-        stage.classList.remove('cursor-hidden');
+      function startHideTimer(ms) {
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
           if (!video.paused && !settingsMenu.classList.contains('is-open')) {
             stage.classList.remove('show-controls');
             stage.classList.add('cursor-hidden');
           }
-        }, 3500);
+        }, ms || 4000);
+      }
+
+      function pokeControls() {
+        stage.classList.add('show-controls');
+        stage.classList.remove('cursor-hidden');
+        startHideTimer(4000);
       }
 
       function togglePlay() {
@@ -2784,6 +2788,35 @@ export const watchController = async (c: Context) => {
         else togglePlay();
       });
 
+      var wasVisibleAtTouchStart = false;
+      var stageTouchTarget = null;
+
+      stage.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+          stageTouchTarget = e.target;
+          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-dialog, .seek-wrap, button, input'));
+          if (!inInteractive) {
+            wasVisibleAtTouchStart = stage.classList.contains('show-controls');
+          }
+        }
+      }, { passive: true });
+
+      function handleStageSingleTap() {
+        if (!wasVisibleAtTouchStart) {
+          // Controls were hidden -> reveal them and keep open for 4 seconds
+          stage.classList.add('show-controls');
+          stage.classList.remove('cursor-hidden');
+          startHideTimer(4000);
+        } else {
+          // Controls were visibly open -> single tap on blank area hides them
+          if (!video.paused) {
+            clearTimeout(hideTimer);
+            stage.classList.remove('show-controls');
+            stage.classList.add('cursor-hidden');
+          }
+        }
+      }
+
       stage.addEventListener('pointerup', function (e) {
         if (!window.matchMedia('(pointer: coarse)').matches) return;
         if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
@@ -2826,13 +2859,7 @@ export const watchController = async (c: Context) => {
             } else if (epPanel && epPanel.classList.contains('is-open')) {
               setEpPanel(false);
             } else {
-              if (stage.classList.contains('show-controls') && !video.paused) {
-                clearTimeout(hideTimer);
-                stage.classList.remove('show-controls');
-                stage.classList.add('cursor-hidden');
-              } else {
-                pokeControls();
-              }
+              handleStageSingleTap();
             }
           }, 280);
         }
@@ -3288,7 +3315,6 @@ export const watchController = async (c: Context) => {
         }
       });
       stage.addEventListener('mouseenter', pokeControls);
-      stage.addEventListener('touchstart', pokeControls, { passive: true });
       document.addEventListener('click', function (e) {
         if (settingsMenu.classList.contains('is-open')) {
           if (!(settingsMenu.contains(e.target) || settingsBtn.contains(e.target) || speedBtn.contains(e.target))) {

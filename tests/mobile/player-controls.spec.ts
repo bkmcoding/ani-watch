@@ -43,6 +43,35 @@ test.describe('Mobile Player Controls', () => {
     expect(parseFloat(opacity)).toBeGreaterThan(0);
   });
 
+  test('single tap on stage keeps controls visible after 500ms', async ({ page }) => {
+    await page.goto(watchUrl);
+    const stage = page.locator('#stage');
+    const controls = page.locator('#controls');
+
+    // Simulate playing state where controls are initially hidden
+    await page.evaluate(() => {
+      const video = (document.getElementById('v') ||
+        document.querySelector('video')) as HTMLVideoElement;
+      const stageEl = document.getElementById('stage')!;
+      Object.defineProperty(video, 'paused', { value: false, configurable: true });
+      video.dispatchEvent(new Event('play'));
+      stageEl.classList.remove('is-paused', 'show-controls');
+      stageEl.classList.add('cursor-hidden');
+    });
+
+    await expect(stage).not.toHaveClass(/show-controls/);
+
+    // Tap on stage to reveal controls
+    await stage.tap({ position: { x: 120, y: 120 } });
+
+    // Wait 500ms (longer than the 280ms double-tap timer)
+    await page.waitForTimeout(500);
+
+    // Controls must STILL be visible and not prematurely hidden
+    await expect(stage).toHaveClass(/show-controls/);
+    await expect(controls).toBeVisible();
+  });
+
   test('clicking fullscreen triggers orientation lock/fullscreen and drops focus', async ({
     page,
   }) => {
@@ -107,24 +136,25 @@ test.describe('Mobile Player Controls', () => {
     const stage = page.locator('#stage');
     const controls = page.locator('#controls');
 
-    // Put video in playing state and trigger pokeControls()
+    // Put video in playing state
     await page.evaluate(() => {
       const video = (document.getElementById('v') ||
         document.querySelector('video')) as HTMLVideoElement;
       const stageEl = document.getElementById('stage')!;
       Object.defineProperty(video, 'paused', { value: false, configurable: true });
       video.dispatchEvent(new Event('play'));
-      // Trigger touchstart to activate pokeControls with active hideTimer
-      stageEl.dispatchEvent(new Event('touchstart'));
+      stageEl.classList.remove('is-paused', 'show-controls');
+      stageEl.classList.add('cursor-hidden');
     });
+
+    // Tap to reveal controls with active hideTimer
+    await stage.tap({ position: { x: 120, y: 120 } });
 
     await expect(stage).toHaveClass(/show-controls/);
 
-    // After 3.5s timeout, controls should auto-hide
+    // After 4s timeout, controls should auto-hide
     await expect(stage).not.toHaveClass(/show-controls/, { timeout: 6000 });
     await expect(stage).toHaveClass(/cursor-hidden/);
-
-    const opacity = await controls.evaluate(el => window.getComputedStyle(el).opacity);
-    expect(parseFloat(opacity)).toBe(0);
+    await expect(controls).toHaveCSS('opacity', '0');
   });
 });
