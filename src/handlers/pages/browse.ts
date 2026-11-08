@@ -148,6 +148,61 @@ export const browseController = async (c: Context) => {
     @media (max-width: 640px) {
       .search-row { grid-template-columns: 1fr; }
     }
+    .search-field-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    .search-field-wrap input[type="search"] {
+      padding-right: 44px;
+    }
+    input[type="search"]::-webkit-search-cancel-button,
+    input[type="search"]::-webkit-search-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+      display: none;
+    }
+    .search-clear-btn {
+      position: absolute;
+      right: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.1rem;
+      line-height: 1;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-pill);
+      transition: color 0.15s ease, background 0.15s ease;
+      touch-action: manipulation;
+    }
+    .search-clear-btn.is-visible {
+      display: flex;
+    }
+    @media (hover: hover) {
+      .search-clear-btn:hover {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.08);
+      }
+    }
+    .search-clear-btn:active {
+      transform: translateY(-50%) scale(0.92);
+    }
+    .search-clear-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
     label.field-label {
       display: block;
       color: var(--muted);
@@ -1047,6 +1102,12 @@ export const browseController = async (c: Context) => {
       gap: 10px;
       flex-wrap: wrap;
     }
+    .empty-actions .pill,
+    .empty-actions .btn {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
     .welcome-banner {
       display: flex;
       align-items: center;
@@ -1367,7 +1428,10 @@ export const browseController = async (c: Context) => {
       <div>
         <label class="field-label" for="q">Search anime</label>
         <div class="search-row">
-          <input id="q" type="search" placeholder="One Piece, Citrus, Jujutsu Kaisen…" autocomplete="off" />
+          <div class="search-field-wrap">
+            <input id="q" type="search" placeholder="One Piece, Citrus, Jujutsu Kaisen…" autocomplete="off" />
+            <button type="button" class="search-clear-btn" id="qClear" aria-label="Clear search">✕</button>
+          </div>
           <button type="button" class="btn" id="searchBtn">Search</button>
         </div>
       </div>
@@ -1436,7 +1500,10 @@ export const browseController = async (c: Context) => {
       </div>
       <div>
         <div class="search-row" style="grid-template-columns: 1fr auto">
-          <input id="qMobile" type="search" placeholder="One Piece, Citrus…" autocomplete="off" />
+          <div class="search-field-wrap">
+            <input id="qMobile" type="search" placeholder="One Piece, Citrus…" autocomplete="off" />
+            <button type="button" class="search-clear-btn" id="qMobileClear" aria-label="Clear search">✕</button>
+          </div>
           <button type="button" class="btn" id="searchBtnMobile">Go</button>
         </div>
       </div>
@@ -1505,7 +1572,22 @@ export const browseController = async (c: Context) => {
       var RAIL_CAP = 18;
       var apiKey = document.getElementById('apiKey');
       var q = document.getElementById('q');
+      var qClear = document.getElementById('qClear');
       var searchBtn = document.getElementById('searchBtn');
+      var qMobile = document.getElementById('qMobile');
+      var qMobileClear = document.getElementById('qMobileClear');
+      var searchDebounceTimer = null;
+
+      function updateClearBtnVisibility() {
+        if (qClear && q) qClear.classList.toggle('is-visible', q.value.trim().length > 0);
+        if (qMobileClear && qMobile) qMobileClear.classList.toggle('is-visible', qMobile.value.trim().length > 0);
+      }
+
+      function selectCat(cat) {
+        if (!cat || cat === 'discover') navigate({ view: 'discover' });
+        else if (cat === 'watchlist') navigate({ view: 'watchlist' });
+        else navigate({ view: 'list', query: cat, label: cat, page: 1 });
+      }
       var browseTab = document.getElementById('browseTab');
       var saveKey = document.getElementById('saveKey');
       var clearKey = document.getElementById('clearKey');
@@ -1810,6 +1892,8 @@ export const browseController = async (c: Context) => {
         } else if (target.view === 'search') {
           if (target.keyword) {
             if (q) q.value = target.keyword;
+            if (qMobile) qMobile.value = target.keyword;
+            updateClearBtnVisibility();
             doSearch();
           } else {
             loadDiscover();
@@ -2566,7 +2650,8 @@ export const browseController = async (c: Context) => {
         });
       }
 
-      function renderSearch(animes) {
+      function renderSearch(animes, keyword) {
+        keyword = keyword || (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         state.view = 'search';
         state.source = 'search';
         state.anime = null;
@@ -2578,13 +2663,35 @@ export const browseController = async (c: Context) => {
         ]);
         if (!animes.length) {
           main.innerHTML =
-            '<div class="empty">' +
-              "<h2>No matches found</h2>" +
-              "<p>We couldn't find any titles matching your search. Try another spelling or a shorter keyword.</p>" +
-              '<div class="empty-actions"><button type="button" class="btn ghost" id="searchBackBtn">Back to Discover</button></div>' +
+            '<div class="empty empty-search">' +
+              '<h2>No anime found for "' + esc(keyword) + '"</h2>' +
+              '<p>Check for typos or try searching with alternative Japanese titles.</p>' +
+              '<div class="empty-actions">' +
+                '<button type="button" class="btn ghost" id="emptyClearBtn">Clear search</button>' +
+                '<button type="button" class="pill" data-cat="discover">🔥 Discover</button>' +
+                '<button type="button" class="pill" data-cat="most-popular">⭐ Popular</button>' +
+                '<button type="button" class="pill" data-cat="top-airing">📺 Top Airing</button>' +
+              '</div>' +
             '</div>';
-          var sBackBtn = document.getElementById('searchBackBtn');
-          if (sBackBtn) sBackBtn.addEventListener('click', function () { navigate({ view: 'discover' }); });
+          var emptyClear = document.getElementById('emptyClearBtn');
+          if (emptyClear) {
+            emptyClear.addEventListener('click', function () {
+              if (q) q.value = '';
+              if (qMobile) qMobile.value = '';
+              updateClearBtnVisibility();
+              selectCat('discover');
+            });
+          }
+          var searchPills = main.querySelectorAll('.empty-search .pill[data-cat]');
+          searchPills.forEach(function (pill) {
+            pill.addEventListener('click', function () {
+              var cat = pill.getAttribute('data-cat');
+              if (q) q.value = '';
+              if (qMobile) qMobile.value = '';
+              updateClearBtnVisibility();
+              selectCat(cat);
+            });
+          });
           return;
         }
         main.innerHTML = '<div class="grid" id="animeGrid"></div>';
@@ -2848,13 +2955,14 @@ export const browseController = async (c: Context) => {
       }
 
       async function doSearch() {
-        var keyword = q.value.trim();
+        var keyword = (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
         var seq = ++loadSeq;
-        searchBtn.disabled = true;
+        if (searchBtn) searchBtn.disabled = true;
+        if (searchBtnMobile) searchBtnMobile.disabled = true;
         setStatus('Searching…');
         showSkeleton(10);
         try {
@@ -2862,7 +2970,7 @@ export const browseController = async (c: Context) => {
           if (seq !== loadSeq) return;
           var animes = (data && (data.animes || data.response)) || [];
           setStatus(animes.length + ' result' + (animes.length === 1 ? '' : 's'));
-          renderSearch(animes);
+          renderSearch(animes, keyword);
         } catch (err) {
           if (seq !== loadSeq) return;
           setStatus((err && err.message) || 'Search failed', true);
@@ -2875,7 +2983,10 @@ export const browseController = async (c: Context) => {
           var sRetry = document.getElementById('searchRetryBtn');
           if (sRetry) sRetry.addEventListener('click', function () { doSearch(); });
         } finally {
-          if (seq === loadSeq) searchBtn.disabled = false;
+          if (seq === loadSeq) {
+            if (searchBtn) searchBtn.disabled = false;
+            if (searchBtnMobile) searchBtnMobile.disabled = false;
+          }
         }
       }
 
@@ -2998,25 +3109,63 @@ export const browseController = async (c: Context) => {
         else navigate({ view: 'list', query: query, label: label, page: 1 });
       });
 
-      function submitSearch() {
-        var keyword = q.value.trim();
+      function submitSearch(replace) {
+        var keyword = (q && q.value.trim()) || (qMobile && qMobile.value.trim()) || '';
         if (!keyword) {
           setStatus('Enter a search term.', true);
           return;
         }
-        navigate({ view: 'search', keyword: keyword });
+        if (q) q.value = keyword;
+        if (qMobile) qMobile.value = keyword;
+        updateClearBtnVisibility();
+        var shouldReplace = replace !== undefined ? replace : (state.view === 'search');
+        navigate({ view: 'search', keyword: keyword }, shouldReplace);
       }
 
-      searchBtn.addEventListener('click', submitSearch);
-      q.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') submitSearch();
-      });
+      if (searchBtn) searchBtn.addEventListener('click', function () { submitSearch(false); });
+      if (q) {
+        q.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            clearTimeout(searchDebounceTimer);
+            submitSearch(false);
+          }
+        });
+        q.addEventListener('input', function () {
+          updateClearBtnVisibility();
+          clearTimeout(searchDebounceTimer);
+          var val = q.value.trim();
+          if (val.length >= 2) {
+            searchDebounceTimer = setTimeout(function () {
+              submitSearch(true);
+            }, 300);
+          }
+        });
+      }
+
+      if (qClear) {
+        qClear.addEventListener('click', function () {
+          if (q) q.value = '';
+          if (qMobile) qMobile.value = '';
+          updateClearBtnVisibility();
+          if (q) q.focus();
+          selectCat('discover');
+        });
+      }
+
+      if (qMobileClear) {
+        qMobileClear.addEventListener('click', function () {
+          if (q) q.value = '';
+          if (qMobile) qMobile.value = '';
+          updateClearBtnVisibility();
+          if (qMobile) qMobile.focus();
+          selectCat('discover');
+        });
+      }
 
       // Mobile search FAB + overlay
       var searchFab = document.getElementById('searchFab');
       var searchOverlay = document.getElementById('searchOverlay');
       var searchOverlayClose = document.getElementById('searchOverlayClose');
-      var qMobile = document.getElementById('qMobile');
       var searchBtnMobile = document.getElementById('searchBtnMobile');
       var lastFocusedTrigger = null;
 
@@ -3025,7 +3174,9 @@ export const browseController = async (c: Context) => {
         searchOverlay.classList.add('is-open');
         document.body.style.overflow = 'hidden';
         apiKeyMobile.value = apiKey.value;
+        if (qMobile && q) qMobile.value = q.value;
         updateKeyUI();
+        updateClearBtnVisibility();
         setTimeout(function () { if (qMobile) qMobile.focus(); }, 80);
       }
       function closeSearchOverlay() {
@@ -3095,19 +3246,35 @@ export const browseController = async (c: Context) => {
         var keyword = (qMobile && qMobile.value.trim()) || '';
         if (!keyword) return;
         // Sync to desktop input
-        q.value = keyword;
+        if (q) q.value = keyword;
+        updateClearBtnVisibility();
         closeSearchOverlay();
         navigate({ view: 'search', keyword: keyword });
       }
       if (searchBtnMobile) searchBtnMobile.addEventListener('click', doMobileSearch);
       if (qMobile) {
         qMobile.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter') doMobileSearch();
+          if (e.key === 'Enter') {
+            clearTimeout(searchDebounceTimer);
+            doMobileSearch();
+          }
+        });
+        qMobile.addEventListener('input', function () {
+          updateClearBtnVisibility();
+          clearTimeout(searchDebounceTimer);
+          var val = qMobile.value.trim();
+          if (val.length >= 2) {
+            searchDebounceTimer = setTimeout(function () {
+              if (q) q.value = val;
+              submitSearch(true);
+            }, 300);
+          }
         });
       }
 
       var initialRoute = readCurrentRouteFromUrl();
       history.replaceState(initialRoute, '', window.location.href);
+      updateClearBtnVisibility();
       applyRoute(initialRoute);
       if (initialRoute.view === 'discover' && window.innerWidth > 640 && !apiKey.value.trim()) {
         setTimeout(function () { try { q.focus(); } catch (e) {} }, 150);
