@@ -215,6 +215,29 @@ export const landingController = async (c: Context) => {
       padding: 8px 20px;
       cursor: pointer;
     }
+    .search-badge {
+      font-family: monospace;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 2px 7px;
+      line-height: 1;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hero-search-box:focus-within .search-badge,
+    .hero-search-box.has-val .search-badge {
+      opacity: 0;
+    }
+    @media (max-width: 640px) {
+      .search-badge { display: none; }
+    }
     .resume-section {
       width: 100%;
       max-width: 640px;
@@ -323,8 +346,9 @@ export const landingController = async (c: Context) => {
       <p class="byline">by <em>wab</em></p>
       <p class="lede">Private, theater-grade anime streaming. Browse catalog titles, explore curated rails, and unlock high-definition Sub/Dub playback with your instance access key.</p>
       <form class="hero-search" action="/browse" method="get">
-        <div class="hero-search-box">
-          <input type="search" name="q" placeholder="Search anime by title, e.g. Frieren, Solo Leveling, Bleach…" autocomplete="off" required />
+        <div class="hero-search-box" id="landingSearchBox">
+          <input type="search" id="landingSearchInput" name="q" placeholder="Search anime by title, e.g. Frieren, Solo Leveling, Bleach…" autocomplete="off" required />
+          <kbd class="search-badge">/</kbd>
           <button type="submit" class="btn" aria-label="Search">Search</button>
         </div>
       </form>
@@ -384,6 +408,30 @@ export const landingController = async (c: Context) => {
           '</div>';
         sec.style.display = 'block';
       } catch (e) {}
+
+      var landingSearchInput = document.getElementById('landingSearchInput');
+      var landingSearchBox = document.getElementById('landingSearchBox');
+      if (landingSearchInput && landingSearchBox) {
+        landingSearchInput.addEventListener('input', function () {
+          landingSearchBox.classList.toggle('has-val', landingSearchInput.value.trim().length > 0);
+        });
+      }
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          if (landingSearchInput && document.activeElement === landingSearchInput) {
+            landingSearchInput.blur();
+          }
+        } else if ((e.key === '/' || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) && !e.altKey) {
+          var tag = document.activeElement && document.activeElement.tagName;
+          if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && !document.activeElement.isContentEditable) {
+            if (landingSearchInput) {
+              e.preventDefault();
+              landingSearchInput.focus();
+              landingSearchInput.select();
+            }
+          }
+        }
+      });
     })();
   </script>
   ${vercelObservabilityScriptTags()}
