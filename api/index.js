@@ -1466,6 +1466,7 @@ async function resolveMegaPlaySources(embedUrl) {
 }
 
 // src/handlers/playback/servers.ts
+var SERVERS_CACHE_TTL_MS = 3e5;
 function enrichServer(s) {
   if (isHd1Server(s)) {
     return {
@@ -1548,6 +1549,12 @@ var serversController = async (c) => {
       example: "one-piece-1?ep=1"
     });
   }
+  const normalizedEpisodeId = animeEpisodeId.replace("::", "?");
+  const cacheKey = `servers:${normalizedEpisodeId}`;
+  const cached2 = scrapeCache.get(cacheKey);
+  if (cached2) {
+    return cached2;
+  }
   const epNum = episodeNumericId(animeEpisodeId);
   const slug = animeSlugFromEpisodeId(animeEpisodeId);
   const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
@@ -1559,13 +1566,15 @@ var serversController = async (c) => {
   }
   const servers = parseThemeServers(htmlFromAjax(result.data));
   const episodeNo = Number(epNum);
-  return {
-    episodeId: animeEpisodeId.replace("::", "?"),
+  const payload = {
+    episodeId: normalizedEpisodeId,
     episodeNo: Number.isFinite(episodeNo) ? episodeNo : null,
     sub: mapServers(servers, "sub"),
     dub: mapServers(servers, "dub"),
     raw: mapServers(servers, "raw")
   };
+  scrapeCache.set(cacheKey, payload, SERVERS_CACHE_TTL_MS);
+  return payload;
 };
 var servers_default = serversController;
 
@@ -1626,7 +1635,10 @@ async function resolveZokoSources(embedUrl) {
 // src/services/gogoanime.ts
 import { load as load9 } from "cheerio";
 var DEFAULT_UA3 = config_default.headers?.["User-Agent"] || "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
-var GOGO_BASE_URL = (process.env.GOGO_BASE_URL || "https://anitaku.to").replace(/\/+$/, "");
+var GOGO_BASE_URL = (process.env.GOGO_BASE_URL || "https://anitaku.to").replace(
+  /\/+$/,
+  ""
+);
 function formatGogoSlug(title) {
   if (!title || typeof title !== "string") return "";
   const trimmed = title.trim();
@@ -2278,7 +2290,12 @@ async function resolveCategory(servers, category, server, episodeId, animeTitle)
     }
   }
   if (resolved) {
-    scrapeCache.set(cacheKey, resolved, STREAM_TTL_MS);
+    const actualServer = (resolved.server || normServer).toLowerCase().trim();
+    const resolvedCacheKey = `stream:${episodeId}:${category}:${actualServer}`;
+    scrapeCache.set(resolvedCacheKey, resolved, STREAM_TTL_MS);
+    if (actualServer === normServer) {
+      scrapeCache.set(cacheKey, resolved, STREAM_TTL_MS);
+    }
   }
   return resolved;
 }

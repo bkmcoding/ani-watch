@@ -1,17 +1,15 @@
 import { Context } from 'hono';
 import { validationError } from '../../lib/errors';
-import {
-  isHd1Server,
-  isHd2Server,
-  parseThemeServers,
-  ThemeServer,
-} from '../../services/megaplay';
+import { isHd1Server, isHd2Server, parseThemeServers, ThemeServer } from '../../services/megaplay';
 import {
   animeSlugFromEpisodeId,
   episodeNumericId,
   fetchTheme,
   htmlFromAjax,
 } from '../../lib/themeAjax';
+import { scrapeCache } from '../../lib/ttlCache';
+
+const SERVERS_CACHE_TTL_MS = 300_000; // 5 minutes (Spec §2.3)
 
 export interface EnrichedServer {
   serverId: string | number;
@@ -114,6 +112,21 @@ const serversController = async (c: Context) => {
     });
   }
 
+  const normalizedEpisodeId = animeEpisodeId.replace('::', '?');
+  const cacheKey = `servers:${normalizedEpisodeId}`;
+  const cached = scrapeCache.get(cacheKey) as
+    | {
+        episodeId: string;
+        episodeNo: number | null;
+        sub: EnrichedServer[];
+        dub: EnrichedServer[];
+        raw: EnrichedServer[];
+      }
+    | undefined;
+  if (cached) {
+    return cached;
+  }
+
   const epNum = episodeNumericId(animeEpisodeId);
   const slug = animeSlugFromEpisodeId(animeEpisodeId);
   const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
@@ -129,13 +142,16 @@ const serversController = async (c: Context) => {
   const servers = parseThemeServers(htmlFromAjax(result.data));
   const episodeNo = Number(epNum);
 
-  return {
-    episodeId: animeEpisodeId.replace('::', '?'),
+  const payload = {
+    episodeId: normalizedEpisodeId,
     episodeNo: Number.isFinite(episodeNo) ? episodeNo : null,
     sub: mapServers(servers, 'sub'),
     dub: mapServers(servers, 'dub'),
     raw: mapServers(servers, 'raw'),
   };
+
+  scrapeCache.set(cacheKey, payload, SERVERS_CACHE_TTL_MS);
+  return payload;
 };
 
 export default serversController;

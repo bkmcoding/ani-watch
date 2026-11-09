@@ -15,7 +15,10 @@ const DEFAULT_UA =
   config.headers?.['User-Agent'] ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
-export const GOGO_BASE_URL = (process.env.GOGO_BASE_URL || 'https://anitaku.to').replace(/\/+$/, '');
+export const GOGO_BASE_URL = (process.env.GOGO_BASE_URL || 'https://anitaku.to').replace(
+  /\/+$/,
+  ''
+);
 
 /**
  * Normalizes an anime title into a standard GogoAnime URL slug.

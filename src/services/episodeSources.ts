@@ -255,7 +255,12 @@ export async function resolveCategory(
   }
 
   if (resolved) {
-    scrapeCache.set(cacheKey, resolved, STREAM_TTL_MS);
+    const actualServer = (resolved.server || normServer).toLowerCase().trim();
+    const resolvedCacheKey = `stream:${episodeId}:${category}:${actualServer}`;
+    scrapeCache.set(resolvedCacheKey, resolved, STREAM_TTL_MS);
+    if (actualServer === normServer) {
+      scrapeCache.set(cacheKey, resolved, STREAM_TTL_MS);
+    }
   }
 
   return resolved;

@@ -116,6 +116,23 @@ describe('Enriched Servers & Sources Endpoints (Multi-Provider Resilience)', () 
       expect(body.success).toBe(false);
       expect(body.message).toContain('animeEpisodeId is required');
     });
+
+    it('caches server list responses with servers:${episodeId} key', async () => {
+      const fetchSpy = vi.spyOn(themeAjaxModule, 'fetchTheme').mockResolvedValue({
+        success: true,
+        data: JSON.stringify({ html: mockServersHtml }),
+      } as any);
+
+      const epId = 'cache-test-servers-100?ep=100';
+      const res1 = await app.request(`/api/v2/hianime/episode/servers?animeEpisodeId=${epId}`);
+      expect(res1.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Second call hits cache without calling fetchTheme again
+      const res2 = await app.request(`/api/v2/hianime/episode/servers?animeEpisodeId=${epId}`);
+      expect(res2.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('GET /api/v2/hianime/episode/sources', () => {
