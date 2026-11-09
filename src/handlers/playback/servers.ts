@@ -1,6 +1,11 @@
 import { Context } from 'hono';
 import { validationError } from '../../lib/errors';
-import { parseThemeServers } from '../../services/megaplay';
+import {
+  isHd1Server,
+  isHd2Server,
+  parseThemeServers,
+  ThemeServer,
+} from '../../services/megaplay';
 import {
   animeSlugFromEpisodeId,
   episodeNumericId,
@@ -8,13 +13,95 @@ import {
   htmlFromAjax,
 } from '../../lib/themeAjax';
 
-function mapServers(servers: ReturnType<typeof parseThemeServers>, type: string) {
-  return servers
-    .filter(s => s.type === type)
-    .map(s => ({
+export interface EnrichedServer {
+  serverId: string | number;
+  serverName: string;
+  label: string;
+  provider: string;
+  preferred: boolean;
+}
+
+function enrichServer(s: ThemeServer): EnrichedServer {
+  if (isHd1Server(s)) {
+    return {
       serverId: s.serverId,
-      serverName: s.serverName.toLowerCase().replace(/\s+/g, '-'),
-    }));
+      serverName: 'hd-1',
+      label: 'HD-1 (MegaCloud)',
+      provider: 'megaplay',
+      preferred: true,
+    };
+  }
+  if (isHd2Server(s)) {
+    return {
+      serverId: s.serverId,
+      serverName: 'hd-2',
+      label: 'HD-2 (RapidCloud)',
+      provider: 'megaplay',
+      preferred: false,
+    };
+  }
+  if (/zoko/i.test(s.embedUrl) || /zoko/i.test(s.serverName)) {
+    return {
+      serverId: s.serverId,
+      serverName: 'zoko',
+      label: 'Zoko',
+      provider: 'zoko',
+      preferred: false,
+    };
+  }
+  if (/gogo/i.test(s.embedUrl) || /gogo/i.test(s.serverName) || /anitaku/i.test(s.embedUrl)) {
+    return {
+      serverId: s.serverId,
+      serverName: 'gogo',
+      label: 'Gogo (Backup)',
+      provider: 'gogoanime',
+      preferred: false,
+    };
+  }
+  return {
+    serverId: s.serverId,
+    serverName: s.serverName.toLowerCase().replace(/\s+/g, '-'),
+    label: s.serverName,
+    provider: 'megaplay',
+    preferred: false,
+  };
+}
+
+function mapServers(servers: ThemeServer[], type: string): EnrichedServer[] {
+  const filtered = servers.filter(s => s.type === type);
+  let hasPreferred = false;
+
+  const mapped = filtered.map(s => {
+    const enriched = enrichServer(s);
+    if (enriched.preferred) {
+      if (hasPreferred) {
+        enriched.preferred = false;
+      } else {
+        hasPreferred = true;
+      }
+    }
+    return enriched;
+  });
+
+  if (!hasPreferred && mapped.length > 0) {
+    mapped[0].preferred = true;
+  }
+
+  // Include GogoAnime fallback server in sub (and dub where applicable)
+  // so the client UI has an independent backup option listed.
+  if ((type === 'sub' || type === 'dub') && mapped.length > 0) {
+    if (!mapped.some(s => s.serverName === 'gogo' || s.provider === 'gogoanime')) {
+      mapped.push({
+        serverId: 'gogo',
+        serverName: 'gogo',
+        label: 'Gogo (Backup)',
+        provider: 'gogoanime',
+        preferred: false,
+      });
+    }
+  }
+
+  return mapped;
 }
 
 const serversController = async (c: Context) => {
