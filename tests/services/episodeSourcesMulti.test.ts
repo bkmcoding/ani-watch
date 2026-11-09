@@ -63,8 +63,20 @@ describe('Tri-Provider Routing & Cache Partitioning (episodeSources)', () => {
         };
       });
 
-      const resHd1 = await resolveCategory(mockServers, 'sub', 'hd-1', 'anime-test-ep-1', 'Anime Test');
-      const resHd2 = await resolveCategory(mockServers, 'sub', 'hd-2', 'anime-test-ep-1', 'Anime Test');
+      const resHd1 = await resolveCategory(
+        mockServers,
+        'sub',
+        'hd-1',
+        'anime-test-ep-1',
+        'Anime Test'
+      );
+      const resHd2 = await resolveCategory(
+        mockServers,
+        'sub',
+        'hd-2',
+        'anime-test-ep-1',
+        'Anime Test'
+      );
 
       expect(resHd1).not.toBeNull();
       expect(resHd1?.provider).toBe('megaplay');
@@ -89,7 +101,13 @@ describe('Tri-Provider Routing & Cache Partitioning (episodeSources)', () => {
       });
       const megaSpy = vi.spyOn(megaModule, 'resolveMegaPlaySources');
 
-      const res = await resolveCategory(mockServers, 'sub', 'zoko', 'anime-test-ep-2', 'Anime Test');
+      const res = await resolveCategory(
+        mockServers,
+        'sub',
+        'zoko',
+        'anime-test-ep-2',
+        'Anime Test'
+      );
 
       expect(res).not.toBeNull();
       expect(res?.provider).toBe('zoko');
@@ -111,7 +129,13 @@ describe('Tri-Provider Routing & Cache Partitioning (episodeSources)', () => {
       const megaSpy = vi.spyOn(megaModule, 'resolveMegaPlaySources');
       const zokoSpy = vi.spyOn(zokoModule, 'resolveZokoSources');
 
-      const res = await resolveCategory(mockServers, 'sub', 'gogo', 'one-piece-100?ep=100', 'One Piece');
+      const res = await resolveCategory(
+        mockServers,
+        'sub',
+        'gogo',
+        'one-piece-100?ep=100',
+        'One Piece'
+      );
 
       expect(res).not.toBeNull();
       expect(res?.provider).toBe('gogoanime');
@@ -207,9 +231,7 @@ describe('Tri-Provider Routing & Cache Partitioning (episodeSources)', () => {
       vi.spyOn(megaModule, 'resolveMegaPlaySources').mockRejectedValue(
         new Error('MegaPlay 500 error')
       );
-      vi.spyOn(zokoModule, 'resolveZokoSources').mockRejectedValue(
-        new Error('Zoko 500 error')
-      );
+      vi.spyOn(zokoModule, 'resolveZokoSources').mockRejectedValue(new Error('Zoko 500 error'));
       vi.spyOn(gogoModule, 'resolveGogoSources').mockResolvedValueOnce({
         headers: { Referer: 'https://anitaku.to/' },
         sources: [{ url: 'https://cdn.gogocdn.net/fallback-gogo.m3u8', isM3U8: true }],
@@ -283,7 +305,13 @@ describe('Tri-Provider Routing & Cache Partitioning (episodeSources)', () => {
         malID: null,
       });
 
-      const res = await resolveCategory(mockServers, 'sub', 'zoko', 'zoko-fallback-ep', 'Zoko Test');
+      const res = await resolveCategory(
+        mockServers,
+        'sub',
+        'zoko',
+        'zoko-fallback-ep',
+        'Zoko Test'
+      );
       expect(res).not.toBeNull();
       expect(res?.provider).toBe('megaplay');
       expect(res?.server).toBe('hd-1');

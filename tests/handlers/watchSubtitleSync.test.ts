@@ -6,7 +6,9 @@ describe('Watch Subtitle Timing Synchronization & Global Audio Preference', () =
   it('renders Subtitle Sync offset slider, label, and reset button in #ccControls', async () => {
     const app = new Hono();
     app.get('/watch', watchController);
-    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt');
+    const res = await app.request(
+      '/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt'
+    );
     const html = await res.text();
 
     expect(html).toContain('id="ccControls"');
@@ -23,7 +25,9 @@ describe('Watch Subtitle Timing Synchronization & Global Audio Preference', () =
   it('manages subOffset state with ani.subOffset localStorage persistence and clamping', async () => {
     const app = new Hono();
     app.get('/watch', watchController);
-    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt');
+    const res = await app.request(
+      '/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt'
+    );
     const html = await res.text();
 
     expect(html).toContain("'ani.subOffset'");
@@ -35,7 +39,9 @@ describe('Watch Subtitle Timing Synchronization & Global Audio Preference', () =
   it('evaluates cues in renderCcAt using effectiveTime with subOffset adjustment', async () => {
     const app = new Hono();
     app.get('/watch', watchController);
-    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt');
+    const res = await app.request(
+      '/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt'
+    );
     const html = await res.text();
 
     expect(html).toContain('renderCcAt');
@@ -46,7 +52,9 @@ describe('Watch Subtitle Timing Synchronization & Global Audio Preference', () =
   it('binds Z and X keyboard shortcuts to adjust subOffset with Action OSD feedback', async () => {
     const app = new Hono();
     app.get('/watch', watchController);
-    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt');
+    const res = await app.request(
+      '/watch?sub=https://example.com/stream.m3u8&subCc=https://example.com/sub.vtt'
+    );
     const html = await res.text();
 
     // Check Z/z and X/x shortcuts
@@ -73,7 +81,9 @@ describe('Watch Subtitle Timing Synchronization & Global Audio Preference', () =
   it('persists audio preference to ani.audioPref on track changes and loads it when no category query is provided', async () => {
     const app = new Hono();
     app.get('/watch', watchController);
-    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&dub=https://example.com/dub.m3u8');
+    const res = await app.request(
+      '/watch?sub=https://example.com/stream.m3u8&dub=https://example.com/dub.m3u8'
+    );
     const html = await res.text();
 
     expect(html).toContain("'ani.audioPref'");

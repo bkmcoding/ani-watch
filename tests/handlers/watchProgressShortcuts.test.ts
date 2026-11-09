@@ -19,13 +19,17 @@ describe('Watch Progress Tracking & YouTube Shortcuts (Task 5)', () => {
   describe('Episode Watched Progress Tracking in watch.ts', () => {
     it('persists episode progress ratio, duration, and time in localStorage on timeupdate', async () => {
       const app = getWatchApp();
-      const res = await app.request('/watch?anime=one-piece&ep=100&sub=https://example.com/stream.m3u8');
+      const res = await app.request(
+        '/watch?anime=one-piece&ep=100&sub=https://example.com/stream.m3u8'
+      );
       const html = await res.text();
 
       // Checks ani.progress.<animeId>.<epNum> storage key
       expect(html).toContain("localStorage.setItem('ani.progress.' + animeId + '.' + currentEpNum");
       // Ratio calculation
-      expect(html).toMatch(/Math\.min\(1,\s*Math\.max\(0,\s*(?:video\.currentTime|curT)\s*\/\s*(?:video\.duration|dur)\)\)/);
+      expect(html).toMatch(
+        /Math\.min\(1,\s*Math\.max\(0,\s*(?:video\.currentTime|curT)\s*\/\s*(?:video\.duration|dur)\)\)/
+      );
       // Stores time, dur, and ratio
       expect(html).toContain('time:');
       expect(html).toContain('dur:');
@@ -36,7 +40,9 @@ describe('Watch Progress Tracking & YouTube Shortcuts (Task 5)', () => {
 
     it('renders .ep-progress-bar styling and checkmark in watch episode drawer', async () => {
       const app = getWatchApp();
-      const res = await app.request('/watch?anime=one-piece&ep=100&sub=https://example.com/stream.m3u8');
+      const res = await app.request(
+        '/watch?anime=one-piece&ep=100&sub=https://example.com/stream.m3u8'
+      );
       const html = await res.text();
 
       // CSS for .ep-progress-bar in watch.ts
@@ -98,7 +104,9 @@ describe('Watch Progress Tracking & YouTube Shortcuts (Task 5)', () => {
 
       // M: toggle mute with OSD
       expect(html).toMatch(/e\.key\s*===\s*['"]m['"]\s*\|\|\s*e\.key\s*===\s*['"]M['"]/);
-      expect(html).toMatch(/showOsd\(\s*video\.muted\s*\?\s*['"]🔇['"]\s*:\s*['"]🔊['"],\s*video\.muted\s*\?\s*['"]Muted['"]\s*:\s*['"]Unmuted['"]\s*\)/);
+      expect(html).toMatch(
+        /showOsd\(\s*video\.muted\s*\?\s*['"]🔇['"]\s*:\s*['"]🔊['"],\s*video\.muted\s*\?\s*['"]Muted['"]\s*:\s*['"]Unmuted['"]\s*\)/
+      );
 
       // C: toggle captions
       expect(html).toMatch(/e\.key\s*===\s*['"]c['"]\s*\|\|\s*e\.key\s*===\s*['"]C['"]/);
@@ -107,7 +115,9 @@ describe('Watch Progress Tracking & YouTube Shortcuts (Task 5)', () => {
       expect(html).toMatch(/e\.key\s*===\s*['"]n['"]\s*\|\|\s*e\.key\s*===\s*['"]N['"]/);
 
       // Shift+P or [ for previous episode navigation
-      expect(html).toMatch(/e\.shiftKey\s*&&\s*\(e\.key\s*===\s*['"]P['"]\s*\|\|\s*e\.key\s*===\s*['"]p['"]\)/);
+      expect(html).toMatch(
+        /e\.shiftKey\s*&&\s*\(e\.key\s*===\s*['"]P['"]\s*\|\|\s*e\.key\s*===\s*['"]p['"]\)/
+      );
 
       // P for Picture-in-Picture remains supported
       expect(html).toMatch(/e\.key\s*===\s*['"]p['"]\s*\|\|\s*e\.key\s*===\s*['"]P['"]/);

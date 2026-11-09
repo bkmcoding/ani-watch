@@ -20,7 +20,9 @@ describe('Browse Desktop Miniplayer & Ergonomics', () => {
 
     // Minimized dock CSS rules
     expect(html).toContain('.cinema-overlay.is-minimized');
-    expect(html).toMatch(/\.cinema-overlay\.is-minimized\s+\.cinema-backdrop\s*\{\s*display:\s*none/);
+    expect(html).toMatch(
+      /\.cinema-overlay\.is-minimized\s+\.cinema-backdrop\s*\{\s*display:\s*none/
+    );
     expect(html).toMatch(/\.cinema-overlay\.is-minimized\s+\.cinema-stage/);
   });
 
@@ -39,8 +41,8 @@ describe('Browse Desktop Miniplayer & Ergonomics', () => {
     const html = await res.text();
 
     expect(html).toContain('id="backToTop"');
-    expect(html).toContain("window.scrollTo");
-    expect(html).toContain("scrollY > 500");
+    expect(html).toContain('window.scrollTo');
+    expect(html).toContain('scrollY > 500');
   });
 
   it('includes desktop card quick play button styles for hover-capable devices', async () => {
@@ -49,6 +51,8 @@ describe('Browse Desktop Miniplayer & Ergonomics', () => {
     const html = await res.text();
 
     expect(html).toContain('.card-quick-play');
-    expect(html).toMatch(/@media\s*\(\s*hover:\s*hover\s*\)[\s\S]*?\.card:hover\s+\.card-quick-play/);
+    expect(html).toMatch(
+      /@media\s*\(\s*hover:\s*hover\s*\)[\s\S]*?\.card:hover\s+\.card-quick-play/
+    );
   });
 });

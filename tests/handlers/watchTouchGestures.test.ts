@@ -24,7 +24,9 @@ describe('Watch Mobile Touch Gestures & Press-and-Hold 2.0x Boost', () => {
     // #holdSpeedPill
     expect(html).toContain('id="holdSpeedPill"');
     expect(html).toContain('class="hold-speed-pill"');
-    expect(html).toMatch(/<div\s+id="holdSpeedPill"[^>]*hidden[^>]*aria-hidden="true"[^>]*>\s*2x ▶▶\s*<\/div>/);
+    expect(html).toMatch(
+      /<div\s+id="holdSpeedPill"[^>]*hidden[^>]*aria-hidden="true"[^>]*>\s*2x ▶▶\s*<\/div>/
+    );
   });
 
   it('includes CSS styling for ripple waves and glassmorphic hold speed pill', async () => {

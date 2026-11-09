@@ -105,12 +105,14 @@ test.describe('Mobile Player Touch Gestures & Hold Speed Boost', () => {
     await triggerTouchTap(page, posX, posY);
 
     // Verify seek backward by 10s
-    await expect.poll(async () => {
-      return page.evaluate(() => {
-        const v = document.getElementById('v') as HTMLVideoElement;
-        return v ? v.currentTime : null;
-      });
-    }).toBe(40);
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => {
+          const v = document.getElementById('v') as HTMLVideoElement;
+          return v ? v.currentTime : null;
+        });
+      })
+      .toBe(40);
 
     // Verify ripple overlay is visible and active
     await expect(overlay).toBeVisible();
@@ -137,27 +139,33 @@ test.describe('Mobile Player Touch Gestures & Hold Speed Boost', () => {
     await page.waitForTimeout(60);
     await triggerTouchTap(page, posX, posY);
 
-    await expect.poll(async () => {
-      return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
-    }).toBe(50);
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
+      })
+      .toBe(50);
     await expect(secs).toHaveText('10');
 
     // Third tap within 650ms compounding window (adds another 10s -> 20s total)
     await page.waitForTimeout(120);
     await triggerTouchTap(page, posX, posY);
 
-    await expect.poll(async () => {
-      return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
-    }).toBe(40);
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
+      })
+      .toBe(40);
     await expect(secs).toHaveText('20');
 
     // Fourth tap within 650ms (adds another 10s -> 30s total)
     await page.waitForTimeout(120);
     await triggerTouchTap(page, posX, posY);
 
-    await expect.poll(async () => {
-      return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
-    }).toBe(30);
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
+      })
+      .toBe(30);
     await expect(secs).toHaveText('30');
   });
 
@@ -180,9 +188,11 @@ test.describe('Mobile Player Touch Gestures & Hold Speed Boost', () => {
     await triggerTouchTap(page, posX, posY);
 
     // Verify seek forward by 10s
-    await expect.poll(async () => {
-      return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
-    }).toBe(40);
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => (document.getElementById('v') as HTMLVideoElement).currentTime);
+      })
+      .toBe(40);
 
     // Verify ripple overlay is visible and right ripple active
     await expect(overlay).toBeVisible();
@@ -221,9 +231,11 @@ test.describe('Mobile Player Touch Gestures & Hold Speed Boost', () => {
     await page.waitForTimeout(60);
     await triggerTouchTap(page, posX, posY);
 
-    await expect.poll(async () => {
-      return page.evaluate(() => (window as any).__fsInvoked);
-    }).toBe(true);
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => (window as any).__fsInvoked);
+      })
+      .toBe(true);
   });
 
   test('press-and-hold > 400ms temporarily boosts playback rate to 2.0x with speed pill', async ({

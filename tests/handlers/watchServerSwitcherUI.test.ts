@@ -47,13 +47,17 @@ describe('Watch Player Server Bar & In-Menu Server Selector UI', () => {
     const htmlDefault = await resDefault.text();
 
     // Match hd-1 button and confirm is-active and status-dot
-    const hd1ActiveMatch = htmlDefault.match(/<button[^>]*data-server="hd-1"[^>]*>([\s\S]*?)<\/button>/);
+    const hd1ActiveMatch = htmlDefault.match(
+      /<button[^>]*data-server="hd-1"[^>]*>([\s\S]*?)<\/button>/
+    );
     expect(hd1ActiveMatch).not.toBeNull();
     expect(hd1ActiveMatch![0]).toContain('is-active');
     expect(hd1ActiveMatch![1]).toContain('class="status-dot"');
 
     // Confirm hd-2 button is NOT active
-    const hd2InactiveMatch = htmlDefault.match(/<button[^>]*data-server="hd-2"[^>]*>([\s\S]*?)<\/button>/);
+    const hd2InactiveMatch = htmlDefault.match(
+      /<button[^>]*data-server="hd-2"[^>]*>([\s\S]*?)<\/button>/
+    );
     expect(hd2InactiveMatch).not.toBeNull();
     expect(hd2InactiveMatch![0]).not.toContain('is-active');
     expect(hd2InactiveMatch![1]).not.toContain('class="status-dot"');
@@ -61,7 +65,9 @@ describe('Watch Player Server Bar & In-Menu Server Selector UI', () => {
     // Explicit server=hd-2
     const resHd2 = await app.request('/watch?sub=https://example.com/stream.m3u8&server=hd-2');
     const htmlHd2 = await resHd2.text();
-    const hd2ActiveMatch = htmlHd2.match(/<button[^>]*data-server="hd-2"[^>]*>([\s\S]*?)<\/button>/);
+    const hd2ActiveMatch = htmlHd2.match(
+      /<button[^>]*data-server="hd-2"[^>]*>([\s\S]*?)<\/button>/
+    );
     expect(hd2ActiveMatch).not.toBeNull();
     expect(hd2ActiveMatch![0]).toContain('is-active');
     expect(hd2ActiveMatch![1]).toContain('class="status-dot"');
@@ -69,7 +75,9 @@ describe('Watch Player Server Bar & In-Menu Server Selector UI', () => {
     // Explicit server=zoko
     const resZoko = await app.request('/watch?sub=https://example.com/stream.m3u8&server=zoko');
     const htmlZoko = await resZoko.text();
-    const zokoActiveMatch = htmlZoko.match(/<button[^>]*data-server="zoko"[^>]*>([\s\S]*?)<\/button>/);
+    const zokoActiveMatch = htmlZoko.match(
+      /<button[^>]*data-server="zoko"[^>]*>([\s\S]*?)<\/button>/
+    );
     expect(zokoActiveMatch).not.toBeNull();
     expect(zokoActiveMatch![0]).toContain('is-active');
     expect(zokoActiveMatch![1]).toContain('class="status-dot"');
@@ -77,7 +85,9 @@ describe('Watch Player Server Bar & In-Menu Server Selector UI', () => {
     // Explicit server=gogo
     const resGogo = await app.request('/watch?sub=https://example.com/stream.m3u8&server=gogo');
     const htmlGogo = await resGogo.text();
-    const gogoActiveMatch = htmlGogo.match(/<button[^>]*data-server="gogo"[^>]*>([\s\S]*?)<\/button>/);
+    const gogoActiveMatch = htmlGogo.match(
+      /<button[^>]*data-server="gogo"[^>]*>([\s\S]*?)<\/button>/
+    );
     expect(gogoActiveMatch).not.toBeNull();
     expect(gogoActiveMatch![0]).toContain('is-active');
     expect(gogoActiveMatch![1]).toContain('class="status-dot"');

@@ -231,7 +231,9 @@ describe('GogoAnime Fallback Scraper Service', () => {
           text: async () => mockAjaxJson,
         } as Response);
 
-      const result = await extractGogoSourcesFromEmbed('https://embtaku.pro/streaming.php?id=998877');
+      const result = await extractGogoSourcesFromEmbed(
+        'https://embtaku.pro/streaming.php?id=998877'
+      );
 
       expect(result).not.toBeNull();
       expect(result?.sources.length).toBeGreaterThanOrEqual(1);
@@ -247,7 +249,9 @@ describe('GogoAnime Fallback Scraper Service', () => {
         text: async () => '<html><body>Video not found</body></html>',
       } as Response);
 
-      const result = await extractGogoSourcesFromEmbed('https://embtaku.pro/streaming.php?id=empty');
+      const result = await extractGogoSourcesFromEmbed(
+        'https://embtaku.pro/streaming.php?id=empty'
+      );
       expect(result).toBeNull();
     });
 
@@ -265,7 +269,9 @@ describe('GogoAnime Fallback Scraper Service', () => {
     it('returns null gracefully on network timeout or fetch error', async () => {
       globalThis.fetch = vi.fn().mockRejectedValueOnce(new Error('Network timeout'));
 
-      const result = await extractGogoSourcesFromEmbed('https://embtaku.pro/streaming.php?id=timeout');
+      const result = await extractGogoSourcesFromEmbed(
+        'https://embtaku.pro/streaming.php?id=timeout'
+      );
       expect(result).toBeNull();
     });
   });

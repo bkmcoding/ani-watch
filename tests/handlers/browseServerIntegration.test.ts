@@ -15,7 +15,9 @@ describe('Browse Page Cinema Player Preferred Server Integration (Task 7)', () =
     const html = await res.text();
 
     expect(html).toContain("localStorage.getItem('ani.preferredServer')");
-    expect(html).toMatch(/localStorage\.getItem\(\s*['"]ani\.preferredServer['"]\s*\)\s*\|\|\s*['"]hd-1['"]/);
+    expect(html).toMatch(
+      /localStorage\.getItem\(\s*['"]ani\.preferredServer['"]\s*\)\s*\|\|\s*['"]hd-1['"]/
+    );
   });
 
   it('passes server parameter dynamically into /api/v2/hianime/episode/sources', async () => {
@@ -36,7 +38,9 @@ describe('Browse Page Cinema Player Preferred Server Integration (Task 7)', () =
     const html = await res.text();
 
     // Verify compatibility check: if dub and zoko, reset to hd-1
-    expect(html).toMatch(/audioCat\s*===\s*['"]dub['"]\s*&&\s*preferredServer\s*===\s*['"]zoko['"]/);
+    expect(html).toMatch(
+      /audioCat\s*===\s*['"]dub['"]\s*&&\s*preferredServer\s*===\s*['"]zoko['"]/
+    );
     // Verify zoko is excluded from base servers when audio category is dub
     expect(html).toMatch(/audioCat\s*===\s*['"]dub['"]/);
     expect(html).toContain("'zoko'");
@@ -48,9 +52,13 @@ describe('Browse Page Cinema Player Preferred Server Integration (Task 7)', () =
     const html = await res.text();
 
     // Loop across resolution chain
-    expect(html).toMatch(/for\s*\(\s*var\s+[a-zA-Z0-9_]+\s*=\s*0;\s*[a-zA-Z0-9_]+\s*<\s*chain\.length;/);
+    expect(html).toMatch(
+      /for\s*\(\s*var\s+[a-zA-Z0-9_]+\s*=\s*0;\s*[a-zA-Z0-9_]+\s*<\s*chain\.length;/
+    );
     // Status update on server failure
-    expect(html).toMatch(/setStatus\(\s*['"]Server ['"]\s*\+\s*server\s*\+\s*['"] unavailable, trying fallback…['"]\s*\)/);
+    expect(html).toMatch(
+      /setStatus\(\s*['"]Server ['"]\s*\+\s*server\s*\+\s*['"] unavailable, trying fallback…['"]\s*\)/
+    );
     // Final error when all servers fail
     expect(html).toContain('Could not resolve stream across available servers.');
   });
@@ -61,7 +69,9 @@ describe('Browse Page Cinema Player Preferred Server Integration (Task 7)', () =
     const html = await res.text();
 
     // If server differs from initial/preferred, update localStorage
-    expect(html).toMatch(/localStorage\.setItem\(\s*['"]ani\.preferredServer['"]\s*,\s*server\s*\)/);
+    expect(html).toMatch(
+      /localStorage\.setItem\(\s*['"]ani\.preferredServer['"]\s*,\s*server\s*\)/
+    );
   });
 
   it('passes server into cinema player iframe URL', async () => {
@@ -124,7 +134,9 @@ describe('Browse Page Cinema Player Preferred Server Integration (Task 7)', () =
       let savedPref: string | null = null;
       const localStorageMock = {
         getItem: () => preferred,
-        setItem: (_key: string, val: string) => { savedPref = val; },
+        setItem: (_key: string, val: string) => {
+          savedPref = val;
+        },
       };
 
       const chain = ['hd-2', 'hd-1', 'zoko', 'gogo'];
@@ -159,7 +171,9 @@ describe('Browse Page Cinema Player Preferred Server Integration (Task 7)', () =
       let savedPref: string | null = null;
       const localStorageMock = {
         getItem: () => preferred,
-        setItem: (_key: string, val: string) => { savedPref = val; },
+        setItem: (_key: string, val: string) => {
+          savedPref = val;
+        },
       };
 
       const chain = ['hd-2', 'hd-1', 'zoko', 'gogo'];

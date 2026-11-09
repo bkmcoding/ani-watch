@@ -51,7 +51,9 @@ describe('Watch Automation Suite (Auto-Skip & Smart Auto-Next)', () => {
   it('contains smart outro countdown, dismiss, and navigation logic in client script', async () => {
     const app = new Hono();
     app.get('/watch', watchController);
-    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&nextEp=ep-2&os=1200&oe=1320');
+    const res = await app.request(
+      '/watch?sub=https://example.com/stream.m3u8&nextEp=ep-2&os=1200&oe=1320'
+    );
     const html = await res.text();
 
     expect(html).toContain('outroDismissed');
@@ -79,8 +81,8 @@ describe('Watch Automation Suite (Auto-Skip & Smart Auto-Next)', () => {
     const res = await app.request('/watch?sub=https://example.com/stream.m3u8&nextEp=ep-2');
     const html = await res.text();
 
-    expect(html).toContain("autoplayOverlay");
+    expect(html).toContain('autoplayOverlay');
     // Handlers for Space/Enter or Esc on autoplay overlay / outro badge
-    expect(html).toContain("autoplayCancelled");
+    expect(html).toContain('autoplayCancelled');
   });
 });
