@@ -3133,7 +3133,12 @@ var watchController = async (c) => {
       font-variant-numeric: tabular-nums; font-size: 0.82rem;
       color: var(--muted); padding: 0 8px; min-width: 9.5rem;
     }
-    .vol { width: 84px; height: 5px; appearance: none; background: transparent; cursor: pointer; }
+    .vol-group {
+      display: inline-flex;
+      align-items: center;
+      position: relative;
+    }
+    .vol { height: 5px; appearance: none; background: transparent; cursor: pointer; }
     .vol::-webkit-slider-runnable-track {
       height: 5px; border-radius: 999px;
       background: linear-gradient(90deg, var(--accent) var(--vol, 100%), rgba(255,255,255,0.18) var(--vol, 100%));
@@ -3145,6 +3150,29 @@ var watchController = async (c) => {
     .vol::-moz-range-track { height: 5px; border-radius: 999px; background: rgba(255,255,255,0.18); }
     .vol::-moz-range-progress { height: 5px; border-radius: 999px; background: var(--accent); }
     .vol::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--ink); }
+    @media (hover: hover) {
+      .vol {
+        width: 0;
+        opacity: 0;
+        pointer-events: none;
+        margin-left: 0;
+        transition: width 0.22s var(--ease), opacity 0.2s ease, margin 0.22s var(--ease);
+      }
+      .vol-group:hover .vol,
+      .vol-group:focus-within .vol,
+      .vol.is-active {
+        width: 76px;
+        opacity: 1;
+        pointer-events: auto;
+        margin-left: 4px;
+      }
+    }
+    @media (hover: none) {
+      .vol {
+        width: 76px;
+        opacity: 1;
+      }
+    }
     .speed-chip {
       appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.04);
       color: var(--muted); font: inherit; font-size: 0.75rem; font-weight: 600;
@@ -3739,10 +3767,12 @@ var watchController = async (c) => {
         justify-content: space-between;
       }
       #theaterBtn,
+      #pipBtnBar,
       #speedBtn,
       #prevEpBar,
       #nextEpBar,
       .vol,
+      .vol-group,
       .hint,
       .row .spacer {
         display: none !important;
@@ -4078,6 +4108,8 @@ var watchController = async (c) => {
             <div class="shortcut-row"><kbd>\u2190</kbd> / <kbd>\u2192</kbd> <span>Seek -5s / +5s</span></div>
             <div class="shortcut-row"><kbd>\u2191</kbd> / <kbd>\u2193</kbd> <span>Volume Up / Down</span></div>
             <div class="shortcut-row"><kbd>M</kbd> <span>Mute / Unmute</span></div>
+            <div class="shortcut-row"><kbd>P</kbd> <span>Picture-in-Picture</span></div>
+            <div class="shortcut-row"><kbd>T</kbd> <span>Theater Mode</span></div>
             <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
             <div class="shortcut-row"><kbd>C</kbd> <span>Toggle Captions</span></div>
             <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> <span>Previous / Next Episode</span></div>
@@ -4302,26 +4334,31 @@ var watchController = async (c) => {
             <input class="seek" id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek video" />
           </div>
           <div class="row">
-            <button type="button" class="ctrl" id="play" aria-label="Play">
+            <button type="button" class="ctrl" id="play" aria-label="Play" title="Play/Pause (Space)">
               <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </button>
-            <button type="button" class="ctrl" id="mute" aria-label="Mute">
-              <svg id="muteIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
-            </button>
-            <input class="vol" id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
+            <div class="vol-group" id="volGroup">
+              <button type="button" class="ctrl" id="mute" aria-label="Mute" title="Mute (M)">
+                <svg id="muteIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+              </button>
+              <input class="vol" id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
+            </div>
             <span class="time" id="time">0:00 / 0:00</span>
             <button type="button" class="speed-chip" id="speedBtn" title="Playback speed">1x</button>
             <a class="pill nav-pill" id="prevEpBar" title="Previous episode ([)" ${prevPlaySafe ? `href="${escAttr(prevPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${prevPlaySafe ? "" : "hidden"} style="padding:6px 10px;min-width:auto">\u2190 Prev</a>
             <a class="pill nav-pill" id="nextEpBar" title="Next episode (])" ${nextPlaySafe ? `href="${escAttr(nextPlaySafe)}"` : 'aria-disabled="true" tabindex="-1"'} ${nextPlaySafe ? "" : "hidden"} style="padding:6px 10px;min-width:auto">Next \u2192</a>
             <button type="button" class="ctrl" id="ccBtn" aria-label="English captions" title="English CC (C)" ${hasAnyCc ? "" : "hidden"}>
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-8.5 10.5c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7H9.5v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 0.7 1 1.3 0 1-.9 1.4-2.1 1.4zm7 0c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7h-.7v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 .7 1 1.3 0 1-.9 1.4-2.1 1.4z"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-8.5 10.5c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7H9.5v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 .7 1 1.3 0 1-.9 1.4-2.1 1.4zm7 0c-.8 0-1.4-.3-1.9-.8l.9-.9c.3.3.6.5 1 .5.5 0 .8-.3.8-.7 0-.5-.4-.7-1.1-.7h-.7v-1.2h.7c.5 0 .9-.2.9-.6 0-.3-.2-.6-.7-.6-.3 0-.6.1-.8.4l-.9-.8c.4-.5 1-.8 1.8-.8 1.2 0 1.9.6 1.9 1.4 0 .5-.3.9-.8 1.1.6.2 1 .7 1 1.3 0 1-.9 1.4-2.1 1.4z"/></svg>
             </button>
             <span class="spacer"></span>
-            <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsMenu">
+            <button type="button" class="ctrl" id="settingsBtn" aria-label="Settings" title="Settings (S)" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsMenu">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.89 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
-            <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode">
+            <button type="button" class="ctrl" id="theaterBtn" aria-label="Theater mode" title="Theater mode (T)">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v10H4V6zm0 12h16v2H4v-2z"/></svg>
+            </button>
+            <button type="button" class="ctrl" id="pipBtnBar" aria-label="Picture-in-Picture" title="Picture in Picture (P)">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.99h18v14.02z"/></svg>
             </button>
             <button type="button" class="ctrl" id="fs" aria-label="Fullscreen" title="Fullscreen (F)">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
@@ -4384,6 +4421,7 @@ var watchController = async (c) => {
       var ccOpacityEl = document.getElementById('ccOpacity');
       var ccOpacityLabel = document.getElementById('ccOpacityLabel');
       var pipBtn = document.getElementById('pipBtn');
+      var pipBtnBar = document.getElementById('pipBtnBar');
       var skipBtn = document.getElementById('skipBtn');
       var providerBadge = document.getElementById('providerBadge');
       var epListBtn = document.getElementById('epListBtn');
@@ -5585,14 +5623,34 @@ var watchController = async (c) => {
         e.stopPropagation();
         togglePlay();
       });
-      video.addEventListener('click', function () {
-        if (window.matchMedia('(pointer: coarse)').matches) {
-          // Handled by stage pointerup on touch devices
+      stage.addEventListener('click', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) return;
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
+        else if (shortcutsModal && shortcutsModal.classList.contains('is-open')) toggleShortcuts(false);
         else togglePlay();
       });
+
+      stage.addEventListener('dblclick', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) return;
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+          return;
+        }
+        toggleFs();
+      });
+
+      stage.addEventListener('wheel', function (e) {
+        if (window.matchMedia('(pointer: coarse)').matches) return;
+        if (e.target.closest && e.target.closest('.menu, .ep-panel, .shortcuts-modal')) return;
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          applyVolume(video.volume + 0.05, true);
+        } else {
+          applyVolume(video.volume - 0.05, true);
+        }
+      }, { passive: false });
 
       var wasVisibleAtTouchStart = false;
 
@@ -5981,12 +6039,28 @@ var watchController = async (c) => {
         e.preventDefault(); e.stopPropagation();
         toggleSettings(true);
       });
+      function togglePip() {
+        if (document.pictureInPictureElement) {
+          document.exitPictureInPicture().catch(function () {});
+        } else if (video.requestPictureInPicture) {
+          video.requestPictureInPicture().catch(function () {});
+        }
+      }
       pipBtn.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) this.blur();
         e.preventDefault(); e.stopPropagation();
-        if (document.pictureInPictureElement) document.exitPictureInPicture();
-        else if (video.requestPictureInPicture) video.requestPictureInPicture().catch(function () {});
+        togglePip();
       });
+      if (pipBtnBar) {
+        if (!document.pictureInPictureEnabled && !video.requestPictureInPicture) {
+          pipBtnBar.hidden = true;
+        }
+        pipBtnBar.addEventListener('click', function (e) {
+          if (window.matchMedia('(pointer: coarse)').matches) this.blur();
+          e.preventDefault(); e.stopPropagation();
+          togglePip();
+        });
+      }
 
       // Cast to TV \u2014 Remote Playback API (Chrome/Edge, Chromecast, smart TVs)
       // Falls back gracefully: row is hidden if the API isn't available.
@@ -6218,6 +6292,7 @@ var watchController = async (c) => {
         }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
+        else if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePip(); }
         else if (e.key === 'e' || e.key === 'E') {
           if (animeId) { e.preventDefault(); toggleEpPanel(); }
         }
