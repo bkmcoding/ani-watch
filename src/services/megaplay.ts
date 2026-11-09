@@ -56,25 +56,81 @@ export function parseThemeServers(html: string): ThemeServer[] {
   return servers;
 }
 
+export function isHd1Server(s: ThemeServer): boolean {
+  const name = s.serverName.toLowerCase();
+  const url = s.embedUrl.toLowerCase();
+  if (
+    /\bhd[\s-]*2\b/i.test(name) ||
+    /rapid[\s-]*cloud/i.test(name) ||
+    /vid[\s-]*cloud/i.test(name) ||
+    /rapid[\s-]*cloud/i.test(url) ||
+    /vid[\s-]*cloud/i.test(url)
+  ) {
+    return false;
+  }
+  return (
+    /\bhd[\s-]*1\b/i.test(name) ||
+    /mega[\s-]*cloud/i.test(name) ||
+    /vid[\s-]*streaming/i.test(name) ||
+    /mega[\s-]*cloud/i.test(url) ||
+    /vid[\s-]*streaming/i.test(url)
+  );
+}
+
+export function isHd2Server(s: ThemeServer): boolean {
+  const name = s.serverName.toLowerCase();
+  const url = s.embedUrl.toLowerCase();
+  if (
+    /\bhd[\s-]*1\b/i.test(name) ||
+    /mega[\s-]*cloud/i.test(name) ||
+    /vid[\s-]*streaming/i.test(name) ||
+    /mega[\s-]*cloud/i.test(url) ||
+    /vid[\s-]*streaming/i.test(url)
+  ) {
+    return false;
+  }
+  return (
+    /\bhd[\s-]*2\b/i.test(name) ||
+    /rapid[\s-]*cloud/i.test(name) ||
+    /vid[\s-]*cloud/i.test(name) ||
+    /rapid[\s-]*cloud/i.test(url) ||
+    /vid[\s-]*cloud/i.test(url)
+  );
+}
+
 export function pickServer(
   servers: ThemeServer[],
   serverName: string,
   category: string
 ): ThemeServer | null {
-  const cat = category.toLowerCase();
-  const want = serverName.toLowerCase().replace(/\s+/g, '-');
-  const pool = servers.filter(s => s.type === cat);
+  const cat = (category || '').toLowerCase().trim();
+  const pool = servers.filter(s => s.type?.toLowerCase() === cat);
+  if (!pool.length) return null;
 
-  const exact =
-    pool.find(s => s.serverName.toLowerCase().replace(/\s+/g, '-') === want) ||
-    pool.find(s => s.serverName.toLowerCase().includes(want.replace(/-/g, ' '))) ||
-    pool.find(s => s.serverName.toLowerCase().includes(want));
+  const rawWant = (serverName || '').trim().toLowerCase();
+  const want = rawWant.replace(/\s+/g, '-');
 
-  if (exact) return exact;
+  const wantsHd1 = /^(hd[\s-]*1|mega[\s-]*cloud|vid[\s-]*streaming)$/i.test(rawWant);
+  const wantsHd2 = /^(hd[\s-]*2|rapid[\s-]*cloud|vid[\s-]*cloud)$/i.test(rawWant);
 
-  // Prefer MegaPlay HD embeds for playback
+  if (wantsHd1) {
+    const match = pool.find(s => isHd1Server(s));
+    if (match) return match;
+  } else if (wantsHd2) {
+    const match = pool.find(s => isHd2Server(s));
+    if (match) return match;
+  } else {
+    const exact =
+      pool.find(s => s.serverName.toLowerCase().replace(/\s+/g, '-') === want) ||
+      pool.find(s => s.serverName.toLowerCase().includes(want.replace(/-/g, ' '))) ||
+      pool.find(s => s.serverName.toLowerCase().includes(want));
+    if (exact) return exact;
+  }
+
+  // Graceful fallback: prefer HD-1, then MegaPlay HD embeds, then any available
   return (
-    pool.find(s => /megaplay/i.test(s.embedUrl) && /hd-?1/i.test(s.serverName)) ||
+    pool.find(s => isHd1Server(s)) ||
+    pool.find(s => /megaplay/i.test(s.embedUrl) && /\bhd[\s-]*1\b/i.test(s.serverName)) ||
     pool.find(s => /megaplay/i.test(s.embedUrl)) ||
     pool[0] ||
     null
