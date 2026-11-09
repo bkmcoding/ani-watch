@@ -3066,9 +3066,10 @@ export const watchController = async (c: Context) => {
         return ['hd-1', 'hd-2', 'zoko', 'gogo'];
       }
 
-      function handleFailover() {
-        failoverAttempts[currentServer] = true;
-        var chain = getFailoverChain(currentServer);
+      function handleFailover(failedServer) {
+        var serverToMark = failedServer || currentServer;
+        if (serverToMark) failoverAttempts[serverToMark] = true;
+        var chain = getFailoverChain(currentServer || serverToMark);
         var available = getAvailableServersForTrack(track);
 
         var nextServer = null;
@@ -3087,8 +3088,8 @@ export const watchController = async (c: Context) => {
         }
       }
 
-      async function switchServer(newServer, isAutoFailover) {
-        if (switchingServer || newServer === currentServer) return;
+      async function switchServer(newServer, isAutoFailover, force) {
+        if (!force && (switchingServer || newServer === currentServer)) return;
         switchingServer = true;
         var savedTime = video.currentTime || 0;
         var wasPlaying = !video.paused;
@@ -3101,7 +3102,9 @@ export const watchController = async (c: Context) => {
         }
 
         try {
-          var epId = episodeId || (animeId && currentEpNum ? (animeId + '?ep=' + currentEpNum) : '');
+          var epId = (episodeId && (episodeId.indexOf('?') !== -1 || episodeId.indexOf('::') !== -1))
+            ? episodeId
+            : (animeId && currentEpNum ? (animeId + '?ep=' + currentEpNum) : (episodeId || ''));
           var srcUrl = '/api/v2/hianime/episode/sources?animeEpisodeId=' + encodeURIComponent(epId) +
                        '&server=' + encodeURIComponent(newServer) +
                        '&category=' + encodeURIComponent(track || 'sub');
@@ -3148,7 +3151,11 @@ export const watchController = async (c: Context) => {
           var onMeta = function () {
             if (restored) return;
             restored = true;
-            video.removeEventListener('loadedmetadata', onMeta);
+            try { video.removeEventListener('loadedmetadata', onMeta); } catch (e) {}
+            if (hls && typeof hls.off === 'function') {
+              try { hls.off(Hls.Events.MANIFEST_PARSED, onMeta); } catch (e) {}
+            }
+            fillQuality();
             try { video.currentTime = savedTime; } catch (e) {}
             try { video.playbackRate = savedRate; } catch (e) {}
             if (wasPlaying) {
@@ -3160,17 +3167,16 @@ export const watchController = async (c: Context) => {
             hideRecoveryOverlay();
           };
 
-          if (video.readyState >= 1) {
-            onMeta();
-          } else {
-            video.addEventListener('loadedmetadata', onMeta, { once: true });
-            setTimeout(function () {
-              if (!restored) onMeta();
-            }, 3000);
+          if (hls && typeof hls.once === 'function') {
+            hls.once(Hls.Events.MANIFEST_PARSED, onMeta);
           }
+          video.addEventListener('loadedmetadata', onMeta, { once: true });
+          setTimeout(function () {
+            if (!restored) onMeta();
+          }, 4000);
         } catch (err) {
           switchingServer = false;
-          handleFailover();
+          handleFailover(newServer);
         }
       }
 
@@ -3298,7 +3304,7 @@ export const watchController = async (c: Context) => {
             if (!data || !data.fatal) return;
             var isTokenExpiry = Boolean(data.response && (data.response.code === 403 || data.response.code === 404));
             if (isTokenExpiry) {
-              handleFailover();
+              handleFailover(currentServer);
               return;
             }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -3306,7 +3312,7 @@ export const watchController = async (c: Context) => {
                 hlsNetworkRetries++;
                 try { hls.startLoad(); return; } catch (e) {}
               }
-              handleFailover();
+              handleFailover(currentServer);
               return;
             } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
               if (hlsMediaRetries < 2) {
@@ -3314,7 +3320,7 @@ export const watchController = async (c: Context) => {
                 try { hls.recoverMediaError(); return; } catch (e) {}
               }
             }
-            handleFailover();
+            handleFailover(currentServer);
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
@@ -4163,8 +4169,10 @@ export const watchController = async (c: Context) => {
           e.preventDefault();
           e.stopPropagation();
           hideRecoveryOverlay();
+          var targetServer = currentServer || activeServer || 'hd-1';
           failoverAttempts = {};
-          switchServer(currentServer || 'hd-1', false);
+          currentServer = null;
+          switchServer(targetServer, false, true);
         });
       }
       if (recoverySwitchAudioBtn) {

@@ -42,7 +42,7 @@ describe('Zero-Reload Stream Hot-Swapping & Auto-Failover (Task 6)', () => {
     expect(html).toMatch(/(?:async\s+function\s+switchServer|var\s+switchServer\s*=\s*async\s+function)/);
 
     // Verify concurrency & redundant switch guard
-    expect(html).toMatch(/if\s*\(\s*(?:switchingServer|switching)\s*\|\|\s*newServer\s*===\s*(?:currentServer|activeServer)\s*\)\s*return/);
+    expect(html).toMatch(/if\s*\(\s*(?:!force\s*&&\s*\(?)?(?:switchingServer|switching)\s*\|\|\s*newServer\s*===\s*(?:currentServer|activeServer)\s*\)?\s*\)\s*return/);
 
     // Verify state preservation: currentTime, paused state, and playbackRate
     expect(html).toContain('video.currentTime');
@@ -104,5 +104,28 @@ describe('Zero-Reload Stream Hot-Swapping & Auto-Failover (Task 6)', () => {
 
     // Verify fallback to recovery overlay when all servers exhausted
     expect(html).toMatch(/streamRecoveryOverlay|showRecoveryOverlay/);
+  });
+
+  it('addresses review findings: retry button reset, failover tracking, manifest parsed onMeta & slug epId', async () => {
+    const app = createTestApp();
+    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&anime=one-piece&n=2&ep=2');
+    const html = await res.text();
+
+    // Finding 1: Retry button resets currentServer and failoverAttempts before switchServer call
+    expect(html).toMatch(/currentServer\s*=\s*null/);
+    expect(html).toMatch(/recoveryRetryBtn[\s\S]*?switchServer\([^)]*true\)/);
+
+    // Finding 2: handleFailover accepts failedServer argument and switchServer catch passes newServer
+    expect(html).toMatch(/function\s+handleFailover\s*\(\s*failedServer\s*\)/);
+    expect(html).toMatch(/handleFailover\(\s*newServer\s*\)/);
+    expect(html).toMatch(/failoverAttempts\[\s*(?:failedServer\s*\|\|\s*currentServer|serverToMark)\s*\]\s*=\s*true/);
+
+    // Finding 3: Listen for hls.once MANIFEST_PARSED & invoke fillQuality() in onMeta without synchronous readyState check
+    expect(html).toMatch(/hls\.once\(\s*Hls\.Events\.MANIFEST_PARSED\s*,\s*onMeta\s*\)/);
+    expect(html).not.toMatch(/if\s*\(\s*video\.readyState\s*>=\s*1\s*\)\s*\{\s*onMeta\(\);?\s*\}/);
+    expect(html).toMatch(/function\s+switchServer[\s\S]*?fillQuality\(\)/);
+
+    // Finding 4: Numeric ep param is properly composed with anime slug
+    expect(html).toMatch(/epId\s*=[\s\S]*?(?:indexOf\(['"]\?['"]\)|indexOf\(['"]::['"]\))/);
   });
 });
