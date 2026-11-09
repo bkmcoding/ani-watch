@@ -1716,8 +1716,12 @@ export const watchController = async (c: Context) => {
             <div class="shortcut-row"><kbd>Space</kbd> / <kbd>K</kbd> <span>Play / Pause</span></div>
             <div class="shortcut-row"><kbd>J</kbd> / <kbd>L</kbd> <span>Seek -10s / +10s</span></div>
             <div class="shortcut-row"><kbd>←</kbd> / <kbd>→</kbd> <span>Seek -5s / +5s</span></div>
+            <div class="shortcut-row"><kbd>0</kbd>–<kbd>9</kbd> <span>Seek 0%–90%</span></div>
             <div class="shortcut-row"><kbd>↑</kbd> / <kbd>↓</kbd> <span>Volume Up / Down</span></div>
             <div class="shortcut-row"><kbd>M</kbd> <span>Mute / Unmute</span></div>
+            <div class="shortcut-row"><kbd>&lt;</kbd> / <kbd>&gt;</kbd> <span>Playback Speed</span></div>
+            <div class="shortcut-row"><kbd>S</kbd> / <kbd>D</kbd> <span>Sub / Dub Audio</span></div>
+            <div class="shortcut-row"><kbd>E</kbd> <span>Episode Drawer</span></div>
             <div class="shortcut-row"><kbd>P</kbd> <span>Picture-in-Picture</span></div>
             <div class="shortcut-row"><kbd>T</kbd> <span>Theater Mode</span></div>
             <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
@@ -3779,6 +3783,20 @@ export const watchController = async (c: Context) => {
         seekWrap.addEventListener('touchmove', function (e) {
           if (e.touches && e.touches[0]) updateScrubTooltip(e.touches[0].clientX);
         }, { passive: true });
+        seekWrap.addEventListener('wheel', function (e) {
+          if (window.matchMedia('(pointer: coarse)').matches) return;
+          e.preventDefault();
+          e.stopPropagation();
+          var step = 5;
+          if (e.deltaY < 0) {
+            video.currentTime = Math.min((video.duration || 0), video.currentTime + step);
+            showOsd('⏩', '+5s');
+          } else {
+            video.currentTime = Math.max(0, video.currentTime - step);
+            showOsd('⏪', '-5s');
+          }
+          pokeControls();
+        }, { passive: false });
       }
 
       if (skipBtn) {
@@ -3924,6 +3942,15 @@ export const watchController = async (c: Context) => {
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
         else if (e.key === ',' || e.key === '<') cycleRate(-1);
         else if (e.key === '.' || e.key === '>') cycleRate(1);
+        else if (e.key >= '0' && e.key <= '9') {
+          if (video.duration && isFinite(video.duration)) {
+            e.preventDefault();
+            var frac = parseInt(e.key, 10) / 10;
+            var targetTime = frac * video.duration;
+            video.currentTime = targetTime;
+            showOsd('⏩', e.key === '0' ? '0:00' : (e.key + '0% · ' + fmt(targetTime)));
+          }
+        }
         else if (e.key === 'ArrowRight') {
           e.preventDefault();
           video.currentTime = Math.min((video.duration || 0), video.currentTime + 5);
