@@ -102,6 +102,9 @@ export const watchController = async (c: Context) => {
   const epTotal = c.req.query('total') || null;
   const prevEpisodeId = parseEpisodeIdParam(c.req.query('prevEp') || undefined);
   const nextEpisodeId = parseEpisodeIdParam(c.req.query('nextEp') || undefined);
+  const episodeId = parseEpisodeIdParam(
+    c.req.query('ep') || c.req.query('episodeId') || c.req.query('animeEpisodeId') || undefined
+  );
   const legacyPrev = c.req.query('prev') || null;
   const legacyNext = c.req.query('next') || null;
   const subIntro = parseSkipRange(c.req.query('is') || undefined, c.req.query('ie') || undefined);
@@ -663,6 +666,59 @@ export const watchController = async (c: Context) => {
     .ap-count {
       display: block; font-family: Syne, sans-serif; font-size: 2.05rem; font-weight: 800; color: var(--accent);
       line-height: 1; text-align: center; margin-bottom: 4px;
+    }
+
+    /* Stream recovery overlay */
+    .recovery-overlay {
+      position: absolute; inset: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(10, 12, 16, 0.88); backdrop-filter: blur(8px);
+      padding: 16px;
+      transition: opacity 0.25s ease;
+    }
+    .recovery-overlay[hidden] { display: none !important; }
+    .recovery-card {
+      background: var(--panel, #0e121a);
+      border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+      border-radius: var(--radius-lg, 14px);
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      animation: apIn 0.25s var(--ease);
+    }
+    .recovery-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+    .recovery-title {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--ink, #e8edf5);
+    }
+    .recovery-desc {
+      margin: 0 0 18px;
+      font-size: 0.88rem;
+      color: var(--muted, #8b95a8);
+      line-height: 1.4;
+    }
+    .recovery-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .recovery-actions .pill {
+      flex: 1 1 auto;
+      min-height: 38px;
+      min-width: 44px;
+    }
+    .recovery-retry {
+      background: var(--accent-dim, rgba(61, 214, 198, 0.18));
+      color: var(--accent, #3dd6c6);
+      border: 1px solid rgba(61, 214, 198, 0.35);
     }
 
     /* Episode progress dots */
@@ -1841,6 +1897,19 @@ export const watchController = async (c: Context) => {
           </div>
         </div>
 
+        <div class="recovery-overlay" id="streamRecoveryOverlay" hidden aria-hidden="true" role="alertdialog" aria-labelledby="recoveryTitle" aria-describedby="recoveryDesc">
+          <div class="recovery-card">
+            <div class="recovery-icon" aria-hidden="true">⚠️</div>
+            <h3 id="recoveryTitle" class="recovery-title">Playback Interrupted</h3>
+            <p id="recoveryDesc" class="recovery-desc">Playback failed on all available servers.</p>
+            <div class="recovery-actions">
+              <button type="button" class="pill recovery-retry" id="recoveryRetryBtn">⟳ Retry</button>
+              <button type="button" class="pill recovery-switch" id="recoverySwitchAudioBtn">⇄ Switch Audio</button>
+              <button type="button" class="pill recovery-close" id="recoveryCloseBtn">✕ Close</button>
+            </div>
+          </div>
+        </div>
+
         <div class="ep-panel" id="epPanel" role="dialog" aria-modal="true" aria-label="Episode list" hidden>
           <div class="sheet-handle" aria-hidden="true"></div>
           <div class="ep-panel-head">
@@ -2111,6 +2180,10 @@ export const watchController = async (c: Context) => {
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
       var track = ${safeJson(initial)};
       var activeServer = ${safeJson(activeServer)};
+      var currentServer = activeServer;
+      var switchingServer = false;
+      var failoverAttempts = {};
+      var episodeId = ${safeJson(episodeId)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
       var stage = document.getElementById('stage');
@@ -2167,6 +2240,10 @@ export const watchController = async (c: Context) => {
       var epSearchClear = document.getElementById('epSearchClear');
       var sheetBackdrop = document.getElementById('sheetBackdrop');
       var settingsClose = document.getElementById('settingsClose');
+      var streamRecoveryOverlay = document.getElementById('streamRecoveryOverlay');
+      var recoveryRetryBtn = document.getElementById('recoveryRetryBtn');
+      var recoverySwitchAudioBtn = document.getElementById('recoverySwitchAudioBtn');
+      var recoveryCloseBtn = document.getElementById('recoveryCloseBtn');
       var gestureLeft = document.getElementById('gestureLeft');
       var gestureRight = document.getElementById('gestureRight');
       var hideTimer = null;
@@ -2894,7 +2971,10 @@ export const watchController = async (c: Context) => {
       }
 
       function syncServerChips(selectedServer) {
-        if (selectedServer) activeServer = selectedServer;
+        if (selectedServer) {
+          activeServer = selectedServer;
+          currentServer = selectedServer;
+        }
         var chips = document.querySelectorAll('.server-chips [data-server]');
         chips.forEach(function (btn) {
           var s = btn.getAttribute('data-server');
@@ -2940,6 +3020,157 @@ export const watchController = async (c: Context) => {
         });
         if (!activeStillValid) {
           syncServerChips('hd-1');
+        }
+      }
+
+      function showRecoveryOverlay() {
+        if (streamRecoveryOverlay) {
+          streamRecoveryOverlay.hidden = false;
+          streamRecoveryOverlay.removeAttribute('hidden');
+          streamRecoveryOverlay.setAttribute('aria-hidden', 'false');
+        }
+        stage.classList.remove('is-loading');
+        setPlaying(false);
+      }
+
+      function hideRecoveryOverlay() {
+        if (streamRecoveryOverlay) {
+          streamRecoveryOverlay.hidden = true;
+          streamRecoveryOverlay.setAttribute('hidden', '');
+          streamRecoveryOverlay.setAttribute('aria-hidden', 'true');
+        }
+      }
+
+      function serverLabel(s) {
+        var labels = {
+          'hd-1': 'HD-1',
+          'hd-2': 'HD-2',
+          'zoko': 'Zoko',
+          'gogo': 'Gogo'
+        };
+        return labels[s] || s;
+      }
+
+      function getFailoverChain(fromServer) {
+        if (fromServer === 'hd-2') {
+          return ['hd-2', 'hd-1', 'zoko', 'gogo'];
+        }
+        return ['hd-1', 'hd-2', 'zoko', 'gogo'];
+      }
+
+      function getAvailableServersForTrack(t) {
+        var tTrack = t || track;
+        if (tTrack === 'dub') {
+          return ['hd-1', 'hd-2', 'gogo'];
+        }
+        return ['hd-1', 'hd-2', 'zoko', 'gogo'];
+      }
+
+      function handleFailover() {
+        failoverAttempts[currentServer] = true;
+        var chain = getFailoverChain(currentServer);
+        var available = getAvailableServersForTrack(track);
+
+        var nextServer = null;
+        for (var i = 0; i < chain.length; i++) {
+          var s = chain[i];
+          if (available.indexOf(s) !== -1 && !failoverAttempts[s] && s !== currentServer) {
+            nextServer = s;
+            break;
+          }
+        }
+
+        if (nextServer) {
+          switchServer(nextServer, true);
+        } else {
+          showRecoveryOverlay();
+        }
+      }
+
+      async function switchServer(newServer, isAutoFailover) {
+        if (switchingServer || newServer === currentServer) return;
+        switchingServer = true;
+        var savedTime = video.currentTime || 0;
+        var wasPlaying = !video.paused;
+        var savedRate = video.playbackRate || rate || 1;
+
+        if (isAutoFailover) {
+          showOsd('⚠️', 'Server error · Auto-switching to ' + serverLabel(newServer) + '…');
+        } else {
+          showOsd('⚡', 'Switching to ' + serverLabel(newServer) + '…');
+        }
+
+        try {
+          var epId = episodeId || (animeId && currentEpNum ? (animeId + '?ep=' + currentEpNum) : '');
+          var srcUrl = '/api/v2/hianime/episode/sources?animeEpisodeId=' + encodeURIComponent(epId) +
+                       '&server=' + encodeURIComponent(newServer) +
+                       '&category=' + encodeURIComponent(track || 'sub');
+          var res = await fetch(srcUrl);
+          if (!res.ok) throw new Error('Sources HTTP ' + res.status);
+          var json = await res.json();
+          var data = json && json.data ? json.data : json;
+          var newM3u8 = (data.tracks && data.tracks[track] && data.tracks[track].streamUrl) ||
+                        (data.sources && data.sources.find(function (s) { return s.isM3U8; }) && data.sources.find(function (s) { return s.isM3U8; }).url) ||
+                        (data.sources && data.sources[0] && data.sources[0].url) ||
+                        data.m3u8;
+          if (!newM3u8) throw new Error('No stream for server ' + newServer);
+
+          streams[track] = newM3u8;
+          if (data.tracks && data.tracks[track]) {
+            var trk = data.tracks[track];
+            if (trk.englishCc && trk.englishCc.url) {
+              captions[track] = trk.englishCc.url;
+            }
+            if (trk.intro || trk.outro) {
+              skips[track] = { intro: trk.intro, outro: trk.outro };
+            }
+            if (trk.provider) {
+              providers[track] = trk.provider;
+              updateProviderBadge();
+            }
+          }
+          syncAudioButtons();
+          syncCcButtons();
+
+          currentServer = newServer;
+          activeServer = newServer;
+          try { localStorage.setItem('ani.preferredServer', newServer); } catch (e) {}
+          syncServerChips(newServer);
+
+          if (hls) {
+            hls.loadSource(newM3u8);
+            hls.attachMedia(video);
+          } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = newM3u8;
+          }
+
+          var restored = false;
+          var onMeta = function () {
+            if (restored) return;
+            restored = true;
+            video.removeEventListener('loadedmetadata', onMeta);
+            try { video.currentTime = savedTime; } catch (e) {}
+            try { video.playbackRate = savedRate; } catch (e) {}
+            if (wasPlaying) {
+              video.play().catch(function () { setPlaying(false); });
+            }
+            showOsd('✓', 'Switched to ' + serverLabel(newServer));
+            switchingServer = false;
+            failoverAttempts = {};
+            hideRecoveryOverlay();
+          };
+
+          if (video.readyState >= 1) {
+            onMeta();
+          } else {
+            video.addEventListener('loadedmetadata', onMeta, { once: true });
+            setTimeout(function () {
+              if (!restored) onMeta();
+            }, 3000);
+          }
+        } catch (err) {
+          switchingServer = false;
+          handleFailover();
         }
       }
 
@@ -3065,25 +3296,25 @@ export const watchController = async (c: Context) => {
           });
           hls.on(Hls.Events.ERROR, function (_e, data) {
             if (!data || !data.fatal) return;
+            var isTokenExpiry = Boolean(data.response && (data.response.code === 403 || data.response.code === 404));
+            if (isTokenExpiry) {
+              handleFailover();
+              return;
+            }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              // Cap manual recovery attempts — don't loop forever on a dead CDN
-              if (hlsNetworkRetries < 2) {
+              if (hlsNetworkRetries < 1) {
                 hlsNetworkRetries++;
                 try { hls.startLoad(); return; } catch (e) {}
               }
+              handleFailover();
+              return;
             } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
               if (hlsMediaRetries < 2) {
                 hlsMediaRetries++;
                 try { hls.recoverMediaError(); return; } catch (e) {}
               }
             }
-            var alt = next === 'sub' ? 'dub' : 'sub';
-            var hasAlt = Boolean(streams[alt]);
-            if (hasAlt) {
-              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + ').', alt);
-            } else {
-              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try another server.');
-            }
+            handleFailover();
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
@@ -3402,7 +3633,7 @@ export const watchController = async (c: Context) => {
       });
       stage.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
@@ -3412,7 +3643,7 @@ export const watchController = async (c: Context) => {
 
       stage.addEventListener('dblclick', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         toggleFs();
@@ -3458,7 +3689,7 @@ export const watchController = async (c: Context) => {
 
       stage.addEventListener('pointerup', function (e) {
         if (!window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
 
@@ -3921,14 +4152,42 @@ export const watchController = async (c: Context) => {
           e.preventDefault();
           e.stopPropagation();
           var s = btn.getAttribute('data-server');
-          if (s && s !== activeServer) {
-            syncServerChips(s);
-            if (typeof switchServer === 'function') {
-              switchServer(s);
-            }
+          if (s) {
+            switchServer(s, false);
           }
         });
       });
+
+      if (recoveryRetryBtn) {
+        recoveryRetryBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideRecoveryOverlay();
+          failoverAttempts = {};
+          switchServer(currentServer || 'hd-1', false);
+        });
+      }
+      if (recoverySwitchAudioBtn) {
+        recoverySwitchAudioBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideRecoveryOverlay();
+          failoverAttempts = {};
+          var alt = track === 'sub' ? 'dub' : 'sub';
+          if (streams[alt]) {
+            loadTrack(alt, true);
+          } else {
+            showOsd('⚠️', 'Other audio track unavailable');
+          }
+        });
+      }
+      if (recoveryCloseBtn) {
+        recoveryCloseBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideRecoveryOverlay();
+        });
+      }
 
       seek.addEventListener('input', function () {
         if (!video.duration) return;
