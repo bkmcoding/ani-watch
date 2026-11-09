@@ -1,5 +1,13 @@
-import { parseThemeServers, pickServer, resolveMegaPlaySources, ThemeServer } from './megaplay';
+import {
+  isHd1Server,
+  isHd2Server,
+  parseThemeServers,
+  pickServer,
+  resolveMegaPlaySources,
+  ThemeServer,
+} from './megaplay';
 import { resolveZokoSources } from './zoko';
+import { resolveGogoSources } from './gogoanime';
 import { extractEpisodes } from '../extractors/extractEpisodes';
 import {
   animeNumericId,
@@ -20,22 +28,59 @@ import { scrapeCache } from '../lib/ttlCache';
 
 const STREAM_TTL_MS = 180_000; // 3 minutes
 
-type ResolvedTrack = {
+export type ProviderId = 'megaplay' | 'zoko' | 'gogoanime';
+
+export type AvailableProvider = {
+  id: ProviderId;
+  label: string;
+  preferred: boolean;
+  categories: Array<'sub' | 'dub'>;
+  capabilities: {
+    introOutro: boolean;
+    softsubs: boolean;
+  };
+};
+
+export type ResolvedTrack = {
   category: 'sub' | 'dub';
-  provider: 'megaplay' | 'zoko';
+  provider: ProviderId;
   server: string;
   m3u8: string;
   stream: Awaited<ReturnType<typeof resolveMegaPlaySources>>;
 };
 
-function isMegaServer(s: ThemeServer): boolean {
-  return /(?:megaplay|megacloud)/i.test(s.embedUrl) || /hd-?[12]/i.test(s.serverName);
-}
+const PROVIDER_META: Record<
+  ProviderId,
+  {
+    label: string;
+    preferred: boolean;
+    capabilities: { introOutro: boolean; softsubs: boolean };
+  }
+> = {
+  megaplay: {
+    label: 'MegaPlay',
+    preferred: true,
+    capabilities: { introOutro: true, softsubs: true },
+  },
+  zoko: {
+    label: 'Zoko',
+    preferred: false,
+    capabilities: { introOutro: false, softsubs: true },
+  },
+  gogoanime: {
+    label: 'GogoAnime',
+    preferred: false,
+    capabilities: { introOutro: false, softsubs: false },
+  },
+};
 
-function pickMegaPlay(servers: ThemeServer[], category: string, server: string) {
-  const picked = pickServer(servers, server, category);
-  if (picked && isMegaServer(picked)) return picked;
-  return pickServer(servers.filter(isMegaServer), 'hd-1', category);
+function isMegaServer(s: ThemeServer): boolean {
+  return (
+    /(?:megaplay|megacloud|rapid-?cloud|vidcloud|vidstreaming)/i.test(s.embedUrl) ||
+    /hd-?[12]/i.test(s.serverName) ||
+    isHd1Server(s) ||
+    isHd2Server(s)
+  );
 }
 
 function pickZoko(servers: ThemeServer[], category: string) {
@@ -45,28 +90,84 @@ function pickZoko(servers: ThemeServer[], category: string) {
   return pool[0] || null;
 }
 
+export function serverLabel(server: string): string {
+  const norm = (server || '').toLowerCase().trim();
+  if (/^(hd-?1|megacloud|vidstreaming)$/i.test(norm)) return 'HD-1';
+  if (/^(hd-?2|rapidcloud|vidcloud)$/i.test(norm)) return 'HD-2';
+  if (/^zoko$/i.test(norm)) return 'Zoko';
+  if (/^(gogo|gogoanime|anitaku)$/i.test(norm)) return 'GogoAnime';
+  return server ? server.toUpperCase() : 'Unknown';
+}
+
+export function providerLabel(id: string | null | undefined): string {
+  if (id === 'megaplay') return PROVIDER_META.megaplay.label;
+  if (id === 'zoko') return PROVIDER_META.zoko.label;
+  if (id === 'gogoanime') return PROVIDER_META.gogoanime.label;
+  return id || 'Unknown';
+}
+
+function detectProvider(embedUrl: string): ProviderId | null {
+  if (/(?:megaplay|megacloud)/i.test(embedUrl)) return 'megaplay';
+  if (/zoko/i.test(embedUrl)) return 'zoko';
+  if (/gogo/i.test(embedUrl) || /anitaku/i.test(embedUrl)) return 'gogoanime';
+  return null;
+}
+
+type StreamStep = 'hd-1' | 'hd-2' | 'zoko' | 'gogo';
+
+function getFallbackChain(server: string): StreamStep[] {
+  const norm = (server || '').toLowerCase().trim();
+  if (norm === 'hd-2' || /^(hd[\s-]*2|rapid[\s-]*cloud|vid[\s-]*cloud)$/i.test(norm)) {
+    return ['hd-2', 'hd-1', 'zoko', 'gogo'];
+  }
+  if (norm === 'zoko' || /zoko/i.test(norm)) {
+    return ['zoko', 'hd-1', 'hd-2', 'gogo'];
+  }
+  if (norm === 'gogo' || /^(gogo|gogoanime|anitaku)$/i.test(norm)) {
+    return ['gogo', 'hd-1', 'hd-2', 'zoko'];
+  }
+  return ['hd-1', 'hd-2', 'zoko', 'gogo'];
+}
+
 export async function resolveCategory(
   servers: ThemeServer[],
   category: 'sub' | 'dub',
   server: string,
-  episodeId: string
+  episodeId: string,
+  animeTitle?: string | null
 ): Promise<ResolvedTrack | null> {
-  const cacheKey = `stream:${episodeId}:${category}:${server}`;
+  const normServer = (server || 'hd-1').toLowerCase().trim();
+  const cacheKey = `stream:${episodeId}:${category}:${normServer}`;
   const hit = scrapeCache.get(cacheKey) as ResolvedTrack | undefined;
   if (hit) return hit;
 
-  const wantsZoko = /zoko/i.test(server);
-
-  const tryMegaPlay = async (): Promise<ResolvedTrack | null> => {
-    const mega = pickMegaPlay(servers, category, server);
-    if (!mega) return null;
+  const tryMegaPlayHd1 = async (): Promise<ResolvedTrack | null> => {
+    const mega = pickServer(servers, 'hd-1', category);
+    if (!mega || !isMegaServer(mega)) return null;
+    if (isHd2Server(mega) && !isHd1Server(mega)) return null;
     const stream = await resolveMegaPlaySources(mega.embedUrl);
     const m3u8 = stream.sources[0]?.url;
     if (!m3u8) return null;
     return {
       category,
       provider: 'megaplay' as const,
-      server: mega.serverName.toLowerCase().replace(/\s+/g, '-'),
+      server: isHd1Server(mega) ? 'hd-1' : mega.serverName.toLowerCase().replace(/\s+/g, '-'),
+      m3u8,
+      stream,
+    };
+  };
+
+  const tryMegaPlayHd2 = async (): Promise<ResolvedTrack | null> => {
+    const mega = pickServer(servers, 'hd-2', category);
+    if (!mega || !isMegaServer(mega)) return null;
+    if (isHd1Server(mega) && !isHd2Server(mega)) return null;
+    const stream = await resolveMegaPlaySources(mega.embedUrl);
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      provider: 'megaplay' as const,
+      server: isHd2Server(mega) ? 'hd-2' : mega.serverName.toLowerCase().replace(/\s+/g, '-'),
       m3u8,
       stream,
     };
@@ -81,40 +182,75 @@ export async function resolveCategory(
     return {
       category,
       provider: 'zoko' as const,
-      server: zoko.serverName.toLowerCase().replace(/\s+/g, '-'),
+      server: 'zoko',
       m3u8,
       stream: stream as unknown as Awaited<ReturnType<typeof resolveMegaPlaySources>>,
     };
   };
 
-  const [primaryFn, fallbackFn, primaryName, fallbackName] = wantsZoko
-    ? [tryZoko, tryMegaPlay, 'Zoko', 'MegaPlay']
-    : [tryMegaPlay, tryZoko, 'MegaPlay', 'Zoko'];
+  const tryGogo = async (): Promise<ResolvedTrack | null> => {
+    let epNum: string | number = '';
+    try {
+      epNum = episodeNumericId(episodeId);
+    } catch {
+      const match = episodeId.match(/(\d+)(?!.*\d)/);
+      epNum = match ? match[1] : '1';
+    }
+    const slug = animeSlugFromEpisodeId(episodeId);
+    const targetTitle = animeTitle || slug || '';
+    if (!targetTitle) return null;
+
+    const stream =
+      category === 'dub'
+        ? await resolveGogoSources(targetTitle, epNum, 'dub')
+        : await resolveGogoSources(targetTitle, epNum);
+    if (!stream) return null;
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+
+    return {
+      category,
+      provider: 'gogoanime' as const,
+      server: 'gogo',
+      m3u8,
+      stream: stream as unknown as Awaited<ReturnType<typeof resolveMegaPlaySources>>,
+    };
+  };
+
+  const chain = getFallbackChain(normServer);
+  const resolvers: Record<StreamStep, () => Promise<ResolvedTrack | null>> = {
+    'hd-1': tryMegaPlayHd1,
+    'hd-2': tryMegaPlayHd2,
+    zoko: tryZoko,
+    gogo: tryGogo,
+  };
 
   let resolved: ResolvedTrack | null = null;
-
-  try {
-    resolved = await primaryFn();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `[Stream Resolver] ${primaryName} failed for ${episodeId} (${category}): ${msg}. Auto-failing over to ${fallbackName}...`
-    );
-  }
-
-  if (!resolved) {
+  for (let i = 0; i < chain.length; i++) {
+    const step = chain[i];
+    const fn = resolvers[step];
     try {
-      resolved = await fallbackFn();
+      resolved = await fn();
       if (resolved) {
-        console.info(
-          `[Stream Resolver] Auto-failover to ${fallbackName} succeeded for ${episodeId} (${category}).`
-        );
+        if (i > 0) {
+          console.info(
+            `[Stream Resolver] Auto-failover to ${step} succeeded for ${episodeId} (${category}).`
+          );
+        }
+        break;
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[Stream Resolver] Fallback ${fallbackName} failed for ${episodeId} (${category}): ${msg}`
-      );
+      const nextStep = chain[i + 1];
+      if (nextStep) {
+        console.warn(
+          `[Stream Resolver] ${step} failed for ${episodeId} (${category}): ${msg}. Auto-failing over to ${nextStep}...`
+        );
+      } else {
+        console.warn(
+          `[Stream Resolver] ${step} failed for ${episodeId} (${category}): ${msg}. No more fallbacks available.`
+        );
+      }
     }
   }
 
@@ -184,19 +320,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   });
 }
 
-export type ProviderId = 'megaplay' | 'zoko';
-
-export type AvailableProvider = {
-  id: ProviderId;
-  label: string;
-  preferred: boolean;
-  categories: Array<'sub' | 'dub'>;
-  capabilities: {
-    introOutro: boolean;
-    softsubs: boolean;
-  };
-};
-
 export type EpisodePlayback = {
   link: string;
   tracks: Record<string, unknown>;
@@ -205,6 +328,7 @@ export type EpisodePlayback = {
   sources: Array<Record<string, unknown>>;
   headers: Record<string, string>;
   server: string;
+  serverLabel: string;
   category: string;
   provider: string;
   providerLabel: string;
@@ -226,34 +350,8 @@ export type EpisodePlayback = {
   malID?: unknown;
 };
 
-const PROVIDER_META: Record<
-  ProviderId,
-  {
-    label: string;
-    preferred: boolean;
-    capabilities: { introOutro: boolean; softsubs: boolean };
-  }
-> = {
-  megaplay: {
-    label: 'MegaPlay',
-    preferred: true,
-    capabilities: { introOutro: true, softsubs: true },
-  },
-  zoko: {
-    label: 'Zoko',
-    preferred: false,
-    capabilities: { introOutro: false, softsubs: true },
-  },
-};
-
-function detectProvider(embedUrl: string): ProviderId | null {
-  if (/(?:megaplay|megacloud)/i.test(embedUrl)) return 'megaplay';
-  if (/zoko/i.test(embedUrl)) return 'zoko';
-  return null;
-}
-
 /** Providers listed on the theme server panel (not necessarily resolved yet). */
-function buildAvailableProviders(
+export function buildAvailableProviders(
   servers: ThemeServer[],
   categories: Array<'sub' | 'dub'>
 ): AvailableProvider[] {
@@ -269,7 +367,16 @@ function buildAvailableProviders(
     byId.set(id, entry);
   }
 
-  const order: ProviderId[] = ['megaplay', 'zoko'];
+  // GogoAnime fallback resilience provider: available across active categories
+  if (categories.length > 0) {
+    const gogoEntry = byId.get('gogoanime') || { categories: new Set() };
+    for (const cat of categories) {
+      gogoEntry.categories.add(cat);
+    }
+    byId.set('gogoanime', gogoEntry);
+  }
+
+  const order: ProviderId[] = ['megaplay', 'zoko', 'gogoanime'];
   return order
     .filter(id => byId.has(id))
     .map(id => {
@@ -284,13 +391,7 @@ function buildAvailableProviders(
     });
 }
 
-function providerLabel(id: string | null | undefined): string {
-  if (id === 'megaplay') return PROVIDER_META.megaplay.label;
-  if (id === 'zoko') return PROVIDER_META.zoko.label;
-  return id || 'Unknown';
-}
-
-/** Resolve MegaPlay/Zoko streams + watch link (+ prev/next play URLs). */
+/** Resolve MegaPlay/Zoko/Gogo streams + watch link (+ prev/next play URLs). */
 export async function resolveEpisodePlayback(
   origin: string,
   animeEpisodeId: string,
@@ -305,6 +406,7 @@ export async function resolveEpisodePlayback(
   const slug = animeSlugFromEpisodeId(episodeId);
   const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
   const wantNav = opts?.nav !== false;
+  const animeTitle = titleFromAnimeSlug(slug);
 
   const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
   if (!result.success || !result.data) {
@@ -312,7 +414,7 @@ export async function resolveEpisodePlayback(
   }
 
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  const hasPreferred = servers.some(s => s.type === preferred);
+  const hasPreferred = servers.some(s => s.type === preferred) || server === 'gogo';
   const hasOther = servers.some(s => s.type === other);
 
   const neighborsPromise = wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
@@ -322,13 +424,16 @@ export async function resolveEpisodePlayback(
   const OTHER_CATEGORY_BUDGET_MS = 3_500;
 
   const primary = hasPreferred
-    ? await resolveCategory(servers, preferred, server, episodeId)
+    ? await resolveCategory(servers, preferred, server, episodeId, animeTitle)
     : null;
 
   // Best-effort secondary track + neighbors in parallel with a short budget.
   const [secondary, neighbors] = await Promise.all([
     hasOther
-      ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS)
+      ? withTimeout(
+          resolveCategory(servers, other, server, episodeId, animeTitle),
+          OTHER_CATEGORY_BUDGET_MS
+        )
       : Promise.resolve(null),
     withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS),
   ]);
@@ -347,7 +452,6 @@ export async function resolveEpisodePlayback(
 
   const subCc = pickEnglishSubtitle(subTrack?.stream.subtitles);
   const dubCc = pickEnglishSubtitle(dubTrack?.stream.subtitles);
-  const animeTitle = titleFromAnimeSlug(slug);
   const episodeTitle = neighbors?.current?.title || null;
   const episodeNumber = neighbors?.current?.episodeNumber ?? (Number(epNum) || null);
 
@@ -404,6 +508,7 @@ export async function resolveEpisodePlayback(
       streamUrl: proxiedHlsUrl(origin, track.m3u8),
       originalUrl: track.m3u8,
       server: track.server,
+      serverLabel: serverLabel(track.server),
       provider: track.provider,
       providerLabel: providerLabel(track.provider),
       capabilities: {
@@ -446,6 +551,7 @@ export async function resolveEpisodePlayback(
       'User-Agent': active.stream.headers['User-Agent'] || '',
     },
     server: active.server,
+    serverLabel: serverLabel(active.server),
     category: active.category,
     provider: active.provider,
     providerLabel: providerLabel(active.provider),

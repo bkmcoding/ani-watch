@@ -3402,37 +3402,84 @@ export const browseController = async (c: Context) => {
         setStatus('Resolving stream…');
         try {
           var audioCat = state.audioPref || 'sub';
-          var params = new URLSearchParams({
-            animeEpisodeId: String(episodeId).replace('::', '?'),
-            server: 'hd-1',
-            category: audioCat,
-          });
-          var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString(), 25000);
-          var link =
-            data.link ||
-            (data.tracks && data.tracks[audioCat] && data.tracks[audioCat].link) ||
-            (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
-            (data.sources && data.sources[0] && data.sources[0].url);
-          if (!link) throw new Error('No watch link returned.');
-          // Save anime metadata so the watch page can store the poster in CW entries
-          if (state.anime && state.anime.id) {
-            try {
-              var posterVal = state.anime.poster;
-              var posterStr = Array.isArray(posterVal) ? posterVal[0] : (posterVal || null);
-              localStorage.setItem(
-                'ani.meta.' + state.anime.id,
-                JSON.stringify({ id: state.anime.id, name: state.anime.name || state.anime.id, poster: posterStr })
-              );
-            } catch (e) {}
+          var preferredServer = 'hd-1';
+          try {
+            preferredServer = (localStorage.getItem('ani.preferredServer') || 'hd-1').toLowerCase();
+          } catch (e) {
+            preferredServer = 'hd-1';
           }
-          setStatus('Playing in cinema…');
-          var epNum = ep.number;
-          var raw = String(ep.title || ep.alternativeTitle || '').trim();
-          var generic = !raw || /^episode\\s*#?\\s*\\d+$/i.test(raw) || (epNum != null && raw === String(epNum));
-          var epTag = epNum != null ? 'Ep ' + epNum : 'Episode';
-          var epLabel = (generic ? epTag : epTag + ' · ' + raw) + ' (' + audioCat.toUpperCase() + ')';
-          var animeName = (state.anime && (state.anime.name || state.anime.title)) || 'Anime';
-          openCinema(link, animeName, epLabel);
+          if (audioCat === 'dub' && preferredServer === 'zoko') {
+            preferredServer = 'hd-1';
+          }
+          var baseServers = ['hd-1', 'hd-2', 'zoko', 'gogo'];
+          if (audioCat === 'dub') {
+            baseServers = ['hd-1', 'hd-2', 'gogo'];
+          }
+          if (baseServers.indexOf(preferredServer) === -1) {
+            preferredServer = 'hd-1';
+          }
+          var chain = [preferredServer];
+          for (var i = 0; i < baseServers.length; i++) {
+            if (chain.indexOf(baseServers[i]) === -1) {
+              chain.push(baseServers[i]);
+            }
+          }
+
+          var resolved = false;
+          for (var s = 0; s < chain.length; s++) {
+            var server = chain[s];
+            try {
+              var params = new URLSearchParams({
+                animeEpisodeId: String(episodeId).replace('::', '?'),
+                server: server,
+                category: audioCat,
+              });
+              var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString(), 25000);
+              var link =
+                data &&
+                (data.link ||
+                  (data.tracks && data.tracks[audioCat] && data.tracks[audioCat].link) ||
+                  (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
+                  (data.sources && data.sources[0] && data.sources[0].url));
+              if (!link) throw new Error('No watch link returned.');
+              if (link.indexOf('server=') === -1) {
+                link += (link.indexOf('?') === -1 ? '?' : '&') + 'server=' + encodeURIComponent(server);
+              }
+              if (server !== preferredServer) {
+                try {
+                  localStorage.setItem('ani.preferredServer', server);
+                } catch (e) {}
+              }
+              // Save anime metadata so the watch page can store the poster in CW entries
+              if (state.anime && state.anime.id) {
+                try {
+                  var posterVal = state.anime.poster;
+                  var posterStr = Array.isArray(posterVal) ? posterVal[0] : (posterVal || null);
+                  localStorage.setItem(
+                    'ani.meta.' + state.anime.id,
+                    JSON.stringify({ id: state.anime.id, name: state.anime.name || state.anime.title, poster: posterStr })
+                  );
+                } catch (e) {}
+              }
+              setStatus('Playing in cinema…');
+              var epNum = ep.number;
+              var raw = String(ep.title || ep.alternativeTitle || '').trim();
+              var generic = !raw || /^episode\\s*#?\\s*\\d+$/i.test(raw) || (epNum != null && raw === String(epNum));
+              var epTag = epNum != null ? 'Ep ' + epNum : 'Episode';
+              var epLabel = (generic ? epTag : epTag + ' · ' + raw) + ' (' + audioCat.toUpperCase() + ')';
+              var animeName = (state.anime && (state.anime.name || state.anime.title)) || 'Anime';
+              openCinema(link, animeName, epLabel);
+              resolved = true;
+              break;
+            } catch (err) {
+              if (s < chain.length - 1) {
+                setStatus('Server ' + server + ' unavailable, trying fallback…');
+              }
+            }
+          }
+          if (!resolved) {
+            setStatus('Could not resolve stream across available servers.', true);
+          }
         } catch (err) {
           setStatus((err && err.message) || 'Could not resolve stream', true);
         } finally {

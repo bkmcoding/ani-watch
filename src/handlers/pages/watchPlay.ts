@@ -22,7 +22,10 @@ const watchPlayController = async (c: Context) => {
       server,
       category,
     });
-    return c.redirect(playback.link, 302);
+    const redirectUrl = playback.link.includes('?')
+      ? `${playback.link}&server=${encodeURIComponent(playback.server)}`
+      : `${playback.link}?server=${encodeURIComponent(playback.server)}`;
+    return c.redirect(redirectUrl, 302);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to open episode';
     throw new validationError(message, { animeEpisodeId });

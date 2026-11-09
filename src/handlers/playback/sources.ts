@@ -17,11 +17,18 @@ const sourcesController = async (c: Context) => {
   }
 
   try {
-    return await resolveEpisodePlayback(requestOrigin(c), animeEpisodeId, {
+    const playback = await resolveEpisodePlayback(requestOrigin(c), animeEpisodeId, {
       server,
       category: preferred,
       nav: nav !== '0' && nav !== 'false',
     });
+
+    return {
+      ...playback,
+      server: playback.server,
+      serverLabel: playback.serverLabel,
+      availableProviders: playback.availableProviders,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to resolve sources';
     throw new validationError(message, { animeEpisodeId });

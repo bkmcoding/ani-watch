@@ -1336,13 +1336,41 @@ function parseThemeServers(html) {
   });
   return servers;
 }
+function isHd1Server(s) {
+  const name = s.serverName.toLowerCase();
+  const url = s.embedUrl.toLowerCase();
+  if (/\bhd[\s-]*2\b/i.test(name) || /rapid[\s-]*cloud/i.test(name) || /vid[\s-]*cloud/i.test(name) || /rapid[\s-]*cloud/i.test(url) || /vid[\s-]*cloud/i.test(url)) {
+    return false;
+  }
+  return /\bhd[\s-]*1\b/i.test(name) || /mega[\s-]*cloud/i.test(name) || /vid[\s-]*streaming/i.test(name) || /mega[\s-]*cloud/i.test(url) || /vid[\s-]*streaming/i.test(url);
+}
+function isHd2Server(s) {
+  const name = s.serverName.toLowerCase();
+  const url = s.embedUrl.toLowerCase();
+  if (/\bhd[\s-]*1\b/i.test(name) || /mega[\s-]*cloud/i.test(name) || /vid[\s-]*streaming/i.test(name) || /mega[\s-]*cloud/i.test(url) || /vid[\s-]*streaming/i.test(url)) {
+    return false;
+  }
+  return /\bhd[\s-]*2\b/i.test(name) || /rapid[\s-]*cloud/i.test(name) || /vid[\s-]*cloud/i.test(name) || /rapid[\s-]*cloud/i.test(url) || /vid[\s-]*cloud/i.test(url);
+}
 function pickServer(servers, serverName, category) {
-  const cat = category.toLowerCase();
-  const want = serverName.toLowerCase().replace(/\s+/g, "-");
-  const pool = servers.filter((s) => s.type === cat);
-  const exact = pool.find((s) => s.serverName.toLowerCase().replace(/\s+/g, "-") === want) || pool.find((s) => s.serverName.toLowerCase().includes(want.replace(/-/g, " "))) || pool.find((s) => s.serverName.toLowerCase().includes(want));
-  if (exact) return exact;
-  return pool.find((s) => /megaplay/i.test(s.embedUrl) && /hd-?1/i.test(s.serverName)) || pool.find((s) => /megaplay/i.test(s.embedUrl)) || pool[0] || null;
+  const cat = (category || "").toLowerCase().trim();
+  const pool = servers.filter((s) => s.type?.toLowerCase() === cat);
+  if (!pool.length) return null;
+  const rawWant = (serverName || "").trim().toLowerCase();
+  const want = rawWant.replace(/\s+/g, "-");
+  const wantsHd1 = /^(hd[\s-]*1|mega[\s-]*cloud|vid[\s-]*streaming)$/i.test(rawWant);
+  const wantsHd2 = /^(hd[\s-]*2|rapid[\s-]*cloud|vid[\s-]*cloud)$/i.test(rawWant);
+  if (wantsHd1) {
+    const match = pool.find((s) => isHd1Server(s));
+    if (match) return match;
+  } else if (wantsHd2) {
+    const match = pool.find((s) => isHd2Server(s));
+    if (match) return match;
+  } else {
+    const exact = pool.find((s) => s.serverName.toLowerCase().replace(/\s+/g, "-") === want) || pool.find((s) => s.serverName.toLowerCase().includes(want.replace(/-/g, " "))) || pool.find((s) => s.serverName.toLowerCase().includes(want));
+    if (exact) return exact;
+  }
+  return pool.find((s) => isHd1Server(s)) || pool.find((s) => /megaplay/i.test(s.embedUrl) && /\bhd[\s-]*1\b/i.test(s.serverName)) || pool.find((s) => /megaplay/i.test(s.embedUrl)) || pool[0] || null;
 }
 async function fetchText(url, headers) {
   const controller = new AbortController();
@@ -1438,11 +1466,80 @@ async function resolveMegaPlaySources(embedUrl) {
 }
 
 // src/handlers/playback/servers.ts
-function mapServers(servers, type) {
-  return servers.filter((s) => s.type === type).map((s) => ({
+function enrichServer(s) {
+  if (isHd1Server(s)) {
+    return {
+      serverId: s.serverId,
+      serverName: "hd-1",
+      label: "HD-1 (MegaCloud)",
+      provider: "megaplay",
+      preferred: true
+    };
+  }
+  if (isHd2Server(s)) {
+    return {
+      serverId: s.serverId,
+      serverName: "hd-2",
+      label: "HD-2 (RapidCloud)",
+      provider: "megaplay",
+      preferred: false
+    };
+  }
+  if (/zoko/i.test(s.embedUrl) || /zoko/i.test(s.serverName)) {
+    return {
+      serverId: s.serverId,
+      serverName: "zoko",
+      label: "Zoko",
+      provider: "zoko",
+      preferred: false
+    };
+  }
+  if (/gogo/i.test(s.embedUrl) || /gogo/i.test(s.serverName) || /anitaku/i.test(s.embedUrl)) {
+    return {
+      serverId: s.serverId,
+      serverName: "gogo",
+      label: "Gogo (Backup)",
+      provider: "gogoanime",
+      preferred: false
+    };
+  }
+  return {
     serverId: s.serverId,
-    serverName: s.serverName.toLowerCase().replace(/\s+/g, "-")
-  }));
+    serverName: s.serverName.toLowerCase().replace(/\s+/g, "-"),
+    label: s.serverName,
+    provider: "megaplay",
+    preferred: false
+  };
+}
+function mapServers(servers, type) {
+  const filtered = servers.filter((s) => s.type === type);
+  let hasPreferred = false;
+  const mapped = filtered.map((s) => {
+    const enriched = enrichServer(s);
+    if (enriched.preferred) {
+      if (hasPreferred) {
+        enriched.preferred = false;
+      } else {
+        hasPreferred = true;
+      }
+    }
+    return enriched;
+  });
+  if (!hasPreferred && mapped.length > 0) {
+    mapped[0].preferred = true;
+  }
+  if ((type === "sub" || type === "dub") && mapped.length > 0) {
+    if (!mapped.some((s) => s.serverName === "gogo" || s.provider === "gogoanime")) {
+      mapped.push({
+        serverId: "gogo",
+        serverName: "gogo",
+        label: "Gogo (Backup)",
+        provider: "gogoanime",
+        preferred: false
+      });
+    }
+  }
+  return mapped;
 }
 var serversController = async (c) => {
   const animeEpisodeId = c.req.query("animeEpisodeId") || c.req.query("episodeId") || c.req.param("episodeId");
@@ -1524,6 +1621,272 @@ async function resolveZokoSources(embedUrl) {
     anilistID: null,
     malID: null
   };
+}
+
+// src/services/gogoanime.ts
+import { load as load9 } from "cheerio";
+var DEFAULT_UA3 = config_default.headers?.["User-Agent"] || "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+var GOGO_BASE_URL = (process.env.GOGO_BASE_URL || "https://anitaku.to").replace(/\/+$/, "");
+function formatGogoSlug(title) {
+  if (!title || typeof title !== "string") return "";
+  const trimmed = title.trim();
+  if (!trimmed) return "";
+  return trimmed.toLowerCase().replace(/['’"]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function formatGogoEpisodeUrl(slug, epNum) {
+  const cleanSlug = (slug || "").replace(/^\/+|\/+$/g, "");
+  return `/${cleanSlug}-episode-${epNum}`;
+}
+function extractGogoStreamingIframe(html) {
+  if (!html || typeof html !== "string") return null;
+  try {
+    const $ = load9(html);
+    let src = $(".play-video iframe").attr("src") || $('iframe[src*="streaming.php"]').attr("src") || $('iframe[src*="embtaku"]').attr("src") || $('iframe[src*="vidstreaming"]').attr("src") || $('iframe[src*="gogocdn"]').attr("src") || $(".anime_muti_link iframe").attr("src") || $(".anime_video_body iframe").attr("src") || $("iframe").attr("src");
+    if (!src) {
+      const match = html.match(/<iframe[^>]+src=["']([^"']+)["']/i);
+      src = match ? match[1] : void 0;
+    }
+    if (!src) return null;
+    src = src.trim();
+    if (src.startsWith("//")) {
+      src = `https:${src}`;
+    }
+    return src;
+  } catch (err) {
+    console.warn("[GogoAnime] Failed to parse streaming iframe:", err);
+    return null;
+  }
+}
+async function extractGogoSourcesFromEmbed(embedUrl) {
+  if (!embedUrl || typeof embedUrl !== "string") return null;
+  try {
+    let embedOrigin = GOGO_BASE_URL;
+    try {
+      embedOrigin = new URL(embedUrl).origin;
+    } catch {
+    }
+    const res = await fetch(embedUrl, {
+      headers: {
+        "User-Agent": DEFAULT_UA3,
+        Referer: `${GOGO_BASE_URL}/`,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      },
+      signal: AbortSignal.timeout(12e3)
+    });
+    if (!res.ok) {
+      console.warn(`[GogoAnime] Embed request failed with HTTP ${res.status} for ${embedUrl}`);
+      return null;
+    }
+    const html = await res.text();
+    const $ = load9(html);
+    const sources = [];
+    const subtitles = [];
+    $("source[src]").each((_, el) => {
+      const src = $(el).attr("src");
+      if (src && /\.m3u8(\?|$)/i.test(src)) {
+        const quality = $(el).attr("label") || $(el).attr("title") || "auto";
+        if (!sources.some((s) => s.url === src)) {
+          sources.push({ url: src, isM3U8: true, quality });
+        }
+      }
+    });
+    $("video[src]").each((_, el) => {
+      const src = $(el).attr("src");
+      if (src && /\.m3u8(\?|$)/i.test(src)) {
+        if (!sources.some((s) => s.url === src)) {
+          sources.push({ url: src, isM3U8: true, quality: "auto" });
+        }
+      }
+    });
+    $("track[src]").each((_, el) => {
+      const src = $(el).attr("src");
+      if (src) {
+        const lang = $(el).attr("label") || $(el).attr("srclang") || "Unknown";
+        const isDef = $(el).is("[default]") || $(el).attr("default") === "true";
+        if (!subtitles.some((s) => s.url === src)) {
+          subtitles.push({ lang, url: src, default: isDef });
+        }
+      }
+    });
+    const sourcesBlockMatch = html.match(/sources\s*:\s*(\[[^\]]+\])/i);
+    if (sourcesBlockMatch) {
+      const block = sourcesBlockMatch[1];
+      const fileMatches = [...block.matchAll(/(?:file|src)\s*:\s*["']([^"']+)["']/gi)];
+      for (const match of fileMatches) {
+        const url = match[1];
+        if (/\.m3u8(\?|$)/i.test(url) && !sources.some((s) => s.url === url)) {
+          sources.push({ url, isM3U8: true, quality: "auto" });
+        }
+      }
+    }
+    const tracksBlockMatch = html.match(/tracks\s*:\s*(\[[^\]]+\])/i);
+    if (tracksBlockMatch) {
+      const block = tracksBlockMatch[1];
+      const trackItems = [...block.matchAll(/\{([^{}]+)\}/g)];
+      for (const item of trackItems) {
+        const content = item[1];
+        const fileMatch = content.match(/file\s*:\s*["']([^"']+)["']/i);
+        const labelMatch = content.match(/label\s*:\s*["']([^"']+)["']/i);
+        const defaultMatch = content.match(/default\s*:\s*(true|false)/i);
+        if (fileMatch && !subtitles.some((s) => s.url === fileMatch[1])) {
+          subtitles.push({
+            lang: labelMatch ? labelMatch[1] : "Unknown",
+            url: fileMatch[1],
+            default: defaultMatch ? defaultMatch[1] === "true" : false
+          });
+        }
+      }
+    }
+    if (sources.length === 0) {
+      const m3u8Matches = [...html.matchAll(/https?:\/\/[^\s"'\\]+\.m3u8[^\s"'\\]*/gi)];
+      for (const m of m3u8Matches) {
+        const url = m[0];
+        if (!sources.some((s) => s.url === url)) {
+          sources.push({ url, isM3U8: true, quality: "auto" });
+        }
+      }
+    }
+    if (sources.length === 0) {
+      let id = null;
+      try {
+        id = new URL(embedUrl).searchParams.get("id");
+      } catch {
+      }
+      if (!id) {
+        const idMatch = html.match(/data-id=["']([^"']+)["']/i) || html.match(/episode_id\s*=\s*["']([^"']+)["']/i) || html.match(/id\s*=\s*["']([^"']+)["']/i);
+        id = idMatch ? idMatch[1] : null;
+      }
+      if (id) {
+        const ajaxUrls = [
+          `${embedOrigin}/ajax/getSources?id=${encodeURIComponent(id)}`,
+          `${embedOrigin}/encrypt-ajax.php?id=${encodeURIComponent(id)}`
+        ];
+        for (const ajaxUrl of ajaxUrls) {
+          try {
+            const ajaxRes = await fetch(ajaxUrl, {
+              headers: {
+                "User-Agent": DEFAULT_UA3,
+                Referer: embedUrl,
+                "X-Requested-With": "XMLHttpRequest",
+                Accept: "application/json, text/javascript, */*; q=0.01"
+              },
+              signal: AbortSignal.timeout(12e3)
+            });
+            if (!ajaxRes.ok) continue;
+            const ajaxText = await ajaxRes.text();
+            let payload = null;
+            try {
+              payload = JSON.parse(ajaxText);
+            } catch {
+              continue;
+            }
+            if (!payload) continue;
+            const rawSources = payload.source || payload.sources || [];
+            if (Array.isArray(rawSources)) {
+              for (const s of rawSources) {
+                const streamUrl = s.file || s.url;
+                if (streamUrl && (/\.m3u8(\?|$)/i.test(streamUrl) || s.type === "hls")) {
+                  if (!sources.some((item) => item.url === streamUrl)) {
+                    sources.push({
+                      url: streamUrl,
+                      isM3U8: true,
+                      quality: s.label || "auto"
+                    });
+                  }
+                }
+              }
+            }
+            const trackObj = payload.track;
+            const rawTracks = trackObj?.tracks || payload.tracks || [];
+            if (Array.isArray(rawTracks)) {
+              for (const t of rawTracks) {
+                if (t.file && !subtitles.some((sub) => sub.url === t.file)) {
+                  subtitles.push({
+                    lang: t.label || t.lang || "Unknown",
+                    url: t.file,
+                    default: Boolean(t.default)
+                  });
+                }
+              }
+            }
+            if (sources.length > 0) break;
+          } catch {
+          }
+        }
+      }
+    }
+    if (sources.length === 0) {
+      console.warn(`[GogoAnime] No playable sources found for embed: ${embedUrl}`);
+      return null;
+    }
+    return {
+      headers: {
+        Referer: embedUrl,
+        "User-Agent": DEFAULT_UA3
+      },
+      sources,
+      subtitles,
+      intro: null,
+      outro: null,
+      anilistID: null,
+      malID: null
+    };
+  } catch (err) {
+    console.warn(`[GogoAnime] Error extracting sources from embed ${embedUrl}:`, err);
+    return null;
+  }
+}
+async function resolveGogoSources(animeTitle, epNum, category = "sub") {
+  try {
+    if (!animeTitle || typeof animeTitle !== "string" || !animeTitle.trim()) {
+      return null;
+    }
+    let slug = formatGogoSlug(animeTitle);
+    if (!slug) return null;
+    if (category === "dub" && !slug.endsWith("-dub")) {
+      slug = `${slug}-dub`;
+    }
+    let episodePath = formatGogoEpisodeUrl(slug, epNum);
+    let episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
+    let res = await fetch(episodeUrl, {
+      headers: {
+        "User-Agent": DEFAULT_UA3,
+        Referer: `${GOGO_BASE_URL}/`,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      },
+      signal: AbortSignal.timeout(12e3)
+    });
+    if (!res.ok && category === "dub") {
+      const baseSlug = formatGogoSlug(animeTitle);
+      if (baseSlug !== slug) {
+        episodePath = formatGogoEpisodeUrl(baseSlug, epNum);
+        episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
+        res = await fetch(episodeUrl, {
+          headers: {
+            "User-Agent": DEFAULT_UA3,
+            Referer: `${GOGO_BASE_URL}/`,
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+          },
+          signal: AbortSignal.timeout(12e3)
+        });
+      }
+    }
+    if (!res.ok) {
+      console.warn(`[GogoAnime] Failed to fetch episode page ${episodeUrl}: HTTP ${res.status}`);
+      return null;
+    }
+    const html = await res.text();
+    const iframeUrl = extractGogoStreamingIframe(html);
+    if (!iframeUrl) {
+      console.warn(`[GogoAnime] No streaming iframe found on ${episodeUrl}`);
+      return null;
+    }
+    const streamResult = await extractGogoSourcesFromEmbed(iframeUrl);
+    return streamResult;
+  } catch (err) {
+    console.warn(`[GogoAnime] Stream resolution failed for "${animeTitle}" ep ${epNum}:`, err);
+    return null;
+  }
 }
 
 // src/lib/streamUrls.ts
@@ -1748,13 +2111,25 @@ function faviconLinkTags(origin) {
 
 // src/services/episodeSources.ts
 var STREAM_TTL_MS = 18e4;
+var PROVIDER_META = {
+  megaplay: {
+    label: "MegaPlay",
+    preferred: true,
+    capabilities: { introOutro: true, softsubs: true }
+  },
+  zoko: {
+    label: "Zoko",
+    preferred: false,
+    capabilities: { introOutro: false, softsubs: true }
+  },
+  gogoanime: {
+    label: "GogoAnime",
+    preferred: false,
+    capabilities: { introOutro: false, softsubs: false }
+  }
+};
 function isMegaServer(s) {
-  return /(?:megaplay|megacloud)/i.test(s.embedUrl) || /hd-?[12]/i.test(s.serverName);
-}
-function pickMegaPlay(servers, category, server) {
-  const picked = pickServer(servers, server, category);
-  if (picked && isMegaServer(picked)) return picked;
-  return pickServer(servers.filter(isMegaServer), "hd-1", category);
+  return /(?:megaplay|megacloud|rapid-?cloud|vidcloud|vidstreaming)/i.test(s.embedUrl) || /hd-?[12]/i.test(s.serverName) || isHd1Server(s) || isHd2Server(s);
 }
 function pickZoko(servers, category) {
   const pool = servers.filter(
@@ -1762,21 +2137,70 @@ function pickZoko(servers, category) {
   );
   return pool[0] || null;
 }
-async function resolveCategory(servers, category, server, episodeId) {
-  const cacheKey = `stream:${episodeId}:${category}:${server}`;
+function serverLabel(server) {
+  const norm = (server || "").toLowerCase().trim();
+  if (/^(hd-?1|megacloud|vidstreaming)$/i.test(norm)) return "HD-1";
+  if (/^(hd-?2|rapidcloud|vidcloud)$/i.test(norm)) return "HD-2";
+  if (/^zoko$/i.test(norm)) return "Zoko";
+  if (/^(gogo|gogoanime|anitaku)$/i.test(norm)) return "GogoAnime";
+  return server ? server.toUpperCase() : "Unknown";
+}
+function providerLabel(id) {
+  if (id === "megaplay") return PROVIDER_META.megaplay.label;
+  if (id === "zoko") return PROVIDER_META.zoko.label;
+  if (id === "gogoanime") return PROVIDER_META.gogoanime.label;
+  return id || "Unknown";
+}
+function detectProvider(embedUrl) {
+  if (/(?:megaplay|megacloud)/i.test(embedUrl)) return "megaplay";
+  if (/zoko/i.test(embedUrl)) return "zoko";
+  if (/gogo/i.test(embedUrl) || /anitaku/i.test(embedUrl)) return "gogoanime";
+  return null;
+}
+function getFallbackChain(server) {
+  const norm = (server || "").toLowerCase().trim();
+  if (norm === "hd-2" || /^(hd[\s-]*2|rapid[\s-]*cloud|vid[\s-]*cloud)$/i.test(norm)) {
+    return ["hd-2", "hd-1", "zoko", "gogo"];
+  }
+  if (norm === "zoko" || /zoko/i.test(norm)) {
+    return ["zoko", "hd-1", "hd-2", "gogo"];
+  }
+  if (norm === "gogo" || /^(gogo|gogoanime|anitaku)$/i.test(norm)) {
+    return ["gogo", "hd-1", "hd-2", "zoko"];
+  }
+  return ["hd-1", "hd-2", "zoko", "gogo"];
+}
+async function resolveCategory(servers, category, server, episodeId, animeTitle) {
+  const normServer = (server || "hd-1").toLowerCase().trim();
+  const cacheKey = `stream:${episodeId}:${category}:${normServer}`;
   const hit = scrapeCache.get(cacheKey);
   if (hit) return hit;
-  const wantsZoko = /zoko/i.test(server);
-  const tryMegaPlay = async () => {
-    const mega = pickMegaPlay(servers, category, server);
-    if (!mega) return null;
+  const tryMegaPlayHd1 = async () => {
+    const mega = pickServer(servers, "hd-1", category);
+    if (!mega || !isMegaServer(mega)) return null;
+    if (isHd2Server(mega) && !isHd1Server(mega)) return null;
     const stream = await resolveMegaPlaySources(mega.embedUrl);
     const m3u8 = stream.sources[0]?.url;
     if (!m3u8) return null;
     return {
       category,
       provider: "megaplay",
-      server: mega.serverName.toLowerCase().replace(/\s+/g, "-"),
+      server: isHd1Server(mega) ? "hd-1" : mega.serverName.toLowerCase().replace(/\s+/g, "-"),
+      m3u8,
+      stream
+    };
+  };
+  const tryMegaPlayHd2 = async () => {
+    const mega = pickServer(servers, "hd-2", category);
+    if (!mega || !isMegaServer(mega)) return null;
+    if (isHd1Server(mega) && !isHd2Server(mega)) return null;
+    const stream = await resolveMegaPlaySources(mega.embedUrl);
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      provider: "megaplay",
+      server: isHd2Server(mega) ? "hd-2" : mega.serverName.toLowerCase().replace(/\s+/g, "-"),
       m3u8,
       stream
     };
@@ -1790,34 +2214,67 @@ async function resolveCategory(servers, category, server, episodeId) {
     return {
       category,
       provider: "zoko",
-      server: zoko.serverName.toLowerCase().replace(/\s+/g, "-"),
+      server: "zoko",
       m3u8,
       stream
     };
   };
-  const [primaryFn, fallbackFn, primaryName, fallbackName] = wantsZoko ? [tryZoko, tryMegaPlay, "Zoko", "MegaPlay"] : [tryMegaPlay, tryZoko, "MegaPlay", "Zoko"];
-  let resolved = null;
-  try {
-    resolved = await primaryFn();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `[Stream Resolver] ${primaryName} failed for ${episodeId} (${category}): ${msg}. Auto-failing over to ${fallbackName}...`
-    );
-  }
-  if (!resolved) {
+  const tryGogo = async () => {
+    let epNum = "";
     try {
-      resolved = await fallbackFn();
+      epNum = episodeNumericId(episodeId);
+    } catch {
+      const match = episodeId.match(/(\d+)(?!.*\d)/);
+      epNum = match ? match[1] : "1";
+    }
+    const slug = animeSlugFromEpisodeId(episodeId);
+    const targetTitle = animeTitle || slug || "";
+    if (!targetTitle) return null;
+    const stream = category === "dub" ? await resolveGogoSources(targetTitle, epNum, "dub") : await resolveGogoSources(targetTitle, epNum);
+    if (!stream) return null;
+    const m3u8 = stream.sources[0]?.url;
+    if (!m3u8) return null;
+    return {
+      category,
+      provider: "gogoanime",
+      server: "gogo",
+      m3u8,
+      stream
+    };
+  };
+  const chain = getFallbackChain(normServer);
+  const resolvers = {
+    "hd-1": tryMegaPlayHd1,
+    "hd-2": tryMegaPlayHd2,
+    zoko: tryZoko,
+    gogo: tryGogo
+  };
+  let resolved = null;
+  for (let i = 0; i < chain.length; i++) {
+    const step = chain[i];
+    const fn = resolvers[step];
+    try {
+      resolved = await fn();
       if (resolved) {
-        console.info(
-          `[Stream Resolver] Auto-failover to ${fallbackName} succeeded for ${episodeId} (${category}).`
-        );
+        if (i > 0) {
+          console.info(
+            `[Stream Resolver] Auto-failover to ${step} succeeded for ${episodeId} (${category}).`
+          );
+        }
+        break;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[Stream Resolver] Fallback ${fallbackName} failed for ${episodeId} (${category}): ${msg}`
-      );
+      const nextStep = chain[i + 1];
+      if (nextStep) {
+        console.warn(
+          `[Stream Resolver] ${step} failed for ${episodeId} (${category}): ${msg}. Auto-failing over to ${nextStep}...`
+        );
+      } else {
+        console.warn(
+          `[Stream Resolver] ${step} failed for ${episodeId} (${category}): ${msg}. No more fallbacks available.`
+        );
+      }
     }
   }
   if (resolved) {
@@ -1876,23 +2333,6 @@ function withTimeout(promise, ms) {
     });
   });
 }
-var PROVIDER_META = {
-  megaplay: {
-    label: "MegaPlay",
-    preferred: true,
-    capabilities: { introOutro: true, softsubs: true }
-  },
-  zoko: {
-    label: "Zoko",
-    preferred: false,
-    capabilities: { introOutro: false, softsubs: true }
-  }
-};
-function detectProvider(embedUrl) {
-  if (/(?:megaplay|megacloud)/i.test(embedUrl)) return "megaplay";
-  if (/zoko/i.test(embedUrl)) return "zoko";
-  return null;
-}
 function buildAvailableProviders(servers, categories) {
   const byId = /* @__PURE__ */ new Map();
   for (const s of servers) {
@@ -1904,7 +2344,14 @@ function buildAvailableProviders(servers, categories) {
     entry.categories.add(cat);
     byId.set(id, entry);
   }
-  const order = ["megaplay", "zoko"];
+  if (categories.length > 0) {
+    const gogoEntry = byId.get("gogoanime") || { categories: /* @__PURE__ */ new Set() };
+    for (const cat of categories) {
+      gogoEntry.categories.add(cat);
+    }
+    byId.set("gogoanime", gogoEntry);
+  }
+  const order = ["megaplay", "zoko", "gogoanime"];
   return order.filter((id) => byId.has(id)).map((id) => {
     const meta = PROVIDER_META[id];
     return {
@@ -1916,11 +2363,6 @@ function buildAvailableProviders(servers, categories) {
     };
   });
 }
-function providerLabel(id) {
-  if (id === "megaplay") return PROVIDER_META.megaplay.label;
-  if (id === "zoko") return PROVIDER_META.zoko.label;
-  return id || "Unknown";
-}
 async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
   const server = (opts?.server || "hd-1").toLowerCase();
   const preferred = (opts?.category || "sub").toLowerCase() === "dub" ? "dub" : "sub";
@@ -1930,18 +2372,22 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
   const slug = animeSlugFromEpisodeId(episodeId);
   const referer = slug ? `/watch/${slug}?ep=${epNum}` : `/`;
   const wantNav = opts?.nav !== false;
+  const animeTitle = titleFromAnimeSlug(slug);
   const result = await fetchTheme(`episode/servers?episodeId=${epNum}`, referer);
   if (!result.success || !result.data) {
     throw new Error(result.message || "could not load episode servers");
   }
   const servers = parseThemeServers(htmlFromAjax(result.data));
-  const hasPreferred = servers.some((s) => s.type === preferred);
+  const hasPreferred = servers.some((s) => s.type === preferred) || server === "gogo";
   const hasOther = servers.some((s) => s.type === other);
   const neighborsPromise = wantNav && slug ? findNeighbors(slug, epNum) : Promise.resolve(null);
   const OTHER_CATEGORY_BUDGET_MS = 3500;
-  const primary = hasPreferred ? await resolveCategory(servers, preferred, server, episodeId) : null;
+  const primary = hasPreferred ? await resolveCategory(servers, preferred, server, episodeId, animeTitle) : null;
   const [secondary, neighbors] = await Promise.all([
-    hasOther ? withTimeout(resolveCategory(servers, other, server, episodeId), OTHER_CATEGORY_BUDGET_MS) : Promise.resolve(null),
+    hasOther ? withTimeout(
+      resolveCategory(servers, other, server, episodeId, animeTitle),
+      OTHER_CATEGORY_BUDGET_MS
+    ) : Promise.resolve(null),
     withTimeout(neighborsPromise, OTHER_CATEGORY_BUDGET_MS)
   ]);
   const subTrack = preferred === "sub" ? primary : secondary;
@@ -1955,7 +2401,6 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
   }
   const subCc = pickEnglishSubtitle(subTrack?.stream.subtitles);
   const dubCc = pickEnglishSubtitle(dubTrack?.stream.subtitles);
-  const animeTitle = titleFromAnimeSlug(slug);
   const episodeTitle = neighbors?.current?.title || null;
   const episodeNumber = neighbors?.current?.episodeNumber ?? (Number(epNum) || null);
   const prevId = neighbors?.prev?.id ? normalizeEpisodeId(neighbors.prev.id) : null;
@@ -2007,6 +2452,7 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
       streamUrl: proxiedHlsUrl(origin, track.m3u8),
       originalUrl: track.m3u8,
       server: track.server,
+      serverLabel: serverLabel(track.server),
       provider: track.provider,
       providerLabel: providerLabel(track.provider),
       capabilities: {
@@ -2046,6 +2492,7 @@ async function resolveEpisodePlayback(origin, animeEpisodeId, opts) {
       "User-Agent": active.stream.headers["User-Agent"] || ""
     },
     server: active.server,
+    serverLabel: serverLabel(active.server),
     category: active.category,
     provider: active.provider,
     providerLabel: providerLabel(active.provider),
@@ -2075,11 +2522,17 @@ var sourcesController = async (c) => {
     });
   }
   try {
-    return await resolveEpisodePlayback(requestOrigin(c), animeEpisodeId, {
+    const playback = await resolveEpisodePlayback(requestOrigin(c), animeEpisodeId, {
       server,
       category: preferred,
       nav: nav !== "0" && nav !== "false"
     });
+    return {
+      ...playback,
+      server: playback.server,
+      serverLabel: playback.serverLabel,
+      availableProviders: playback.availableProviders
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to resolve sources";
     throw new validationError(message, { animeEpisodeId });
@@ -2511,6 +2964,9 @@ var watchController = async (c) => {
   const epTotal = c.req.query("total") || null;
   const prevEpisodeId = parseEpisodeIdParam(c.req.query("prevEp") || void 0);
   const nextEpisodeId = parseEpisodeIdParam(c.req.query("nextEp") || void 0);
+  const episodeId = parseEpisodeIdParam(
+    c.req.query("ep") || c.req.query("episodeId") || c.req.query("animeEpisodeId") || void 0
+  );
   const legacyPrev = c.req.query("prev") || null;
   const legacyNext = c.req.query("next") || null;
   const subIntro = parseSkipRange(c.req.query("is") || void 0, c.req.query("ie") || void 0);
@@ -2520,6 +2976,7 @@ var watchController = async (c) => {
   const activeProviderParam = parseProviderId(c.req.query("p") || void 0);
   const subProviderParam = parseProviderId(c.req.query("sp") || void 0);
   const dubProviderParam = parseProviderId(c.req.query("dp") || void 0);
+  const activeServer = (c.req.query("server") || "hd-1").toLowerCase();
   let resolvedSub = subCdn;
   let resolvedDub = dubCdn;
   if (!resolvedSub && !resolvedDub && legacy) {
@@ -2574,6 +3031,22 @@ var watchController = async (c) => {
   const hasEither = hasSub || hasDub;
   const hasBoth = hasSub && hasDub;
   const hasAnyCc = Boolean(captions.sub || captions.dub);
+  const SERVERS = [
+    { id: "hd-1", label: "HD-1 (MegaCloud)", tracks: ["sub", "dub"] },
+    { id: "hd-2", label: "HD-2 (RapidCloud)", tracks: ["sub", "dub"] },
+    { id: "zoko", label: "Zoko", tracks: ["sub"] },
+    { id: "gogo", label: "Gogo (Backup)", tracks: ["sub", "dub"] }
+  ];
+  const renderServerChipsHtml = (chipsId) => `
+        <div class="server-chips" id="${chipsId}">
+          ${SERVERS.map((s) => {
+    const isActive = s.id === activeServer;
+    const isAvailable = s.tracks.includes(initial);
+    const dot = isActive ? '<span class="status-dot"></span>' : "";
+    const hideAttr = !isAvailable ? 'hidden disabled style="display:none"' : "";
+    return `<button type="button" class="pill server-chip ${isActive ? "is-active" : ""}" data-server="${s.id}" data-tracks="${s.tracks.join(",")}" ${hideAttr}>${dot}${s.label}</button>`;
+  }).join("\n          ")}
+        </div>`;
   const pageTitleParts = [SITE_NAME];
   if (animeTitle && animeTitle !== SITE_NAME) pageTitleParts.unshift(animeTitle);
   if (epNum) pageTitleParts[0] = `${pageTitleParts[0]} \xB7 Ep ${epNum}`;
@@ -2713,6 +3186,73 @@ var watchController = async (c) => {
       font-weight: 500;
     }
     .pill.provider-pill[hidden] { display: none !important; }
+    /* Server bar & server chips */
+    .server-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: var(--stage-max);
+      width: 100%;
+      margin: 0 auto;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      box-sizing: border-box;
+    }
+    .server-bar-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .server-chips {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .server-chip,
+    .server-chips .pill {
+      text-transform: none;
+      font-weight: 500;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--line);
+      min-height: 38px;
+      min-width: 44px;
+    }
+    .server-chip:hover,
+    .server-chips .pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+    }
+    .server-chip.is-active,
+    .server-chips .pill.is-active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-color: rgba(61, 214, 198, 0.35);
+    }
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent, #3dd6c6);
+      box-shadow: 0 0 8px var(--accent, #3dd6c6);
+      flex-shrink: 0;
+    }
+    #serverSection .server-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    #serverSection .server-chip {
+      flex: 1 1 calc(50% - 8px);
+      justify-content: center;
+    }
     a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
     /* Accessible focus rings */
     .pill:focus-visible,
@@ -2967,6 +3507,59 @@ var watchController = async (c) => {
     .ap-count {
       display: block; font-family: Syne, sans-serif; font-size: 2.05rem; font-weight: 800; color: var(--accent);
       line-height: 1; text-align: center; margin-bottom: 4px;
+    }
+
+    /* Stream recovery overlay */
+    .recovery-overlay {
+      position: absolute; inset: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(10, 12, 16, 0.88); backdrop-filter: blur(8px);
+      padding: 16px;
+      transition: opacity 0.25s ease;
+    }
+    .recovery-overlay[hidden] { display: none !important; }
+    .recovery-card {
+      background: var(--panel, #0e121a);
+      border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+      border-radius: var(--radius-lg, 14px);
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      animation: apIn 0.25s var(--ease);
+    }
+    .recovery-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+    .recovery-title {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--ink, #e8edf5);
+    }
+    .recovery-desc {
+      margin: 0 0 18px;
+      font-size: 0.88rem;
+      color: var(--muted, #8b95a8);
+      line-height: 1.4;
+    }
+    .recovery-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .recovery-actions .pill {
+      flex: 1 1 auto;
+      min-height: 38px;
+      min-width: 44px;
+    }
+    .recovery-retry {
+      background: var(--accent-dim, rgba(61, 214, 198, 0.18));
+      color: var(--accent, #3dd6c6);
+      border: 1px solid rgba(61, 214, 198, 0.35);
     }
 
     /* Episode progress dots */
@@ -3512,6 +4105,7 @@ var watchController = async (c) => {
     }
     body.theater header,
     body.theater footer { opacity: 0; pointer-events: none; height: 0; overflow: hidden; margin: 0; padding: 0; }
+    body.theater .server-bar { display: none; }
     body.theater .stage-wrap { min-height: 100dvh; }
     body.theater .stage {
       width: 100vw; max-width: none; height: 100dvh;
@@ -3729,13 +4323,24 @@ var watchController = async (c) => {
         color: var(--accent);
         border: 1px solid rgba(61, 214, 198, 0.35);
       }
-      .err {
+      .server-bar {
         order: 3;
+        width: 100%;
+        padding: 8px clamp(12px, 3.5vw, 18px);
+        box-sizing: border-box;
+      }
+      .server-chip,
+      .server-chips .pill {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      .err {
+        order: 4;
         margin: 0 clamp(12px, 3.5vw, 18px);
         width: calc(100% - clamp(24px, 7vw, 36px));
       }
       footer {
-        order: 4;
+        order: 5;
         padding: 8px clamp(12px, 3.5vw, 18px) 0;
         font-size: 0.75rem;
         flex-direction: column;
@@ -4013,6 +4618,7 @@ var watchController = async (c) => {
     @media (pointer: coarse) {
       .ctrl { min-width: 44px; min-height: 44px; }
       .pill { min-height: 44px; }
+      .server-chip, .server-chips .pill { min-height: 44px; min-width: 44px; }
       .speed-chip { min-height: 42px; padding: 10px 14px; font-size: 0.85rem; }
       .cc-swatch { width: 34px; height: 34px; }
       .cc-swatch::after { inset: -6px; }
@@ -4132,6 +4738,19 @@ var watchController = async (c) => {
           </div>
         </div>
 
+        <div class="recovery-overlay" id="streamRecoveryOverlay" hidden aria-hidden="true" role="alertdialog" aria-labelledby="recoveryTitle" aria-describedby="recoveryDesc">
+          <div class="recovery-card">
+            <div class="recovery-icon" aria-hidden="true">\u26A0\uFE0F</div>
+            <h3 id="recoveryTitle" class="recovery-title">Playback Interrupted</h3>
+            <p id="recoveryDesc" class="recovery-desc">Playback failed on all available servers.</p>
+            <div class="recovery-actions">
+              <button type="button" class="pill recovery-retry" id="recoveryRetryBtn">\u27F3 Retry</button>
+              <button type="button" class="pill recovery-switch" id="recoverySwitchAudioBtn">\u21C4 Switch Audio</button>
+              <button type="button" class="pill recovery-close" id="recoveryCloseBtn">\u2715 Close</button>
+            </div>
+          </div>
+        </div>
+
         <div class="ep-panel" id="epPanel" role="dialog" aria-modal="true" aria-label="Episode list" hidden>
           <div class="sheet-handle" aria-hidden="true"></div>
           <div class="ep-panel-head">
@@ -4162,6 +4781,10 @@ var watchController = async (c) => {
               <button type="button" class="pill ${initial === "dub" ? "is-active" : ""}" data-track="dub" style="flex:1" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ""}>Dub</button>
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? "display:none" : ""}">${!hasSub ? "Sub not available for this episode." : !hasDub ? "Dub not available for this episode." : "Only one audio track is available for this episode."}</p>
+          </div>
+          <div class="menu-section" id="serverSection">
+            <h3>Server</h3>
+            ${renderServerChipsHtml("menuServerChips")}
           </div>
           <div class="menu-section" ${hasNav || hasAnime ? "" : "hidden"}>
             <h3>Episodes</h3>
@@ -4372,6 +4995,11 @@ var watchController = async (c) => {
       </div>
     </div>
 
+    <div class="server-bar" id="serverBar">
+      <span class="server-bar-label">Server</span>
+      ${renderServerChipsHtml("serverChips")}
+    </div>
+
     <p class="err" id="err" hidden></p>
     <footer>
       <span>${SITE_NAME} \xB7 <a href="/browse">Browse</a></span>
@@ -4390,12 +5018,20 @@ var watchController = async (c) => {
       var playCategory = ${safeJson(category)};
       var currentEpNum = ${safeJson(epNum)};
       var currentEpTitle = ${safeJson(epTitle || "")};
-      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
+      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko', gogoanime: 'GogoAnime' };
       var track = ${safeJson(initial)};
+      var activeServer = ${safeJson(activeServer)};
+      var currentServer = activeServer;
+      var switchingServer = false;
+      var failoverAttempts = {};
+      var episodeId = ${safeJson(episodeId)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
       var stage = document.getElementById('stage');
       var err = document.getElementById('err');
+      var serverChips = document.getElementById('serverChips');
+      var menuServerChips = document.getElementById('menuServerChips');
+      var serverBar = document.getElementById('serverBar');
       var seek = document.getElementById('seek');
       var seekWrap = document.getElementById('seekWrap');
       var seekTooltip = document.getElementById('seekTooltip');
@@ -4445,6 +5081,10 @@ var watchController = async (c) => {
       var epSearchClear = document.getElementById('epSearchClear');
       var sheetBackdrop = document.getElementById('sheetBackdrop');
       var settingsClose = document.getElementById('settingsClose');
+      var streamRecoveryOverlay = document.getElementById('streamRecoveryOverlay');
+      var recoveryRetryBtn = document.getElementById('recoveryRetryBtn');
+      var recoverySwitchAudioBtn = document.getElementById('recoverySwitchAudioBtn');
+      var recoveryCloseBtn = document.getElementById('recoveryCloseBtn');
       var gestureLeft = document.getElementById('gestureLeft');
       var gestureRight = document.getElementById('gestureRight');
       var hideTimer = null;
@@ -5155,6 +5795,7 @@ var watchController = async (c) => {
           btn.disabled = !streams[t];
         });
         updateProviderBadge();
+        updateServerAvailability(track);
       }
 
       function updateProviderBadge() {
@@ -5167,6 +5808,217 @@ var watchController = async (c) => {
         } else {
           providerBadge.hidden = false;
           providerBadge.textContent = label;
+        }
+      }
+
+      function syncServerChips(selectedServer) {
+        if (selectedServer) {
+          activeServer = selectedServer;
+          currentServer = selectedServer;
+        }
+        var chips = document.querySelectorAll('.server-chips [data-server]');
+        chips.forEach(function (btn) {
+          var s = btn.getAttribute('data-server');
+          var isActive = (s === activeServer);
+          btn.classList.toggle('is-active', isActive);
+          var dot = btn.querySelector('.status-dot');
+          if (isActive) {
+            if (!dot) {
+              dot = document.createElement('span');
+              dot.className = 'status-dot';
+              btn.insertBefore(dot, btn.firstChild);
+            }
+          } else {
+            if (dot) dot.remove();
+          }
+        });
+        try {
+          var u = new URL(location.href);
+          u.searchParams.set('server', activeServer);
+          history.replaceState(null, '', u);
+        } catch (e) {}
+      }
+
+      function updateServerAvailability(currentTrack) {
+        var t = currentTrack || track;
+        var chips = document.querySelectorAll('.server-chips [data-server]');
+        var activeStillValid = false;
+        chips.forEach(function (btn) {
+          var tracks = (btn.getAttribute('data-tracks') || 'sub,dub').split(',');
+          var isSupported = tracks.indexOf(t) !== -1;
+          if (isSupported) {
+            btn.hidden = false;
+            btn.removeAttribute('disabled');
+            btn.style.display = '';
+            if (btn.getAttribute('data-server') === activeServer) {
+              activeStillValid = true;
+            }
+          } else {
+            btn.hidden = true;
+            btn.setAttribute('disabled', 'true');
+            btn.style.display = 'none';
+          }
+        });
+        if (!activeStillValid) {
+          syncServerChips('hd-1');
+        }
+      }
+
+      function showRecoveryOverlay() {
+        if (streamRecoveryOverlay) {
+          streamRecoveryOverlay.hidden = false;
+          streamRecoveryOverlay.removeAttribute('hidden');
+          streamRecoveryOverlay.setAttribute('aria-hidden', 'false');
+        }
+        stage.classList.remove('is-loading');
+        setPlaying(false);
+      }
+
+      function hideRecoveryOverlay() {
+        if (streamRecoveryOverlay) {
+          streamRecoveryOverlay.hidden = true;
+          streamRecoveryOverlay.setAttribute('hidden', '');
+          streamRecoveryOverlay.setAttribute('aria-hidden', 'true');
+        }
+      }
+
+      function serverLabel(s) {
+        var labels = {
+          'hd-1': 'HD-1',
+          'hd-2': 'HD-2',
+          'zoko': 'Zoko',
+          'gogo': 'Gogo'
+        };
+        return labels[s] || s;
+      }
+
+      function getFailoverChain(fromServer) {
+        if (fromServer === 'hd-2') {
+          return ['hd-2', 'hd-1', 'zoko', 'gogo'];
+        }
+        return ['hd-1', 'hd-2', 'zoko', 'gogo'];
+      }
+
+      function getAvailableServersForTrack(t) {
+        var tTrack = t || track;
+        if (tTrack === 'dub') {
+          return ['hd-1', 'hd-2', 'gogo'];
+        }
+        return ['hd-1', 'hd-2', 'zoko', 'gogo'];
+      }
+
+      function handleFailover(failedServer) {
+        var serverToMark = failedServer || currentServer;
+        if (serverToMark) failoverAttempts[serverToMark] = true;
+        var chain = getFailoverChain(currentServer || serverToMark);
+        var available = getAvailableServersForTrack(track);
+
+        var nextServer = null;
+        for (var i = 0; i < chain.length; i++) {
+          var s = chain[i];
+          if (available.indexOf(s) !== -1 && !failoverAttempts[s] && s !== currentServer) {
+            nextServer = s;
+            break;
+          }
+        }
+
+        if (nextServer) {
+          switchServer(nextServer, true);
+        } else {
+          showRecoveryOverlay();
+        }
+      }
+
+      async function switchServer(newServer, isAutoFailover, force) {
+        if (!force && (switchingServer || newServer === currentServer)) return;
+        switchingServer = true;
+        var savedTime = video.currentTime || 0;
+        var wasPlaying = !video.paused;
+        var savedRate = video.playbackRate || rate || 1;
+
+        if (isAutoFailover) {
+          showOsd('\u26A0\uFE0F', 'Server error \xB7 Auto-switching to ' + serverLabel(newServer) + '\u2026');
+        } else {
+          showOsd('\u26A1', 'Switching to ' + serverLabel(newServer) + '\u2026');
+        }
+
+        try {
+          var epId = (episodeId && (episodeId.indexOf('?') !== -1 || episodeId.indexOf('::') !== -1))
+            ? episodeId
+            : (animeId && currentEpNum ? (animeId + '?ep=' + currentEpNum) : (episodeId || ''));
+          var srcUrl = '/api/v2/hianime/episode/sources?animeEpisodeId=' + encodeURIComponent(epId) +
+                       '&server=' + encodeURIComponent(newServer) +
+                       '&category=' + encodeURIComponent(track || 'sub');
+          var res = await fetch(srcUrl);
+          if (!res.ok) throw new Error('Sources HTTP ' + res.status);
+          var json = await res.json();
+          var data = json && json.data ? json.data : json;
+          var newM3u8 = (data.tracks && data.tracks[track] && data.tracks[track].streamUrl) ||
+                        (data.sources && data.sources.find(function (s) { return s.isM3U8; }) && data.sources.find(function (s) { return s.isM3U8; }).url) ||
+                        (data.sources && data.sources[0] && data.sources[0].url) ||
+                        data.m3u8;
+          if (!newM3u8) throw new Error('No stream for server ' + newServer);
+
+          streams[track] = newM3u8;
+          if (data.tracks && data.tracks[track]) {
+            var trk = data.tracks[track];
+            if (trk.englishCc && trk.englishCc.url) {
+              captions[track] = trk.englishCc.url;
+            }
+            if (trk.intro || trk.outro) {
+              skips[track] = { intro: trk.intro, outro: trk.outro };
+            }
+            if (trk.provider) {
+              providers[track] = trk.provider;
+              updateProviderBadge();
+            }
+          }
+          syncAudioButtons();
+          syncCcButtons();
+          if (ccOn) applyCaptions();
+
+          currentServer = newServer;
+          activeServer = newServer;
+          try { localStorage.setItem('ani.preferredServer', newServer); } catch (e) {}
+          syncServerChips(newServer);
+
+          if (hls) {
+            hls.loadSource(newM3u8);
+            hls.attachMedia(video);
+          } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = newM3u8;
+          }
+
+          var restored = false;
+          var onMeta = function () {
+            if (restored) return;
+            restored = true;
+            try { video.removeEventListener('loadedmetadata', onMeta); } catch (e) {}
+            if (hls && typeof hls.off === 'function') {
+              try { hls.off(Hls.Events.MANIFEST_PARSED, onMeta); } catch (e) {}
+            }
+            fillQuality();
+            try { video.currentTime = savedTime; } catch (e) {}
+            try { video.playbackRate = savedRate; } catch (e) {}
+            if (wasPlaying) {
+              video.play().catch(function () { setPlaying(false); });
+            }
+            showOsd('\u2713', 'Switched to ' + serverLabel(newServer));
+            switchingServer = false;
+            failoverAttempts = {};
+            hideRecoveryOverlay();
+          };
+
+          if (hls && typeof hls.once === 'function') {
+            hls.once(Hls.Events.MANIFEST_PARSED, onMeta);
+          }
+          video.addEventListener('loadedmetadata', onMeta, { once: true });
+          setTimeout(function () {
+            if (!restored) onMeta();
+          }, 4000);
+        } catch (err) {
+          switchingServer = false;
+          handleFailover(newServer);
         }
       }
 
@@ -5208,6 +6060,7 @@ var watchController = async (c) => {
         if (next === track && hls) {
           syncAudioButtons();
           syncCcButtons();
+          if (ccOn) applyCaptions();
           return;
         }
 
@@ -5292,25 +6145,25 @@ var watchController = async (c) => {
           });
           hls.on(Hls.Events.ERROR, function (_e, data) {
             if (!data || !data.fatal) return;
+            var isTokenExpiry = Boolean(data.response && (data.response.code === 403 || data.response.code === 404));
+            if (isTokenExpiry) {
+              handleFailover(currentServer);
+              return;
+            }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              // Cap manual recovery attempts \u2014 don't loop forever on a dead CDN
-              if (hlsNetworkRetries < 2) {
+              if (hlsNetworkRetries < 1) {
                 hlsNetworkRetries++;
                 try { hls.startLoad(); return; } catch (e) {}
               }
+              handleFailover(currentServer);
+              return;
             } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
               if (hlsMediaRetries < 2) {
                 hlsMediaRetries++;
                 try { hls.recoverMediaError(); return; } catch (e) {}
               }
             }
-            var alt = next === 'sub' ? 'dub' : 'sub';
-            var hasAlt = Boolean(streams[alt]);
-            if (hasAlt) {
-              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + ').', alt);
-            } else {
-              fail('Could not load ' + next.toUpperCase() + ' (' + data.type + '). Try another server.');
-            }
+            handleFailover(currentServer);
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src;
@@ -5629,7 +6482,7 @@ var watchController = async (c) => {
       });
       stage.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
@@ -5639,7 +6492,7 @@ var watchController = async (c) => {
 
       stage.addEventListener('dblclick', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         toggleFs();
@@ -5685,7 +6538,7 @@ var watchController = async (c) => {
 
       stage.addEventListener('pointerup', function (e) {
         if (!window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
 
@@ -6143,6 +6996,50 @@ var watchController = async (c) => {
         });
       });
 
+      document.querySelectorAll('.server-chips [data-server]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var s = btn.getAttribute('data-server');
+          if (s) {
+            switchServer(s, false);
+          }
+        });
+      });
+
+      if (recoveryRetryBtn) {
+        recoveryRetryBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideRecoveryOverlay();
+          var targetServer = currentServer || activeServer || 'hd-1';
+          failoverAttempts = {};
+          currentServer = null;
+          switchServer(targetServer, false, true);
+        });
+      }
+      if (recoverySwitchAudioBtn) {
+        recoverySwitchAudioBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideRecoveryOverlay();
+          failoverAttempts = {};
+          var alt = track === 'sub' ? 'dub' : 'sub';
+          if (streams[alt]) {
+            loadTrack(alt, true);
+          } else {
+            showOsd('\u26A0\uFE0F', 'Other audio track unavailable');
+          }
+        });
+      }
+      if (recoveryCloseBtn) {
+        recoveryCloseBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideRecoveryOverlay();
+        });
+      }
+
       seek.addEventListener('input', function () {
         if (!video.duration) return;
         video.currentTime = (Number(seek.value) / 1000) * video.duration;
@@ -6409,6 +7306,8 @@ var watchController = async (c) => {
       function init() {
         setPlaying(false);
         setMuted(false);
+        syncServerChips(activeServer);
+        updateServerAvailability(track);
         // Restore saved volume level
         var savedVol = 1;
         try {
@@ -6457,7 +7356,8 @@ var watchPlayController = async (c) => {
       server,
       category
     });
-    return c.redirect(playback.link, 302);
+    const redirectUrl = playback.link.includes("?") ? `${playback.link}&server=${encodeURIComponent(playback.server)}` : `${playback.link}?server=${encodeURIComponent(playback.server)}`;
+    return c.redirect(redirectUrl, 302);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to open episode";
     throw new validationError(message, { animeEpisodeId });
@@ -6565,9 +7465,9 @@ var allGenresController = () => {
 var genres_default = allGenresController;
 
 // src/extractors/extractNextEpisodeSchedule.ts
-import { load as load9 } from "cheerio";
+import { load as load10 } from "cheerio";
 var extractNextEpisodeSchedule = (html) => {
-  const $ = load9(html);
+  const $ = load10(html);
   const scheduleElement = $("#schedule-date");
   const scheduleDate = scheduleElement.attr("data-value");
   if (scheduleDate) {
@@ -6817,9 +7717,9 @@ var randomController = async (_c) => {
 var random_default = randomController;
 
 // src/extractors/extractSchedule.ts
-import { load as load12 } from "cheerio";
+import { load as load13 } from "cheerio";
 var extractSchedule = (html) => {
-  const $ = load12(html);
+  const $ = load13(html);
   const response = [];
   $("a").each((i, element) => {
     const obj = {
@@ -10898,37 +11798,84 @@ var browseController = async (c) => {
         setStatus('Resolving stream\u2026');
         try {
           var audioCat = state.audioPref || 'sub';
-          var params = new URLSearchParams({
-            animeEpisodeId: String(episodeId).replace('::', '?'),
-            server: 'hd-1',
-            category: audioCat,
-          });
-          var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString(), 25000);
-          var link =
-            data.link ||
-            (data.tracks && data.tracks[audioCat] && data.tracks[audioCat].link) ||
-            (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
-            (data.sources && data.sources[0] && data.sources[0].url);
-          if (!link) throw new Error('No watch link returned.');
-          // Save anime metadata so the watch page can store the poster in CW entries
-          if (state.anime && state.anime.id) {
-            try {
-              var posterVal = state.anime.poster;
-              var posterStr = Array.isArray(posterVal) ? posterVal[0] : (posterVal || null);
-              localStorage.setItem(
-                'ani.meta.' + state.anime.id,
-                JSON.stringify({ id: state.anime.id, name: state.anime.name || state.anime.id, poster: posterStr })
-              );
-            } catch (e) {}
+          var preferredServer = 'hd-1';
+          try {
+            preferredServer = (localStorage.getItem('ani.preferredServer') || 'hd-1').toLowerCase();
+          } catch (e) {
+            preferredServer = 'hd-1';
           }
-          setStatus('Playing in cinema\u2026');
-          var epNum = ep.number;
-          var raw = String(ep.title || ep.alternativeTitle || '').trim();
-          var generic = !raw || /^episode\\s*#?\\s*\\d+$/i.test(raw) || (epNum != null && raw === String(epNum));
-          var epTag = epNum != null ? 'Ep ' + epNum : 'Episode';
-          var epLabel = (generic ? epTag : epTag + ' \xB7 ' + raw) + ' (' + audioCat.toUpperCase() + ')';
-          var animeName = (state.anime && (state.anime.name || state.anime.title)) || 'Anime';
-          openCinema(link, animeName, epLabel);
+          if (audioCat === 'dub' && preferredServer === 'zoko') {
+            preferredServer = 'hd-1';
+          }
+          var baseServers = ['hd-1', 'hd-2', 'zoko', 'gogo'];
+          if (audioCat === 'dub') {
+            baseServers = ['hd-1', 'hd-2', 'gogo'];
+          }
+          if (baseServers.indexOf(preferredServer) === -1) {
+            preferredServer = 'hd-1';
+          }
+          var chain = [preferredServer];
+          for (var i = 0; i < baseServers.length; i++) {
+            if (chain.indexOf(baseServers[i]) === -1) {
+              chain.push(baseServers[i]);
+            }
+          }
+
+          var resolved = false;
+          for (var s = 0; s < chain.length; s++) {
+            var server = chain[s];
+            try {
+              var params = new URLSearchParams({
+                animeEpisodeId: String(episodeId).replace('::', '?'),
+                server: server,
+                category: audioCat,
+              });
+              var data = await getJson('/api/v2/hianime/episode/sources?' + params.toString(), 25000);
+              var link =
+                data &&
+                (data.link ||
+                  (data.tracks && data.tracks[audioCat] && data.tracks[audioCat].link) ||
+                  (data.tracks && data.tracks.sub && data.tracks.sub.link) ||
+                  (data.sources && data.sources[0] && data.sources[0].url));
+              if (!link) throw new Error('No watch link returned.');
+              if (link.indexOf('server=') === -1) {
+                link += (link.indexOf('?') === -1 ? '?' : '&') + 'server=' + encodeURIComponent(server);
+              }
+              if (server !== preferredServer) {
+                try {
+                  localStorage.setItem('ani.preferredServer', server);
+                } catch (e) {}
+              }
+              // Save anime metadata so the watch page can store the poster in CW entries
+              if (state.anime && state.anime.id) {
+                try {
+                  var posterVal = state.anime.poster;
+                  var posterStr = Array.isArray(posterVal) ? posterVal[0] : (posterVal || null);
+                  localStorage.setItem(
+                    'ani.meta.' + state.anime.id,
+                    JSON.stringify({ id: state.anime.id, name: state.anime.name || state.anime.title, poster: posterStr })
+                  );
+                } catch (e) {}
+              }
+              setStatus('Playing in cinema\u2026');
+              var epNum = ep.number;
+              var raw = String(ep.title || ep.alternativeTitle || '').trim();
+              var generic = !raw || /^episode\\s*#?\\s*\\d+$/i.test(raw) || (epNum != null && raw === String(epNum));
+              var epTag = epNum != null ? 'Ep ' + epNum : 'Episode';
+              var epLabel = (generic ? epTag : epTag + ' \xB7 ' + raw) + ' (' + audioCat.toUpperCase() + ')';
+              var animeName = (state.anime && (state.anime.name || state.anime.title)) || 'Anime';
+              openCinema(link, animeName, epLabel);
+              resolved = true;
+              break;
+            } catch (err) {
+              if (s < chain.length - 1) {
+                setStatus('Server ' + server + ' unavailable, trying fallback\u2026');
+              }
+            }
+          }
+          if (!resolved) {
+            setStatus('Could not resolve stream across available servers.', true);
+          }
         } catch (err) {
           setStatus((err && err.message) || 'Could not resolve stream', true);
         } finally {
