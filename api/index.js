@@ -4106,8 +4106,12 @@ var watchController = async (c) => {
             <div class="shortcut-row"><kbd>Space</kbd> / <kbd>K</kbd> <span>Play / Pause</span></div>
             <div class="shortcut-row"><kbd>J</kbd> / <kbd>L</kbd> <span>Seek -10s / +10s</span></div>
             <div class="shortcut-row"><kbd>\u2190</kbd> / <kbd>\u2192</kbd> <span>Seek -5s / +5s</span></div>
+            <div class="shortcut-row"><kbd>0</kbd>\u2013<kbd>9</kbd> <span>Seek 0%\u201390%</span></div>
             <div class="shortcut-row"><kbd>\u2191</kbd> / <kbd>\u2193</kbd> <span>Volume Up / Down</span></div>
             <div class="shortcut-row"><kbd>M</kbd> <span>Mute / Unmute</span></div>
+            <div class="shortcut-row"><kbd>&lt;</kbd> / <kbd>&gt;</kbd> <span>Playback Speed</span></div>
+            <div class="shortcut-row"><kbd>S</kbd> / <kbd>D</kbd> <span>Sub / Dub Audio</span></div>
+            <div class="shortcut-row"><kbd>E</kbd> <span>Episode Drawer</span></div>
             <div class="shortcut-row"><kbd>P</kbd> <span>Picture-in-Picture</span></div>
             <div class="shortcut-row"><kbd>T</kbd> <span>Theater Mode</span></div>
             <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
@@ -6169,6 +6173,20 @@ var watchController = async (c) => {
         seekWrap.addEventListener('touchmove', function (e) {
           if (e.touches && e.touches[0]) updateScrubTooltip(e.touches[0].clientX);
         }, { passive: true });
+        seekWrap.addEventListener('wheel', function (e) {
+          if (window.matchMedia('(pointer: coarse)').matches) return;
+          e.preventDefault();
+          e.stopPropagation();
+          var step = 5;
+          if (e.deltaY < 0) {
+            video.currentTime = Math.min((video.duration || 0), video.currentTime + step);
+            showOsd('\u23E9', '+5s');
+          } else {
+            video.currentTime = Math.max(0, video.currentTime - step);
+            showOsd('\u23EA', '-5s');
+          }
+          pokeControls();
+        }, { passive: false });
       }
 
       if (skipBtn) {
@@ -6314,6 +6332,15 @@ var watchController = async (c) => {
         else if (e.key === 'd' || e.key === 'D') { if (streams.dub) loadTrack('dub', true); }
         else if (e.key === ',' || e.key === '<') cycleRate(-1);
         else if (e.key === '.' || e.key === '>') cycleRate(1);
+        else if (e.key >= '0' && e.key <= '9') {
+          if (video.duration && isFinite(video.duration)) {
+            e.preventDefault();
+            var frac = parseInt(e.key, 10) / 10;
+            var targetTime = frac * video.duration;
+            video.currentTime = targetTime;
+            showOsd('\u23E9', e.key === '0' ? '0:00' : (e.key + '0% \xB7 ' + fmt(targetTime)));
+          }
+        }
         else if (e.key === 'ArrowRight') {
           e.preventDefault();
           video.currentTime = Math.min((video.duration || 0), video.currentTime + 5);
@@ -7240,6 +7267,29 @@ var landingController = async (c) => {
       padding: 8px 20px;
       cursor: pointer;
     }
+    .search-badge {
+      font-family: monospace;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 2px 7px;
+      line-height: 1;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hero-search-box:focus-within .search-badge,
+    .hero-search-box.has-val .search-badge {
+      opacity: 0;
+    }
+    @media (max-width: 640px) {
+      .search-badge { display: none; }
+    }
     .resume-section {
       width: 100%;
       max-width: 640px;
@@ -7348,8 +7398,9 @@ var landingController = async (c) => {
       <p class="byline">by <em>wab</em></p>
       <p class="lede">Private, theater-grade anime streaming. Browse catalog titles, explore curated rails, and unlock high-definition Sub/Dub playback with your instance access key.</p>
       <form class="hero-search" action="/browse" method="get">
-        <div class="hero-search-box">
-          <input type="search" name="q" placeholder="Search anime by title, e.g. Frieren, Solo Leveling, Bleach\u2026" autocomplete="off" required />
+        <div class="hero-search-box" id="landingSearchBox">
+          <input type="search" id="landingSearchInput" name="q" placeholder="Search anime by title, e.g. Frieren, Solo Leveling, Bleach\u2026" autocomplete="off" required />
+          <kbd class="search-badge">/</kbd>
           <button type="submit" class="btn" aria-label="Search">Search</button>
         </div>
       </form>
@@ -7409,6 +7460,30 @@ var landingController = async (c) => {
           '</div>';
         sec.style.display = 'block';
       } catch (e) {}
+
+      var landingSearchInput = document.getElementById('landingSearchInput');
+      var landingSearchBox = document.getElementById('landingSearchBox');
+      if (landingSearchInput && landingSearchBox) {
+        landingSearchInput.addEventListener('input', function () {
+          landingSearchBox.classList.toggle('has-val', landingSearchInput.value.trim().length > 0);
+        });
+      }
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          if (landingSearchInput && document.activeElement === landingSearchInput) {
+            landingSearchInput.blur();
+          }
+        } else if ((e.key === '/' || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) && !e.altKey) {
+          var tag = document.activeElement && document.activeElement.tagName;
+          if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && !document.activeElement.isContentEditable) {
+            if (landingSearchInput) {
+              e.preventDefault();
+              landingSearchInput.focus();
+              landingSearchInput.select();
+            }
+          }
+        }
+      });
     })();
   </script>
   ${vercelObservabilityScriptTags()}
@@ -8797,6 +8872,127 @@ var browseController = async (c) => {
         border-radius: var(--radius-md);
       }
     }
+    /* Cinema Minimized / Docked Floating Miniplayer */
+    .cinema-overlay.is-minimized {
+      position: static;
+      inset: auto;
+      padding: 0;
+      pointer-events: none;
+    }
+    .cinema-overlay.is-minimized .cinema-backdrop {
+      display: none;
+    }
+    .cinema-overlay.is-minimized .cinema-stage {
+      position: fixed;
+      right: max(20px, env(safe-area-inset-right));
+      bottom: max(20px, env(safe-area-inset-bottom));
+      width: min(360px, calc(100vw - 32px));
+      max-height: none;
+      z-index: 1000;
+      pointer-events: auto;
+      border-radius: var(--radius-lg);
+      background: rgba(12, 16, 24, 0.95);
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
+      padding: 8px;
+      gap: 6px;
+      animation: none;
+    }
+    .cinema-overlay.is-minimized .cinema-viewport {
+      aspect-ratio: 16 / 9;
+      max-height: none;
+      border-radius: var(--radius-md);
+      box-shadow: none;
+    }
+    .cinema-overlay.is-minimized .cinema-anime {
+      font-size: 0.8rem;
+    }
+    .cinema-overlay.is-minimized .cinema-episode {
+      font-size: 0.75rem;
+    }
+    .cinema-overlay.is-minimized #cinemaNewTab {
+      display: none;
+    }
+    /* Floating Back-To-Top Button */
+    .back-to-top {
+      position: fixed;
+      right: max(24px, env(safe-area-inset-right));
+      bottom: max(24px, env(safe-area-inset-bottom));
+      z-index: 90;
+      appearance: none;
+      background: rgba(12, 16, 24, 0.88);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 10px 16px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(12px);
+      transition: opacity 0.22s var(--ease), transform 0.22s var(--ease), background 0.15s ease, border-color 0.15s ease;
+    }
+    .back-to-top.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+    @media (hover: hover) {
+      .back-to-top:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: var(--accent);
+        color: #fff;
+        transform: translateY(-2px);
+      }
+    }
+    .back-to-top:active {
+      transform: scale(0.96);
+    }
+    body:has(.cinema-overlay.is-open.is-minimized) .back-to-top {
+      bottom: max(240px, env(safe-area-inset-bottom));
+    }
+    /* Desktop Card Quick Play Button */
+    .card-quick-play {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.85);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(61, 214, 198, 0.92);
+      color: #05070a;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s var(--ease), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 8px 24px rgba(61, 214, 198, 0.45);
+      z-index: 4;
+      cursor: pointer;
+    }
+    @media (hover: hover) {
+      .card:hover .card-quick-play {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translate(-50%, -50%) scale(1);
+      }
+      .card-quick-play:hover {
+        background: #fff;
+        transform: translate(-50%, -50%) scale(1.1);
+      }
+    }
     .skeleton-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 14px; }
     .skel {
       border-radius: 14px;
@@ -9037,6 +9233,9 @@ var browseController = async (c) => {
           <span class="cinema-episode" id="cinemaEpisode"></span>
         </div>
         <div class="cinema-actions">
+          <button type="button" class="cinema-close" id="cinemaMinimize" aria-label="Minimize player" title="Minimize to miniplayer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13H5v-2h14v2z"/></svg>
+          </button>
           <a class="pill" id="cinemaNewTab" href="#" target="_blank" rel="noopener" title="Open player in new tab">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="margin-right:4px;vertical-align:-1px"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
             Pop out
@@ -9049,6 +9248,11 @@ var browseController = async (c) => {
       </div>
     </div>
   </div>
+
+  <button type="button" class="back-to-top" id="backToTop" aria-label="Back to top" title="Back to top">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>
+    Top
+  </button>
 
   <script>
     (function () {
@@ -9097,6 +9301,8 @@ var browseController = async (c) => {
       var cinemaEpisode = document.getElementById('cinemaEpisode');
       var cinemaNewTab = document.getElementById('cinemaNewTab');
       var cinemaClose = document.getElementById('cinemaClose');
+      var cinemaMinimize = document.getElementById('cinemaMinimize');
+      var backToTop = document.getElementById('backToTop');
       var state = {
         view: 'discover',
         anime: null,
@@ -9256,6 +9462,12 @@ var browseController = async (c) => {
         if (!cinemaOverlay) return;
         var wasOpen = cinemaOverlay.classList.contains('is-open');
         cinemaOverlay.classList.remove('is-open');
+        cinemaOverlay.classList.remove('is-minimized');
+        if (cinemaMinimize) {
+          cinemaMinimize.setAttribute('aria-label', 'Minimize player');
+          cinemaMinimize.title = 'Minimize to miniplayer';
+          cinemaMinimize.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13H5v-2h14v2z"/></svg>';
+        }
         if (cinemaFrame) cinemaFrame.src = 'about:blank';
         document.body.style.overflow = '';
         if (wasOpen && !fromPop && history.state && history.state.inCinema) {
@@ -9269,6 +9481,31 @@ var browseController = async (c) => {
 
       if (cinemaClose) cinemaClose.addEventListener('click', function () { closeCinema(); });
       if (cinemaBackdrop) cinemaBackdrop.addEventListener('click', function () { closeCinema(); });
+      if (cinemaMinimize) {
+        cinemaMinimize.addEventListener('click', function () {
+          if (!cinemaOverlay) return;
+          var isMin = cinemaOverlay.classList.toggle('is-minimized');
+          if (isMin) {
+            document.body.style.overflow = '';
+            cinemaMinimize.setAttribute('aria-label', 'Expand player');
+            cinemaMinimize.title = 'Expand to full screen';
+            cinemaMinimize.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+          } else {
+            document.body.style.overflow = 'hidden';
+            cinemaMinimize.setAttribute('aria-label', 'Minimize player');
+            cinemaMinimize.title = 'Minimize to miniplayer';
+            cinemaMinimize.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13H5v-2h14v2z"/></svg>';
+          }
+        });
+      }
+      if (backToTop) {
+        window.addEventListener('scroll', function () {
+          backToTop.classList.toggle('is-visible', window.scrollY > 500);
+        }, { passive: true });
+        backToTop.addEventListener('click', function () {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
       if (cinemaOverlay) {
         cinemaOverlay.addEventListener('keydown', function (e) {
           trapDialogFocus(e, cinemaOverlay);
@@ -9900,6 +10137,9 @@ var browseController = async (c) => {
         var inWl = isInWatchlist(a.id);
         btn.innerHTML =
           posterImg(a.poster, a.name) +
+          '<button type="button" class="card-quick-play" aria-label="Watch ' + esc(a.name || a.id) + '" title="Quick play episode 1">' +
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>' +
+          '</button>' +
           '<div class="meta"><div class="title">' + esc(a.name || a.id) + '</div>' +
           '<div class="tick">' + ticks + '</div></div>' +
           '<button type="button" class="wl-btn' + (inWl ? ' is-wl' : '') + '" aria-label="' + (inWl ? 'Remove from watchlist' : 'Add to watchlist') + '" data-wl-id="' + esc(a.id) + '" title="Watchlist">' +
@@ -9907,6 +10147,24 @@ var browseController = async (c) => {
         btn.addEventListener('click', function () {
           navigate({ view: 'episodes', animeId: a.id, anime: a });
         });
+        var qpBtn = btn.querySelector('.card-quick-play');
+        if (qpBtn) {
+          qpBtn.addEventListener('click', async function (e) {
+            e.stopPropagation();
+            try {
+              state.anime = a;
+              var id = encodeURIComponent(a.id);
+              var data = await getJson('/api/v2/hianime/anime/' + id + '/episodes');
+              if (data && data.episodes && data.episodes.length) {
+                playEpisode(data.episodes[0], qpBtn);
+              } else {
+                navigate({ view: 'episodes', animeId: a.id, anime: a });
+              }
+            } catch (err) {
+              navigate({ view: 'episodes', animeId: a.id, anime: a });
+            }
+          });
+        }
         // Watchlist heart click (stop propagation so card click doesn't fire)
         btn.querySelector('.wl-btn').addEventListener('click', function (e) {
           e.stopPropagation();
