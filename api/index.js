@@ -5191,14 +5191,16 @@ var watchController = async (c) => {
             <div class="menu-row shortcuts-row">
               <label class="shortcuts-label">Keyboard shortcuts</label>
               <div class="shortcuts-grid">
-                <kbd>Space</kbd><span>Play / Pause</span>
-                <kbd>\u2190 \u2192</kbd><span>Seek \xB110s</span>
+                <kbd>Space / K</kbd><span>Play / Pause</span>
+                <kbd>J / L</kbd><span>Seek \xB110s</span>
+                <kbd>\u2190 \u2192</kbd><span>Seek \xB15s</span>
+                <kbd>0 - 9</kbd><span>Seek 0%\u201390%</span>
                 <kbd>\u2191 \u2193</kbd><span>Volume \xB15%</span>
-                <kbd>[ ]</kbd><span>Prev / Next episode</span>
-                <kbd>F</kbd><span>Fullscreen</span>
-                <kbd>T</kbd><span>Theater mode</span>
-                <kbd>C</kbd><span>Captions on/off</span>
                 <kbd>M</kbd><span>Mute</span>
+                <kbd>F / T</kbd><span>Full / Theater</span>
+                <kbd>C</kbd><span>Captions on/off</span>
+                <kbd>Z / X</kbd><span>Sub sync \xB10.1s</span>
+                <kbd>N / [ ]</kbd><span>Next / Prev ep</span>
                 <kbd>, .</kbd><span>Speed down / up</span>
               </div>
             </div>
@@ -12332,9 +12334,8 @@ var browseController = async (c) => {
             !raw ||
             /^episode\\s*#?\\s*\\d+$/i.test(raw) ||
             (num != null && raw === String(num));
-          var checkmark = isCompleted ? '\u2713 ' : '';
           var epTag = num != null ? 'Ep ' + num : 'Episode';
-          var primary = generic ? (checkmark + epTag) : (checkmark + raw);
+          var primary = generic ? epTag : raw;
           var secondary = generic ? null : epTag;
 
           var barHtml = (ratio >= 0.05 || isWatched)

@@ -3180,9 +3180,8 @@ export const browseController = async (c: Context) => {
             !raw ||
             /^episode\\s*#?\\s*\\d+$/i.test(raw) ||
             (num != null && raw === String(num));
-          var checkmark = isCompleted ? '✓ ' : '';
           var epTag = num != null ? 'Ep ' + num : 'Episode';
-          var primary = generic ? (checkmark + epTag) : (checkmark + raw);
+          var primary = generic ? epTag : raw;
           var secondary = generic ? null : epTag;
 
           var barHtml = (ratio >= 0.05 || isWatched)
