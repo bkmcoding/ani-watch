@@ -200,7 +200,10 @@ export async function resolveCategory(
     const targetTitle = animeTitle || slug || '';
     if (!targetTitle) return null;
 
-    const stream = await resolveGogoSources(targetTitle, epNum);
+    const stream =
+      category === 'dub'
+        ? await resolveGogoSources(targetTitle, epNum, 'dub')
+        : await resolveGogoSources(targetTitle, epNum);
     if (!stream) return null;
     const m3u8 = stream.sources[0]?.url;
     if (!m3u8) return null;

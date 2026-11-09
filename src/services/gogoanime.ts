@@ -316,20 +316,24 @@ export async function extractGogoSourcesFromEmbed(
  */
 export async function resolveGogoSources(
   animeTitle: string,
-  epNum: number | string
+  epNum: number | string,
+  category: 'sub' | 'dub' = 'sub'
 ): Promise<GogoStreamResult | null> {
   try {
     if (!animeTitle || typeof animeTitle !== 'string' || !animeTitle.trim()) {
       return null;
     }
 
-    const slug = formatGogoSlug(animeTitle);
+    let slug = formatGogoSlug(animeTitle);
     if (!slug) return null;
+    if (category === 'dub' && !slug.endsWith('-dub')) {
+      slug = `${slug}-dub`;
+    }
 
-    const episodePath = formatGogoEpisodeUrl(slug, epNum);
-    const episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
+    let episodePath = formatGogoEpisodeUrl(slug, epNum);
+    let episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
 
-    const res = await fetch(episodeUrl, {
+    let res = await fetch(episodeUrl, {
       headers: {
         'User-Agent': DEFAULT_UA,
         Referer: `${GOGO_BASE_URL}/`,
@@ -337,6 +341,22 @@ export async function resolveGogoSources(
       },
       signal: AbortSignal.timeout(12000),
     });
+
+    if (!res.ok && category === 'dub') {
+      const baseSlug = formatGogoSlug(animeTitle);
+      if (baseSlug !== slug) {
+        episodePath = formatGogoEpisodeUrl(baseSlug, epNum);
+        episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
+        res = await fetch(episodeUrl, {
+          headers: {
+            'User-Agent': DEFAULT_UA,
+            Referer: `${GOGO_BASE_URL}/`,
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          signal: AbortSignal.timeout(12000),
+        });
+      }
+    }
 
     if (!res.ok) {
       console.warn(`[GogoAnime] Failed to fetch episode page ${episodeUrl}: HTTP ${res.status}`);

@@ -1836,16 +1836,19 @@ async function extractGogoSourcesFromEmbed(embedUrl) {
     return null;
   }
 }
-async function resolveGogoSources(animeTitle, epNum) {
+async function resolveGogoSources(animeTitle, epNum, category = "sub") {
   try {
     if (!animeTitle || typeof animeTitle !== "string" || !animeTitle.trim()) {
       return null;
     }
-    const slug = formatGogoSlug(animeTitle);
+    let slug = formatGogoSlug(animeTitle);
     if (!slug) return null;
-    const episodePath = formatGogoEpisodeUrl(slug, epNum);
-    const episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
-    const res = await fetch(episodeUrl, {
+    if (category === "dub" && !slug.endsWith("-dub")) {
+      slug = `${slug}-dub`;
+    }
+    let episodePath = formatGogoEpisodeUrl(slug, epNum);
+    let episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
+    let res = await fetch(episodeUrl, {
       headers: {
         "User-Agent": DEFAULT_UA3,
         Referer: `${GOGO_BASE_URL}/`,
@@ -1853,6 +1856,21 @@ async function resolveGogoSources(animeTitle, epNum) {
       },
       signal: AbortSignal.timeout(12e3)
     });
+    if (!res.ok && category === "dub") {
+      const baseSlug = formatGogoSlug(animeTitle);
+      if (baseSlug !== slug) {
+        episodePath = formatGogoEpisodeUrl(baseSlug, epNum);
+        episodeUrl = `${GOGO_BASE_URL}${episodePath}`;
+        res = await fetch(episodeUrl, {
+          headers: {
+            "User-Agent": DEFAULT_UA3,
+            Referer: `${GOGO_BASE_URL}/`,
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+          },
+          signal: AbortSignal.timeout(12e3)
+        });
+      }
+    }
     if (!res.ok) {
       console.warn(`[GogoAnime] Failed to fetch episode page ${episodeUrl}: HTTP ${res.status}`);
       return null;
@@ -2212,7 +2230,7 @@ async function resolveCategory(servers, category, server, episodeId, animeTitle)
     const slug = animeSlugFromEpisodeId(episodeId);
     const targetTitle = animeTitle || slug || "";
     if (!targetTitle) return null;
-    const stream = await resolveGogoSources(targetTitle, epNum);
+    const stream = category === "dub" ? await resolveGogoSources(targetTitle, epNum, "dub") : await resolveGogoSources(targetTitle, epNum);
     if (!stream) return null;
     const m3u8 = stream.sources[0]?.url;
     if (!m3u8) return null;
@@ -5000,7 +5018,7 @@ var watchController = async (c) => {
       var playCategory = ${safeJson(category)};
       var currentEpNum = ${safeJson(epNum)};
       var currentEpTitle = ${safeJson(epTitle || "")};
-      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
+      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko', gogoanime: 'GogoAnime' };
       var track = ${safeJson(initial)};
       var activeServer = ${safeJson(activeServer)};
       var currentServer = activeServer;
@@ -5957,6 +5975,7 @@ var watchController = async (c) => {
           }
           syncAudioButtons();
           syncCcButtons();
+          if (ccOn) applyCaptions();
 
           currentServer = newServer;
           activeServer = newServer;
@@ -6041,6 +6060,7 @@ var watchController = async (c) => {
         if (next === track && hls) {
           syncAudioButtons();
           syncCcButtons();
+          if (ccOn) applyCaptions();
           return;
         }
 

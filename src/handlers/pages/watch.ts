@@ -2177,7 +2177,7 @@ export const watchController = async (c: Context) => {
       var playCategory = ${safeJson(category)};
       var currentEpNum = ${safeJson(epNum)};
       var currentEpTitle = ${safeJson(epTitle || '')};
-      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
+      var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko', gogoanime: 'GogoAnime' };
       var track = ${safeJson(initial)};
       var activeServer = ${safeJson(activeServer)};
       var currentServer = activeServer;
@@ -3134,6 +3134,7 @@ export const watchController = async (c: Context) => {
           }
           syncAudioButtons();
           syncCcButtons();
+          if (ccOn) applyCaptions();
 
           currentServer = newServer;
           activeServer = newServer;
@@ -3218,6 +3219,7 @@ export const watchController = async (c: Context) => {
         if (next === track && hls) {
           syncAudioButtons();
           syncCcButtons();
+          if (ccOn) applyCaptions();
           return;
         }
 
