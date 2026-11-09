@@ -1103,6 +1103,8 @@ export const watchController = async (c: Context) => {
       padding: 6px; display: flex; flex-direction: column; gap: 2px;
     }
     .ep-item {
+      position: relative;
+      overflow: hidden;
       appearance: none; border: 0; background: transparent; color: var(--ink);
       font: inherit; text-align: left; cursor: pointer;
       display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
@@ -1110,6 +1112,17 @@ export const watchController = async (c: Context) => {
       transition: background 0.15s ease, transform 0.12s ease;
       content-visibility: auto;
       contain-intrinsic-size: auto 36px;
+    }
+    .ep-progress-bar {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 2.5px;
+      background: var(--accent, #3dd6c6);
+      border-radius: 999px;
+      pointer-events: none;
+      transition: width 0.2s ease;
+      z-index: 2;
     }
     .ep-item:hover {
       background: rgba(255,255,255,0.06);
@@ -2075,7 +2088,8 @@ export const watchController = async (c: Context) => {
             <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
             <div class="shortcut-row"><kbd>C</kbd> <span>Toggle Captions</span></div>
             <div class="shortcut-row"><kbd>Z</kbd> / <kbd>X</kbd> <span>Subtitle Sync (-0.1s / +0.1s)</span></div>
-            <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> <span>Previous / Next Episode</span></div>
+            <div class="shortcut-row"><kbd>N</kbd> / <kbd>]</kbd> <span>Next Episode</span></div>
+            <div class="shortcut-row"><kbd>Shift</kbd>+<kbd>P</kbd> / <kbd>[</kbd> <span>Previous Episode</span></div>
             <div class="shortcut-row"><kbd>?</kbd> <span>Show Shortcuts</span></div>
           </div>
         </div>
@@ -2550,6 +2564,17 @@ export const watchController = async (c: Context) => {
               document.querySelectorAll('.ep-item[data-epn]').forEach(function (el) {
                 if (el.getAttribute('data-epn') === String(currentEpNum)) {
                   el.classList.add('is-watched');
+                  var epnEl = el.querySelector('.ep-n');
+                  if (epnEl && epnEl.textContent.indexOf('✓') === -1) {
+                    epnEl.textContent = '✓ ' + epnEl.textContent;
+                  }
+                  var bar = el.querySelector('.ep-progress-bar');
+                  if (!bar) {
+                    bar = document.createElement('span');
+                    bar.className = 'ep-progress-bar';
+                    el.appendChild(bar);
+                  }
+                  bar.style.width = '100%';
                 }
               });
             }
@@ -2585,6 +2610,23 @@ export const watchController = async (c: Context) => {
           cwSave(t);
         }, 5000);
       }
+      var lastProgSave = 0;
+      function saveEpisodeProgress(force) {
+        if (!animeId || !currentEpNum || !video || !isFinite(video.duration) || video.duration <= 10) return;
+        var now = Date.now();
+        if (!force && (now - lastProgSave < 5000)) return;
+        lastProgSave = now;
+        var curT = video.currentTime || 0;
+        var dur = video.duration;
+        var ratio = Math.min(1, Math.max(0, curT / dur));
+        try {
+          localStorage.setItem('ani.progress.' + animeId + '.' + currentEpNum, JSON.stringify({
+            time: Math.floor(curT),
+            dur: Math.floor(dur),
+            ratio: Math.round(ratio * 100) / 100
+          }));
+        } catch (e) {}
+      }
       // Remove from continue-watching when finished
       function cwRemove() {
         try {
@@ -2592,7 +2634,10 @@ export const watchController = async (c: Context) => {
           localStorage.setItem(CW_KEY, JSON.stringify(list));
         } catch (e) {}
       }
-      window.addEventListener('pagehide', function () { cwSave(video.currentTime || 0); });
+      window.addEventListener('pagehide', function () {
+        cwSave(video.currentTime || 0);
+        saveEpisodeProgress(true);
+      });
 
       // ── Quality selector state ─────────────────────────────────────────────
       var qualityManual = -1; // -1 = auto
@@ -2871,12 +2916,7 @@ export const watchController = async (c: Context) => {
       function toggleMute() {
         video.muted = !video.muted;
         setMuted(video.muted);
-        if (video.muted) {
-          showOsd('🔇', 'Muted');
-        } else {
-          var icon = video.volume < 0.5 ? '🔉' : '🔊';
-          showOsd(icon, Math.round(video.volume * 100) + '%');
-        }
+        showOsd(video.muted ? '🔇' : '🔊', video.muted ? 'Muted' : 'Unmuted');
       }
       function isIosPhone() {
         return /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -3228,6 +3268,7 @@ export const watchController = async (c: Context) => {
         try { localStorage.setItem('ani.cc', ccOn ? '1' : '0'); } catch (e) {}
         if (!ccOn) unloadCaptions();
         applyCaptions();
+        showOsd('💬', ccOn ? 'Captions On' : 'Captions Off');
       }
 
       function setRate(next) {
@@ -3825,16 +3866,32 @@ export const watchController = async (c: Context) => {
             currentEl = btn;
           }
           if (n) btn.setAttribute('data-epn', n);
-          // Mark as watched if in localStorage
+          var isWatched = false;
           if (n && animeId) {
             try {
               var _watched = JSON.parse(localStorage.getItem('ani.watched.' + animeId) || '[]');
-              if (_watched.indexOf(n) >= 0) btn.className += ' is-watched';
+              if (_watched.indexOf(n) >= 0) isWatched = true;
             } catch (e) {}
           }
+          var prog = null;
+          if (n && animeId) {
+            try {
+              var rawProg = localStorage.getItem('ani.progress.' + animeId + '.' + n);
+              if (rawProg) prog = JSON.parse(rawProg);
+            } catch (e) {}
+          }
+          var ratio = prog && typeof prog.ratio === 'number' ? prog.ratio : (isWatched ? 1 : 0);
+          var isCompleted = isWatched || ratio >= 0.9;
+          if (isCompleted) btn.className += ' is-watched';
+
+          var barHtml = (ratio >= 0.05 || isWatched)
+            ? '<span class="ep-progress-bar" style="width:' + Math.round((ratio >= 0.05 ? ratio : 1) * 100) + '%"></span>'
+            : '';
+
           btn.innerHTML =
-            '<span class="ep-n">' + (n || '—') + '</span>' +
-            '<span class="ep-t"></span>';
+            '<span class="ep-n">' + (isCompleted ? '✓ ' : '') + (n || '—') + '</span>' +
+            '<span class="ep-t"></span>' +
+            barHtml;
           btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
           (function (epId, epBtn) {
             epBtn.addEventListener('click', function (e) {
@@ -4866,6 +4923,7 @@ export const watchController = async (c: Context) => {
         updateSkip();
         renderCcAt(t);
         cwThrottle(t);
+        saveEpisodeProgress(false);
       });
       video.addEventListener('seeked', function () {
         var t = video.currentTime || 0;
@@ -4882,6 +4940,7 @@ export const watchController = async (c: Context) => {
         // (video.load() can reset duration to 0 and briefly fire ended)
         if (!isFinite(video.duration) || video.duration < 5) return;
         cwRemove(); // finished — remove from continue watching
+        saveEpisodeProgress(true);
         // Mark watched
         if (animeId && currentEpNum) {
           try {
@@ -4936,6 +4995,7 @@ export const watchController = async (c: Context) => {
       });
       video.addEventListener('pause', function () {
         setPlaying(false);
+        saveEpisodeProgress(true);
         // Always show cursor when paused — controls are visible via is-paused CSS rule
         stage.classList.remove('cursor-hidden');
         clearTimeout(hideTimer);
@@ -5009,6 +5069,11 @@ export const watchController = async (c: Context) => {
         }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
+        else if (e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+          e.preventDefault();
+          var prev = document.getElementById('prevEpBar') || document.getElementById('prevEp');
+          if (prev && prev.getAttribute('href')) location.href = prev.getAttribute('href');
+        }
         else if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePip(); }
         else if (e.key === 'e' || e.key === 'E') {
           if (animeId) { e.preventDefault(); toggleEpPanel(); }
@@ -5023,6 +5088,11 @@ export const watchController = async (c: Context) => {
         else if (e.key === 'x' || e.key === 'X') {
           e.preventDefault();
           setSubOffset(subOffset + 0.1, true);
+        }
+        else if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          var next = document.getElementById('nextEpBar') || document.getElementById('nextEp');
+          if (next && next.getAttribute('href')) location.href = next.getAttribute('href');
         }
         else if (e.key === '[') {
           e.preventDefault();

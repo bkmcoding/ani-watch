@@ -189,7 +189,6 @@ describe('Browse Page Cinema Player Preferred Server Integration (Task 7)', () =
     });
 
     it('simulates exhaustion of all servers with final error status', async () => {
-      const preferred = 'hd-1';
       const statusUpdates: string[] = [];
       let isError = false;
       const setStatus = (msg: string, err?: boolean) => {
