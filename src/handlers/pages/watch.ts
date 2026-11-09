@@ -1974,6 +1974,7 @@ export const watchController = async (c: Context) => {
             <div class="shortcut-row"><kbd>T</kbd> <span>Theater Mode</span></div>
             <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
             <div class="shortcut-row"><kbd>C</kbd> <span>Toggle Captions</span></div>
+            <div class="shortcut-row"><kbd>Z</kbd> / <kbd>X</kbd> <span>Subtitle Sync (-0.1s / +0.1s)</span></div>
             <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> <span>Previous / Next Episode</span></div>
             <div class="shortcut-row"><kbd>?</kbd> <span>Show Shortcuts</span></div>
           </div>
@@ -2162,6 +2163,17 @@ export const watchController = async (c: Context) => {
                   <p class="hint" style="margin:0;font-size:0.72rem">Drag captions on the video to reposition.</p>
                 </div>
 
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <span class="cc-label">Subtitle Sync</span>
+                    <span class="hint" id="ccOffsetLabel">0.0s</span>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input class="menu-slider" id="ccOffset" type="range" min="-2.0" max="2.0" step="0.1" value="0.0" aria-label="Subtitle sync offset" />
+                    <button type="button" class="pill" id="ccOffsetReset" style="font-size:0.75rem;padding:2px 8px">Reset</button>
+                  </div>
+                </div>
+
               </div>
               <p class="hint" id="ccHint" style="margin-top:8px;${hasAnyCc ? 'display:none' : ''}">No English softsubs for this episode.</p>
             </div>
@@ -2328,6 +2340,9 @@ export const watchController = async (c: Context) => {
       var ccSizeLabel = document.getElementById('ccSizeLabel');
       var ccOpacityEl = document.getElementById('ccOpacity');
       var ccOpacityLabel = document.getElementById('ccOpacityLabel');
+      var ccOffset = document.getElementById('ccOffset');
+      var ccOffsetLabel = document.getElementById('ccOffsetLabel');
+      var ccOffsetReset = document.getElementById('ccOffsetReset');
       var pipBtn = document.getElementById('pipBtn');
       var pipBtnBar = document.getElementById('pipBtnBar');
       var skipBtn = document.getElementById('skipBtn');
@@ -2393,6 +2408,11 @@ export const watchController = async (c: Context) => {
       var ccBgKey = CC_BGS[localStorage.getItem('ani.ccBg')] ? localStorage.getItem('ani.ccBg') : 'none';
       var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
       var ccCollapsed = localStorage.getItem('ani.ccCollapsed') !== '0'; // collapsed by default unless user explicitly opened it
+      var subOffset = 0.0;
+      try {
+        var savedSubOffset = parseFloat(localStorage.getItem('ani.subOffset') || '0') || 0.0;
+        subOffset = Math.max(-2.0, Math.min(2.0, Math.round(savedSubOffset * 10) / 10));
+      } catch (e) {}
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 10;
       var ccCues = [];
@@ -2905,6 +2925,8 @@ export const watchController = async (c: Context) => {
         // Sync opacity slider
         if (ccOpacityEl) ccOpacityEl.value = String(ccOpacity);
         if (ccOpacityLabel) ccOpacityLabel.textContent = ccOpacity + '%';
+        // Sync subtitle sync slider & label
+        syncSubOffsetUi();
         // Sync pos buttons
         document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
           var pos = btn.getAttribute('data-cc-pos');
@@ -2965,6 +2987,21 @@ export const watchController = async (c: Context) => {
         persistCcLayout();
       }
 
+      function syncSubOffsetUi() {
+        if (ccOffset) ccOffset.value = subOffset.toFixed(1);
+        if (ccOffsetLabel) ccOffsetLabel.textContent = (subOffset > 0 ? '+' : '') + subOffset.toFixed(1) + 's';
+      }
+
+      function setSubOffset(val, showToast) {
+        subOffset = Math.max(-2.0, Math.min(2.0, Math.round(val * 10) / 10));
+        syncSubOffsetUi();
+        try { localStorage.setItem('ani.subOffset', String(subOffset)); } catch (e) {}
+        renderCcAt(video.currentTime || 0);
+        if (showToast) {
+          showOsd('💬', 'Sub Sync: ' + (subOffset > 0 ? '+' : '') + subOffset.toFixed(1) + 's');
+        }
+      }
+
       function hideCcText() {
         activeCueText = '';
         if (ccBox) {
@@ -3020,13 +3057,14 @@ export const watchController = async (c: Context) => {
           hideCcText();
           return;
         }
+        var effectiveTime = Math.max(0, t + subOffset);
         var text = '';
-        var startIdx = findFirstGte(ccCues, t - ccMaxDuration);
-        var endIdx = findLastLte(ccCues, t);
+        var startIdx = findFirstGte(ccCues, effectiveTime - ccMaxDuration);
+        var endIdx = findLastLte(ccCues, effectiveTime);
         if (startIdx <= endIdx && startIdx < ccCues.length && endIdx >= 0) {
           for (var i = startIdx; i <= endIdx; i++) {
             var c = ccCues[i];
-            if (t >= c.start && t <= c.end) {
+            if (effectiveTime >= c.start && effectiveTime <= c.end) {
               text = text ? text + '\\n' + c.text : c.text;
             }
           }
@@ -3407,6 +3445,7 @@ export const watchController = async (c: Context) => {
         var resumeAt = keepTime ? (video.currentTime || 0) : 0;
         var wasPlaying = !video.paused || keepTime;
         track = next;
+        try { localStorage.setItem('ani.audioPref', track); } catch (e) {}
         syncAudioButtons();
         updateSkip();
 
@@ -4067,6 +4106,20 @@ export const watchController = async (c: Context) => {
         });
         ccOpacityEl.addEventListener('click', function (e) { e.stopPropagation(); });
       }
+      if (ccOffset) {
+        ccOffset.addEventListener('input', function (e) {
+          e.stopPropagation();
+          setSubOffset(parseFloat(ccOffset.value) || 0, false);
+        });
+        ccOffset.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+      if (ccOffsetReset) {
+        ccOffsetReset.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          setSubOffset(0, false);
+        });
+      }
       document.querySelectorAll('[data-cc-preset]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
@@ -4408,6 +4461,7 @@ export const watchController = async (c: Context) => {
             fail('That audio track is not available.');
             return;
           }
+          try { localStorage.setItem('ani.audioPref', next); } catch (e) {}
           loadTrack(next, true);
         });
       });
@@ -4693,6 +4747,14 @@ export const watchController = async (c: Context) => {
         else if (e.key === 'c' || e.key === 'C') {
           if (captions[track]) setCc(!ccOn);
         }
+        else if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          setSubOffset(subOffset - 0.1, true);
+        }
+        else if (e.key === 'x' || e.key === 'X') {
+          e.preventDefault();
+          setSubOffset(subOffset + 0.1, true);
+        }
         else if (e.key === '[') {
           e.preventDefault();
           var prev = document.getElementById('prevEpBar') || document.getElementById('prevEp');
@@ -4794,7 +4856,17 @@ export const watchController = async (c: Context) => {
         setPlaying(false);
         setMuted(false);
         syncServerChips(activeServer);
+        try {
+          var urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.has('category')) {
+            var audioPref = localStorage.getItem('ani.audioPref');
+            if (audioPref && (audioPref === 'sub' || audioPref === 'dub') && streams[audioPref]) {
+              track = audioPref;
+            }
+          }
+        } catch (e) {}
         updateServerAvailability(track);
+        syncSubOffsetUi();
         // Restore saved volume level
         var savedVol = 1;
         try {
