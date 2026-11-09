@@ -2033,6 +2033,10 @@ export const watchController = async (c: Context) => {
               <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ''}>Dub</button>
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">${!hasSub ? 'Sub not available for this episode.' : !hasDub ? 'Dub not available for this episode.' : 'Only one audio track is available for this episode.'}</p>
+            <div class="menu-row">
+              <label id="stableVolumeLabel" for="stableVolumeToggle" title="Balances quiet dialogue and loud action scenes">Stable Volume</label>
+              <button type="button" class="switch" id="stableVolumeToggle" role="switch" aria-labelledby="stableVolumeLabel" aria-checked="false" aria-pressed="false"></button>
+            </div>
           </div>
           <div class="menu-section" id="serverSection">
             <h3>Server</h3>
@@ -2332,6 +2336,7 @@ export const watchController = async (c: Context) => {
       var outroDismiss = document.getElementById('outroDismiss');
       var autoSkipToggle = document.getElementById('autoSkipToggle');
       var autoNextToggle = document.getElementById('autoNextToggle');
+      var stableVolumeToggle = document.getElementById('stableVolumeToggle');
       var providerBadge = document.getElementById('providerBadge');
       var epListBtn = document.getElementById('epListBtn');
       var epListBtnMenu = document.getElementById('epListBtnMenu');
@@ -2364,6 +2369,10 @@ export const watchController = async (c: Context) => {
       try { autoSkip = localStorage.getItem('ani.autoSkip') === '1'; } catch (e) {}
       var autoNext = true;
       try { autoNext = localStorage.getItem('ani.autoNext') !== '0'; } catch (e) {}
+      var stableVolume = false;
+      try { stableVolume = localStorage.getItem('ani.stableVolume') === '1'; } catch (e) {}
+      var audioCtx = null;
+      var compressor = null;
       var outroDismissed = false;
       var outroTimer = null;
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
@@ -2594,6 +2603,29 @@ export const watchController = async (c: Context) => {
         if (showHud) {
           var icon = video.muted || v === 0 ? '🔇' : (v < 0.5 ? '🔉' : '🔊');
           showOsd(icon, Math.round(v * 100) + '%');
+        }
+      }
+
+      function initAudioNormalizer() {
+        if (audioCtx) return;
+        try {
+          var AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          audioCtx = new AudioContext();
+          var source = audioCtx.createMediaElementSource(video);
+          compressor = audioCtx.createDynamicsCompressor();
+          compressor.threshold.value = -24;
+          compressor.knee.value = 30;
+          compressor.ratio.value = stableVolume ? 12 : 1;
+          compressor.attack.value = 0.003;
+          compressor.release.value = 0.25;
+          source.connect(compressor);
+          compressor.connect(audioCtx.destination);
+          if (audioCtx.state === 'suspended' && stableVolume) {
+            audioCtx.resume();
+          }
+        } catch (e) {
+          console.warn('[StableVolume] Web Audio init failed:', e);
         }
       }
 
@@ -4337,6 +4369,36 @@ export const watchController = async (c: Context) => {
         });
       }
 
+      if (stableVolumeToggle) {
+        stableVolumeToggle.classList.toggle('is-on', stableVolume);
+        stableVolumeToggle.setAttribute('aria-pressed', stableVolume ? 'true' : 'false');
+        stableVolumeToggle.setAttribute('aria-checked', stableVolume ? 'true' : 'false');
+        stableVolumeToggle.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          stableVolume = !stableVolume;
+          try { localStorage.setItem('ani.stableVolume', stableVolume ? '1' : '0'); } catch (err) {}
+          stableVolumeToggle.classList.toggle('is-on', stableVolume);
+          stableVolumeToggle.setAttribute('aria-pressed', stableVolume ? 'true' : 'false');
+          stableVolumeToggle.setAttribute('aria-checked', stableVolume ? 'true' : 'false');
+          if (stableVolume) {
+            initAudioNormalizer();
+            if (audioCtx && audioCtx.state === 'suspended') {
+              audioCtx.resume();
+            }
+            if (compressor) {
+              compressor.ratio.value = 12;
+            }
+            showOsd('🔊', 'Stable Volume: On');
+          } else {
+            if (compressor) {
+              compressor.ratio.value = 1;
+            }
+            showOsd('🔊', 'Stable Volume: Off');
+          }
+        });
+      }
+
       document.querySelectorAll('[data-track]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
@@ -4539,7 +4601,16 @@ export const watchController = async (c: Context) => {
       video.addEventListener('ratechange', function () {
         if (Math.abs(video.playbackRate - rate) > 0.01) setRate(video.playbackRate);
       });
-      video.addEventListener('play', function () { setPlaying(true); stage.classList.remove('is-loading'); });
+      video.addEventListener('play', function () {
+        setPlaying(true);
+        stage.classList.remove('is-loading');
+        if (stableVolume) {
+          initAudioNormalizer();
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+        }
+      });
       video.addEventListener('pause', function () {
         setPlaying(false);
         // Always show cursor when paused — controls are visible via is-paused CSS rule
