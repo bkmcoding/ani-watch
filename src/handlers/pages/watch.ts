@@ -1479,6 +1479,95 @@ export const watchController = async (c: Context) => {
     .gesture-indicator.is-active .gesture-icon {
       animation: gesturePulse 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
+    .seek-ripple-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 7;
+      overflow: hidden;
+      display: flex;
+    }
+    .seek-ripple-overlay[hidden] {
+      display: none !important;
+    }
+    .ripple-wave {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 42%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .ripple-left {
+      left: 0;
+      border-radius: 0 100% 100% 0 / 0 50% 50% 0;
+      background: radial-gradient(circle at 20% 50%, rgba(61, 214, 198, 0.35), transparent 75%);
+    }
+    .ripple-right {
+      right: 0;
+      border-radius: 100% 0 0 100% / 50% 0 0 50%;
+      background: radial-gradient(circle at 80% 50%, rgba(61, 214, 198, 0.35), transparent 75%);
+    }
+    .ripple-wave.is-active {
+      opacity: 1;
+    }
+    .ripple-arrows {
+      font-size: 1.5rem;
+      color: var(--accent);
+      font-weight: 900;
+      letter-spacing: -1px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+      font-family: Syne, sans-serif;
+    }
+    .ripple-text {
+      font-size: 0.85rem;
+      color: #fff;
+      font-weight: 700;
+      margin-top: 4px;
+      font-family: Syne, sans-serif;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    }
+    @keyframes rippleExpand {
+      0% { transform: scale(0.8); opacity: 0; }
+      50% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .ripple-wave.is-active .ripple-arrows,
+    .ripple-wave.is-active .ripple-text {
+      animation: rippleExpand 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    .hold-speed-pill {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      pointer-events: none;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-family: Syne, sans-serif;
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      animation: rippleExpand 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    .hold-speed-pill[hidden] {
+      display: none !important;
+    }
     .mobile-nav-pill {
       display: none;
     }
@@ -1928,6 +2017,17 @@ export const watchController = async (c: Context) => {
           <span class="osd-icon" id="osdIcon"></span>
           <span class="osd-text" id="osdText"></span>
         </div>
+        <div id="holdSpeedPill" class="hold-speed-pill" hidden aria-hidden="true">2x ▶▶</div>
+        <div id="seekRippleOverlay" class="seek-ripple-overlay" hidden aria-hidden="true">
+          <div class="ripple-wave ripple-left">
+            <div class="ripple-arrows">◀◀</div>
+            <div class="ripple-text"><span class="ripple-secs">10</span> seconds</div>
+          </div>
+          <div class="ripple-wave ripple-right">
+            <div class="ripple-arrows">▶▶</div>
+            <div class="ripple-text"><span class="ripple-secs">10</span> seconds</div>
+          </div>
+        </div>
         <div class="gesture-indicator gesture-left" id="gestureLeft" aria-hidden="true">
           <div class="gesture-icon">
             <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
@@ -2376,6 +2476,8 @@ export const watchController = async (c: Context) => {
       var recoveryCloseBtn = document.getElementById('recoveryCloseBtn');
       var gestureLeft = document.getElementById('gestureLeft');
       var gestureRight = document.getElementById('gestureRight');
+      var seekRippleOverlay = document.getElementById('seekRippleOverlay');
+      var holdSpeedPill = document.getElementById('holdSpeedPill');
       var hideTimer = null;
       var hls = null;
       var switching = false;
@@ -3834,8 +3936,46 @@ export const watchController = async (c: Context) => {
 
       var lastTapTime = 0;
       var lastTapX = 0;
-      var tapTimer = null;
+      var lastTapZone = '';
+      var compoundSeekSecs = 0;
+      var doubleTapTimer = null;
+      var singleTapTimer = null;
       var gestureTimer = null;
+
+      var holdTimer = null;
+      var isHoldingSpeed = false;
+      var preHoldSpeed = 1;
+      var touchStartX = 0;
+      var touchStartY = 0;
+      var touchMoved = false;
+      var lastTouchEndTime = 0;
+      var wasVisibleAtTouchStart = false;
+
+      function triggerRipple(side, secs) {
+        if (!seekRippleOverlay) return;
+        seekRippleOverlay.hidden = false;
+        var waveLeft = seekRippleOverlay.querySelector('.ripple-left');
+        var waveRight = seekRippleOverlay.querySelector('.ripple-right');
+        var targetWave = side === 'left' ? waveLeft : waveRight;
+        var otherWave = side === 'left' ? waveRight : waveLeft;
+        if (otherWave) otherWave.classList.remove('is-active');
+        if (targetWave) {
+          var secsSpan = targetWave.querySelector('.ripple-secs');
+          if (secsSpan) secsSpan.textContent = String(secs);
+          targetWave.classList.remove('is-active');
+          void targetWave.offsetWidth;
+          targetWave.classList.add('is-active');
+        }
+        if (typeof flashGesture === 'function') flashGesture(side);
+        clearTimeout(doubleTapTimer);
+        doubleTapTimer = setTimeout(function () {
+          if (targetWave) targetWave.classList.remove('is-active');
+          seekRippleOverlay.hidden = true;
+          compoundSeekSecs = 0;
+          lastTapTime = 0;
+          lastTapZone = '';
+        }, 650);
+      }
 
       function flashGesture(side) {
         var el = side === 'left' ? gestureLeft : gestureRight;
@@ -3886,17 +4026,6 @@ export const watchController = async (c: Context) => {
         }
       }, { passive: false });
 
-      var wasVisibleAtTouchStart = false;
-
-      stage.addEventListener('pointerdown', function (e) {
-        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
-          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .seek-wrap, button, input'));
-          if (!inInteractive) {
-            wasVisibleAtTouchStart = stage.classList.contains('show-controls');
-          }
-        }
-      }, { passive: true });
-
       function handleStageSingleTap() {
         if (!wasVisibleAtTouchStart) {
           // Controls were hidden -> reveal them and keep open for 4 seconds
@@ -3913,43 +4042,78 @@ export const watchController = async (c: Context) => {
         }
       }
 
-      stage.addEventListener('pointerup', function (e) {
-        if (!window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+      function handleTapGesture(clientX, clientY, target) {
+        if (target && target.closest && target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
+        }
+
+        var rect = stage.getBoundingClientRect();
+        var tapX = clientX - rect.left;
+        var width = rect.width;
+        if (width <= 0) return;
+
+        var zone = 'center';
+        if (tapX < width * 0.33) {
+          zone = 'left';
+        } else if (tapX > width * 0.66) {
+          zone = 'right';
         }
 
         var now = Date.now();
         var dt = now - lastTapTime;
-        var rect = stage.getBoundingClientRect();
-        var tapX = e.clientX - rect.left;
-        var width = rect.width;
 
-        if (dt < 320 && Math.abs(tapX - lastTapX) < 60) {
-          clearTimeout(tapTimer);
-          tapTimer = null;
-          lastTapTime = 0;
+        var isDoubleTap = false;
+        if (zone === lastTapZone && (dt < 380 || (compoundSeekSecs > 0 && dt < 650))) {
+          isDoubleTap = true;
+        }
 
-          if (tapX < width * 0.38) {
+        if (isDoubleTap) {
+          if (singleTapTimer) {
+            clearTimeout(singleTapTimer);
+            singleTapTimer = null;
+          }
+
+          if (zone === 'left') {
+            if (compoundSeekSecs === 0 || dt >= 650) {
+              compoundSeekSecs = 10;
+            } else {
+              compoundSeekSecs += 10;
+            }
             video.currentTime = Math.max(0, (video.currentTime || 0) - 10);
             updateProgress();
             updateSkip();
-            flashGesture('left');
-          } else if (tapX > width * 0.62) {
+            triggerRipple('left', compoundSeekSecs);
+            lastTapTime = now;
+            lastTapZone = 'left';
+          } else if (zone === 'right') {
+            if (compoundSeekSecs === 0 || dt >= 650) {
+              compoundSeekSecs = 10;
+            } else {
+              compoundSeekSecs += 10;
+            }
             video.currentTime = Math.min((video.duration || 0), (video.currentTime || 0) + 10);
             updateProgress();
             updateSkip();
-            flashGesture('right');
-          } else {
-            togglePlay();
+            triggerRipple('right', compoundSeekSecs);
+            lastTapTime = now;
+            lastTapZone = 'right';
+          } else if (zone === 'center') {
+            toggleFs();
+            compoundSeekSecs = 0;
+            lastTapTime = 0;
+            lastTapZone = '';
           }
           pokeControls();
         } else {
           lastTapTime = now;
           lastTapX = tapX;
-          clearTimeout(tapTimer);
-          tapTimer = setTimeout(function () {
-            tapTimer = null;
+          lastTapZone = zone;
+          compoundSeekSecs = 0;
+          if (singleTapTimer) clearTimeout(singleTapTimer);
+          singleTapTimer = setTimeout(function () {
+            singleTapTimer = null;
+            lastTapTime = 0;
+            lastTapZone = '';
             if (settingsMenu.classList.contains('is-open')) {
               toggleSettings(false);
             } else if (epPanel && epPanel.classList.contains('is-open')) {
@@ -3959,6 +4123,111 @@ export const watchController = async (c: Context) => {
             }
           }, 280);
         }
+      }
+
+      stage.addEventListener('touchstart', function (e) {
+        if (!e.touches || e.touches.length !== 1) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+          return;
+        }
+        var target = e.target;
+        if (target && target.closest && target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+          return;
+        }
+        wasVisibleAtTouchStart = stage.classList.contains('show-controls');
+        var touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        touchMoved = false;
+
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(function () {
+          if (!touchMoved) {
+            isHoldingSpeed = true;
+            preHoldSpeed = video.playbackRate || 1;
+            video.playbackRate = 2.0;
+            if (holdSpeedPill) {
+              holdSpeedPill.hidden = false;
+            }
+            if (singleTapTimer) {
+              clearTimeout(singleTapTimer);
+              singleTapTimer = null;
+            }
+          }
+        }, 400);
+      }, { passive: true });
+
+      stage.addEventListener('touchmove', function (e) {
+        if (!e.touches || e.touches.length !== 1) return;
+        var touch = e.touches[0];
+        var dx = touch.clientX - touchStartX;
+        var dy = touch.clientY - touchStartY;
+        if (Math.hypot(dx, dy) > 10) {
+          touchMoved = true;
+          if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+          }
+        }
+      }, { passive: true });
+
+      stage.addEventListener('touchcancel', function () {
+        if (holdTimer) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+        }
+        if (isHoldingSpeed) {
+          video.playbackRate = preHoldSpeed;
+          if (holdSpeedPill) {
+            holdSpeedPill.hidden = true;
+          }
+          isHoldingSpeed = false;
+        }
+      });
+
+      stage.addEventListener('touchend', function (e) {
+        lastTouchEndTime = Date.now();
+        if (holdTimer) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+        }
+        if (isHoldingSpeed) {
+          video.playbackRate = preHoldSpeed;
+          if (holdSpeedPill) {
+            holdSpeedPill.hidden = true;
+          }
+          isHoldingSpeed = false;
+          lastTapTime = 0;
+          lastTapZone = '';
+          if (e.cancelable) e.preventDefault();
+          return;
+        }
+
+        if (touchMoved) return;
+
+        var touch = e.changedTouches ? e.changedTouches[0] : null;
+        if (!touch) return;
+
+        handleTapGesture(touch.clientX, touch.clientY, e.target);
+      });
+
+      stage.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .seek-wrap, button, input'));
+          if (!inInteractive) {
+            wasVisibleAtTouchStart = stage.classList.contains('show-controls');
+          }
+        }
+      }, { passive: true });
+
+      stage.addEventListener('pointerup', function (e) {
+        if (!window.matchMedia('(pointer: coarse)').matches) return;
+        if (e.pointerType === 'touch') return;
+        if (Date.now() - lastTouchEndTime < 400) return;
+        handleTapGesture(e.clientX, e.clientY, e.target);
       });
       muteBtn.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) this.blur();
