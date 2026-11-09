@@ -648,6 +648,78 @@ export const watchController = async (c: Context) => {
     .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
       opacity: 1;
     }
+    /* Smart Outro floating badge */
+    .outro-badge {
+      position: absolute;
+      right: 16px;
+      bottom: 88px;
+      z-index: 5;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(12, 16, 24, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--ink);
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.24s var(--ease), transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+    }
+    .outro-badge[hidden] {
+      display: none;
+    }
+    .outro-badge:not([hidden]) {
+      display: inline-flex;
+      pointer-events: auto;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .outro-badge .ap-count {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .outro-badge .outro-dismiss {
+      background: transparent;
+      border: 0;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+    .outro-badge .outro-dismiss:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .outro-badge #outroPlayNow {
+      background: var(--accent);
+      color: #0a0c10;
+      font-weight: 600;
+      font-size: 12px;
+      padding: 4px 10px;
+      border: 0;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .outro-badge #outroPlayNow:hover {
+      background: #4ae0cf;
+      transform: scale(1.04);
+    }
     /* Auto-play next episode overlay */
     .ap-overlay {
       position: absolute; inset: 0; z-index: 7;
@@ -1569,6 +1641,22 @@ export const watchController = async (c: Context) => {
         font-size: 13px;
         padding: 8px 14px;
       }
+      .outro-badge {
+        right: 12px;
+        bottom: 104px;
+        font-size: 13px;
+        padding: 6px 12px;
+      }
+      .outro-badge .outro-dismiss {
+        min-width: 44px;
+        min-height: 44px;
+      }
+      .outro-badge #outroPlayNow {
+        min-height: 44px;
+        padding: 6px 12px;
+        display: inline-flex;
+        align-items: center;
+      }
 
       /* Subtitles bounds on mobile */
       .cc-box {
@@ -1860,6 +1948,11 @@ export const watchController = async (c: Context) => {
           <div class="spinner" aria-hidden="true"></div>
         </div>
         <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
+        <div id="outroBadge" class="outro-badge" hidden>
+          <span>Next episode in <b class="ap-count">5</b>s</span>
+          <button type="button" class="pill" id="outroPlayNow">Play Now</button>
+          <button type="button" class="outro-dismiss" id="outroDismiss" aria-label="Dismiss">✕</button>
+        </div>
 
         <div class="modal-backdrop" id="shortcutsBackdrop" aria-hidden="true"></div>
         <div class="shortcuts-modal" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle" aria-hidden="true">
@@ -1889,7 +1982,7 @@ export const watchController = async (c: Context) => {
         <div class="ap-overlay" id="autoplayOverlay" hidden>
           <div class="ap-card">
             <p class="ap-label">Next episode in</p>
-            <span class="ap-count">12</span>
+            <span class="ap-count">5</span>
             <div style="display:flex;gap:8px;margin-top:10px">
               <button type="button" class="pill ap-now" id="apNow" style="flex:1;padding:8px">Play now</button>
               <button type="button" class="pill ap-cancel" id="apCancel" style="flex:1;padding:8px;background:rgba(255,255,255,0.06)">Cancel</button>
@@ -2079,6 +2172,17 @@ export const watchController = async (c: Context) => {
               <option value="-1">Auto</option>
             </select>
           </div>
+          <div class="menu-section" id="playbackSection">
+            <h3>Playback</h3>
+            <div class="menu-row">
+              <label id="autoSkipLabel" for="autoSkipToggle">Auto-skip intro &amp; outro</label>
+              <button type="button" class="switch" id="autoSkipToggle" role="switch" aria-labelledby="autoSkipLabel" aria-checked="false" aria-pressed="false"></button>
+            </div>
+            <div class="menu-row">
+              <label id="autoNextLabel" for="autoNextToggle">Auto-play next episode</label>
+              <button type="button" class="switch is-on" id="autoNextToggle" role="switch" aria-labelledby="autoNextLabel" aria-checked="true" aria-pressed="true"></button>
+            </div>
+          </div>
           <div class="menu-section">
             <div class="menu-row">
               <label id="loopLabel" for="loopToggle">Loop</label>
@@ -2180,6 +2284,7 @@ export const watchController = async (c: Context) => {
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko', gogoanime: 'GogoAnime' };
       var track = ${safeJson(initial)};
       var activeServer = ${safeJson(activeServer)};
+      var nextPlaySafe = ${safeJson(nextPlaySafe)};
       var currentServer = activeServer;
       var switchingServer = false;
       var failoverAttempts = {};
@@ -2222,6 +2327,11 @@ export const watchController = async (c: Context) => {
       var pipBtn = document.getElementById('pipBtn');
       var pipBtnBar = document.getElementById('pipBtnBar');
       var skipBtn = document.getElementById('skipBtn');
+      var outroBadge = document.getElementById('outroBadge');
+      var outroPlayNow = document.getElementById('outroPlayNow');
+      var outroDismiss = document.getElementById('outroDismiss');
+      var autoSkipToggle = document.getElementById('autoSkipToggle');
+      var autoNextToggle = document.getElementById('autoNextToggle');
       var providerBadge = document.getElementById('providerBadge');
       var epListBtn = document.getElementById('epListBtn');
       var epListBtnMenu = document.getElementById('epListBtnMenu');
@@ -2250,6 +2360,12 @@ export const watchController = async (c: Context) => {
       var hls = null;
       var switching = false;
       var skipMode = null;
+      var autoSkip = false;
+      try { autoSkip = localStorage.getItem('ani.autoSkip') === '1'; } catch (e) {}
+      var autoNext = true;
+      try { autoNext = localStorage.getItem('ani.autoNext') !== '0'; } catch (e) {}
+      var outroDismissed = false;
+      var outroTimer = null;
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
@@ -2540,6 +2656,37 @@ export const watchController = async (c: Context) => {
         updateSkip();
         pokeControls();
         showOsd('⏭', skippedType);
+      }
+
+      function showOutroBadge() {
+        if (!outroBadge || outroTimer || outroDismissed) return;
+        var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+        if (!nextHref) return;
+        outroBadge.removeAttribute('hidden');
+        var countEl = outroBadge.querySelector('.ap-count');
+        var secs = 5;
+        if (countEl) countEl.textContent = String(secs);
+        outroTimer = setInterval(function () {
+          secs--;
+          if (countEl) countEl.textContent = String(secs);
+          if (secs <= 0) {
+            dismissOutroBadge(false);
+            location.href = nextHref;
+          }
+        }, 1000);
+      }
+
+      function dismissOutroBadge(manualDismiss) {
+        if (outroTimer) {
+          clearInterval(outroTimer);
+          outroTimer = null;
+        }
+        if (outroBadge) {
+          outroBadge.setAttribute('hidden', '');
+        }
+        if (manualDismiss) {
+          outroDismissed = true;
+        }
       }
 
       function startHideTimer(ms) {
@@ -3641,7 +3788,7 @@ export const watchController = async (c: Context) => {
       });
       stage.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
@@ -3651,7 +3798,7 @@ export const watchController = async (c: Context) => {
 
       stage.addEventListener('dblclick', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         toggleFs();
@@ -3697,7 +3844,7 @@ export const watchController = async (c: Context) => {
 
       stage.addEventListener('pointerup', function (e) {
         if (!window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
 
@@ -4128,7 +4275,7 @@ export const watchController = async (c: Context) => {
         if (apNow) {
           apNow.addEventListener('click', function () {
             if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
-            var nextHref = document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
+            var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
             if (nextHref) location.href = nextHref;
           });
         }
@@ -4141,6 +4288,54 @@ export const watchController = async (c: Context) => {
           });
         }
       })();
+
+      if (outroPlayNow) {
+        outroPlayNow.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          dismissOutroBadge(false);
+          var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+          if (nextHref) location.href = nextHref;
+        });
+      }
+
+      if (outroDismiss) {
+        outroDismiss.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          dismissOutroBadge(true);
+        });
+      }
+
+      if (autoSkipToggle) {
+        autoSkipToggle.classList.toggle('is-on', autoSkip);
+        autoSkipToggle.setAttribute('aria-pressed', autoSkip ? 'true' : 'false');
+        autoSkipToggle.setAttribute('aria-checked', autoSkip ? 'true' : 'false');
+        autoSkipToggle.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          autoSkip = !autoSkip;
+          try { localStorage.setItem('ani.autoSkip', autoSkip ? '1' : '0'); } catch (err) {}
+          autoSkipToggle.classList.toggle('is-on', autoSkip);
+          autoSkipToggle.setAttribute('aria-pressed', autoSkip ? 'true' : 'false');
+          autoSkipToggle.setAttribute('aria-checked', autoSkip ? 'true' : 'false');
+        });
+      }
+
+      if (autoNextToggle) {
+        autoNextToggle.classList.toggle('is-on', autoNext);
+        autoNextToggle.setAttribute('aria-pressed', autoNext ? 'true' : 'false');
+        autoNextToggle.setAttribute('aria-checked', autoNext ? 'true' : 'false');
+        autoNextToggle.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          autoNext = !autoNext;
+          try { localStorage.setItem('ani.autoNext', autoNext ? '1' : '0'); } catch (err) {}
+          autoNextToggle.classList.toggle('is-on', autoNext);
+          autoNextToggle.setAttribute('aria-pressed', autoNext ? 'true' : 'false');
+          autoNextToggle.setAttribute('aria-checked', autoNext ? 'true' : 'false');
+        });
+      }
 
       document.querySelectorAll('[data-track]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -4254,14 +4449,48 @@ export const watchController = async (c: Context) => {
       }
 
       video.addEventListener('timeupdate', function () {
+        var t = video.currentTime || 0;
+        var pack = currentSkip();
+        if (autoSkip && pack.intro && inRange(t, pack.intro)) {
+          video.currentTime = pack.intro.end;
+          showOsd('⚡', 'Auto-skipped Intro');
+          updateProgress();
+          updateSkip();
+          return;
+        }
+        var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+        if (nextHref && pack.outro && inRange(t, pack.outro)) {
+          if (!outroDismissed && !outroTimer && autoNext) {
+            showOutroBadge();
+          }
+        } else if (autoSkip && pack.outro && inRange(t, pack.outro) && !nextHref) {
+          var d = video.duration;
+          var target = pack.outro.end;
+          if (isFinite(d) && d > 0) target = Math.min(target, Math.max(0, d - 0.25));
+          video.currentTime = Math.max(0, target);
+          showOsd('⚡', 'Auto-skipped Outro');
+          updateProgress();
+          updateSkip();
+          return;
+        }
+        if (pack.outro && t < pack.outro.start) {
+          if (outroTimer) dismissOutroBadge(false);
+          if (outroDismissed) outroDismissed = false;
+        }
         updateProgress();
         updateSkip();
-        renderCcAt(video.currentTime || 0);
-        cwThrottle(video.currentTime || 0);
+        renderCcAt(t);
+        cwThrottle(t);
       });
       video.addEventListener('seeked', function () {
+        var t = video.currentTime || 0;
+        var pack = currentSkip();
+        if (pack.outro && t < pack.outro.start) {
+          if (outroTimer) dismissOutroBadge(false);
+          if (outroDismissed) outroDismissed = false;
+        }
         updateSkip();
-        renderCcAt(video.currentTime || 0);
+        renderCcAt(t);
       });
       video.addEventListener('ended', function () {
         // Guard: ignore spurious 'ended' events fired during track switches
@@ -4279,15 +4508,17 @@ export const watchController = async (c: Context) => {
           } catch (e) {}
         }
         // Auto-play next episode
-        var nextHref = document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
+        var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
         if (!nextHref) return;
+        if (!autoNext) return;
+        dismissOutroBadge(false);
         // Clear any previous timer before starting a new one
         if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
         autoplayCancelled = false;
         var overlay = document.getElementById('autoplayOverlay');
         if (!overlay) return;
         var countEl = overlay.querySelector('.ap-count');
-        var secs = 12;
+        var secs = 5;
         overlay.removeAttribute('hidden');
         if (countEl) countEl.textContent = String(secs);
         autoplayTimer = setInterval(function () {
@@ -4349,6 +4580,24 @@ export const watchController = async (c: Context) => {
       document.addEventListener('keydown', function (e) {
         if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
+        var overlay = document.getElementById('autoplayOverlay');
+        var isOverlayOpen = overlay && !overlay.hidden && !overlay.hasAttribute('hidden');
+        var isOutroOpen = outroBadge && !outroBadge.hidden && !outroBadge.hasAttribute('hidden');
+        if (isOverlayOpen && (e.code === 'Space' || e.key === ' ' || e.key === 'Enter')) {
+          e.preventDefault();
+          if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+          overlay.setAttribute('hidden', '');
+          var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+          if (nextHref) location.href = nextHref;
+          return;
+        }
+        if (isOutroOpen && e.key === 'Enter') {
+          e.preventDefault();
+          dismissOutroBadge(false);
+          var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+          if (nextHref) location.href = nextHref;
+          return;
+        }
         if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); togglePlay(); }
         else if (e.key === 'j' || e.key === 'J') {
           e.preventDefault();
@@ -4410,7 +4659,15 @@ export const watchController = async (c: Context) => {
         else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05, true); }
         else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05, true); }
         else if (e.key === 'Escape') {
-          if (shortcutsModal && shortcutsModal.classList.contains('is-open')) toggleShortcuts(false);
+          if (isOutroOpen) {
+            dismissOutroBadge(true);
+          }
+          else if (isOverlayOpen) {
+            autoplayCancelled = true;
+            if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+            overlay.setAttribute('hidden', '');
+          }
+          else if (shortcutsModal && shortcutsModal.classList.contains('is-open')) toggleShortcuts(false);
           else if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
           else if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
           else if (theater && !document.fullscreenElement) setTheater(false);

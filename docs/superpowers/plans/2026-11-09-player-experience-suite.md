@@ -29,18 +29,18 @@
 - Consumes: `skips[track]` (`intro`, `outro`), `nextPlaySafe`, `video.currentTime`, `video.duration`
 - Produces: `localStorage.getItem('ani.autoSkip')`, `localStorage.getItem('ani.autoNext')`, `#autoSkipToggle`, `#autoNextToggle`, `#outroBadge` with 5s countdown, reduced 5s ended timer.
 
-- [ ] **Step 1: Write failing test in `tests/handlers/watchAutomation.test.ts`**
+- [x] **Step 1: Write failing test in `tests/handlers/watchAutomation.test.ts`**
   Assert watch HTML contains `#autoSkipToggle` and `#autoNextToggle` switches. Assert client script contains auto-skip seek logic on `timeupdate`, smart `#outroBadge` countdown, and 5-second countdown on `ended`.
-- [ ] **Step 2: Run test to confirm failure**
+- [x] **Step 2: Run test to confirm failure**
   Run: `npx vitest run tests/handlers/watchAutomation.test.ts`
-- [ ] **Step 3: Implement automation markup and script in `src/handlers/pages/watch.ts`**
+- [x] **Step 3: Implement automation markup and script in `src/handlers/pages/watch.ts`**
   - Add "Playback" section in `#settingsMenu` with `#autoSkipToggle` and `#autoNextToggle`.
   - In `timeupdate`, check `ani.autoSkip` and auto-seek past `intro` and `outro` ranges with `showOsd('⚡', 'Auto-skipped Intro')`.
   - When entering `outro.start`, render `#outroBadge` floating above controls with 5s countdown and "Play Now" / "✕" dismiss buttons.
   - In `ended` listener, reduce legacy 12s timer to 5s and respect `ani.autoNext`.
-- [ ] **Step 4: Run test to confirm pass**
+- [x] **Step 4: Run test to confirm pass**
   Run: `npx vitest run tests/handlers/watchAutomation.test.ts`
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   Commit: `git commit -am "feat(watch): implement auto-skip intro/outro and smart auto-next countdown"`
 
 ---
