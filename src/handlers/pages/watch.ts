@@ -113,6 +113,7 @@ export const watchController = async (c: Context) => {
   const activeProviderParam = parseProviderId(c.req.query('p') || undefined);
   const subProviderParam = parseProviderId(c.req.query('sp') || undefined);
   const dubProviderParam = parseProviderId(c.req.query('dp') || undefined);
+  const activeServer = (c.req.query('server') || 'hd-1').toLowerCase();
 
   let resolvedSub = subCdn;
   let resolvedDub = dubCdn;
@@ -182,6 +183,24 @@ export const watchController = async (c: Context) => {
   const hasEither = hasSub || hasDub;
   const hasBoth = hasSub && hasDub;
   const hasAnyCc = Boolean(captions.sub || captions.dub);
+
+  const SERVERS = [
+    { id: 'hd-1', label: 'HD-1 (MegaCloud)', tracks: ['sub', 'dub'] },
+    { id: 'hd-2', label: 'HD-2 (RapidCloud)', tracks: ['sub', 'dub'] },
+    { id: 'zoko', label: 'Zoko', tracks: ['sub'] },
+    { id: 'gogo', label: 'Gogo (Backup)', tracks: ['sub', 'dub'] },
+  ];
+
+  const renderServerChipsHtml = (chipsId: string) => `
+        <div class="server-chips" id="${chipsId}">
+          ${SERVERS.map(s => {
+            const isActive = s.id === activeServer;
+            const isAvailable = s.tracks.includes(initial);
+            const dot = isActive ? '<span class="status-dot"></span>' : '';
+            const hideAttr = !isAvailable ? 'hidden disabled style="display:none"' : '';
+            return `<button type="button" class="pill server-chip ${isActive ? 'is-active' : ''}" data-server="${s.id}" data-tracks="${s.tracks.join(',')}" ${hideAttr}>${dot}${s.label}</button>`;
+          }).join('\n          ')}
+        </div>`;
 
   const pageTitleParts = [SITE_NAME];
   if (animeTitle && animeTitle !== SITE_NAME) pageTitleParts.unshift(animeTitle);
@@ -323,6 +342,73 @@ export const watchController = async (c: Context) => {
       font-weight: 500;
     }
     .pill.provider-pill[hidden] { display: none !important; }
+    /* Server bar & server chips */
+    .server-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: var(--stage-max);
+      width: 100%;
+      margin: 0 auto;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      box-sizing: border-box;
+    }
+    .server-bar-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .server-chips {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .server-chip,
+    .server-chips .pill {
+      text-transform: none;
+      font-weight: 500;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--line);
+      min-height: 38px;
+      min-width: 44px;
+    }
+    .server-chip:hover,
+    .server-chips .pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+    }
+    .server-chip.is-active,
+    .server-chips .pill.is-active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-color: rgba(61, 214, 198, 0.35);
+    }
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent, #3dd6c6);
+      box-shadow: 0 0 8px var(--accent, #3dd6c6);
+      flex-shrink: 0;
+    }
+    #serverSection .server-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    #serverSection .server-chip {
+      flex: 1 1 calc(50% - 8px);
+      justify-content: center;
+    }
     a.pill[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
     /* Accessible focus rings */
     .pill:focus-visible,
@@ -1122,6 +1208,7 @@ export const watchController = async (c: Context) => {
     }
     body.theater header,
     body.theater footer { opacity: 0; pointer-events: none; height: 0; overflow: hidden; margin: 0; padding: 0; }
+    body.theater .server-bar { display: none; }
     body.theater .stage-wrap { min-height: 100dvh; }
     body.theater .stage {
       width: 100vw; max-width: none; height: 100dvh;
@@ -1339,13 +1426,24 @@ export const watchController = async (c: Context) => {
         color: var(--accent);
         border: 1px solid rgba(61, 214, 198, 0.35);
       }
-      .err {
+      .server-bar {
         order: 3;
+        width: 100%;
+        padding: 8px clamp(12px, 3.5vw, 18px);
+        box-sizing: border-box;
+      }
+      .server-chip,
+      .server-chips .pill {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      .err {
+        order: 4;
         margin: 0 clamp(12px, 3.5vw, 18px);
         width: calc(100% - clamp(24px, 7vw, 36px));
       }
       footer {
-        order: 4;
+        order: 5;
         padding: 8px clamp(12px, 3.5vw, 18px) 0;
         font-size: 0.75rem;
         flex-direction: column;
@@ -1623,6 +1721,7 @@ export const watchController = async (c: Context) => {
     @media (pointer: coarse) {
       .ctrl { min-width: 44px; min-height: 44px; }
       .pill { min-height: 44px; }
+      .server-chip, .server-chips .pill { min-height: 44px; min-width: 44px; }
       .speed-chip { min-height: 42px; padding: 10px 14px; font-size: 0.85rem; }
       .cc-swatch { width: 34px; height: 34px; }
       .cc-swatch::after { inset: -6px; }
@@ -1772,6 +1871,10 @@ export const watchController = async (c: Context) => {
               <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ''}>Dub</button>
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">${!hasSub ? 'Sub not available for this episode.' : !hasDub ? 'Dub not available for this episode.' : 'Only one audio track is available for this episode.'}</p>
+          </div>
+          <div class="menu-section" id="serverSection">
+            <h3>Server</h3>
+            ${renderServerChipsHtml('menuServerChips')}
           </div>
           <div class="menu-section" ${hasNav || hasAnime ? '' : 'hidden'}>
             <h3>Episodes</h3>
@@ -1982,6 +2085,11 @@ export const watchController = async (c: Context) => {
       </div>
     </div>
 
+    <div class="server-bar" id="serverBar">
+      <span class="server-bar-label">Server</span>
+      ${renderServerChipsHtml('serverChips')}
+    </div>
+
     <p class="err" id="err" hidden></p>
     <footer>
       <span>${SITE_NAME} · <a href="/browse">Browse</a></span>
@@ -2002,10 +2110,14 @@ export const watchController = async (c: Context) => {
       var currentEpTitle = ${safeJson(epTitle || '')};
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko' };
       var track = ${safeJson(initial)};
+      var activeServer = ${safeJson(activeServer)};
       var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
       var video = document.getElementById('v');
       var stage = document.getElementById('stage');
       var err = document.getElementById('err');
+      var serverChips = document.getElementById('serverChips');
+      var menuServerChips = document.getElementById('menuServerChips');
+      var serverBar = document.getElementById('serverBar');
       var seek = document.getElementById('seek');
       var seekWrap = document.getElementById('seekWrap');
       var seekTooltip = document.getElementById('seekTooltip');
@@ -2765,6 +2877,7 @@ export const watchController = async (c: Context) => {
           btn.disabled = !streams[t];
         });
         updateProviderBadge();
+        updateServerAvailability(track);
       }
 
       function updateProviderBadge() {
@@ -2777,6 +2890,56 @@ export const watchController = async (c: Context) => {
         } else {
           providerBadge.hidden = false;
           providerBadge.textContent = label;
+        }
+      }
+
+      function syncServerChips(selectedServer) {
+        if (selectedServer) activeServer = selectedServer;
+        var chips = document.querySelectorAll('.server-chips [data-server]');
+        chips.forEach(function (btn) {
+          var s = btn.getAttribute('data-server');
+          var isActive = (s === activeServer);
+          btn.classList.toggle('is-active', isActive);
+          var dot = btn.querySelector('.status-dot');
+          if (isActive) {
+            if (!dot) {
+              dot = document.createElement('span');
+              dot.className = 'status-dot';
+              btn.insertBefore(dot, btn.firstChild);
+            }
+          } else {
+            if (dot) dot.remove();
+          }
+        });
+        try {
+          var u = new URL(location.href);
+          u.searchParams.set('server', activeServer);
+          history.replaceState(null, '', u);
+        } catch (e) {}
+      }
+
+      function updateServerAvailability(currentTrack) {
+        var t = currentTrack || track;
+        var chips = document.querySelectorAll('.server-chips [data-server]');
+        var activeStillValid = false;
+        chips.forEach(function (btn) {
+          var tracks = (btn.getAttribute('data-tracks') || 'sub,dub').split(',');
+          var isSupported = tracks.indexOf(t) !== -1;
+          if (isSupported) {
+            btn.hidden = false;
+            btn.removeAttribute('disabled');
+            btn.style.display = '';
+            if (btn.getAttribute('data-server') === activeServer) {
+              activeStillValid = true;
+            }
+          } else {
+            btn.hidden = true;
+            btn.setAttribute('disabled', 'true');
+            btn.style.display = 'none';
+          }
+        });
+        if (!activeStillValid) {
+          syncServerChips('hd-1');
         }
       }
 
@@ -3753,6 +3916,20 @@ export const watchController = async (c: Context) => {
         });
       });
 
+      document.querySelectorAll('.server-chips [data-server]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var s = btn.getAttribute('data-server');
+          if (s && s !== activeServer) {
+            syncServerChips(s);
+            if (typeof switchServer === 'function') {
+              switchServer(s);
+            }
+          }
+        });
+      });
+
       seek.addEventListener('input', function () {
         if (!video.duration) return;
         video.currentTime = (Number(seek.value) / 1000) * video.duration;
@@ -4019,6 +4196,8 @@ export const watchController = async (c: Context) => {
       function init() {
         setPlaying(false);
         setMuted(false);
+        syncServerChips(activeServer);
+        updateServerAvailability(track);
         // Restore saved volume level
         var savedVol = 1;
         try {
