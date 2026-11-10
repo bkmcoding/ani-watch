@@ -24,7 +24,9 @@ describe('Enriched Servers & Sources Endpoints (Multi-Provider Resilience)', () 
         data: JSON.stringify({ html: mockServersHtml }),
       } as any);
 
-      const res = await app.request('/api/v2/hianime/episode/servers?animeEpisodeId=naruto-shippuden-100?ep=100');
+      const res = await app.request(
+        '/api/v2/hianime/episode/servers?animeEpisodeId=naruto-shippuden-100?ep=100'
+      );
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -100,7 +102,9 @@ describe('Enriched Servers & Sources Endpoints (Multi-Provider Resilience)', () 
         data: JSON.stringify({ html: subOnlyHtml }),
       } as any);
 
-      const res = await app.request('/api/v2/hianime/episode/servers?animeEpisodeId=sub-only-100?ep=100');
+      const res = await app.request(
+        '/api/v2/hianime/episode/servers?animeEpisodeId=sub-only-100?ep=100'
+      );
       expect(res.status).toBe(200);
 
       const body = await res.json();

@@ -19,7 +19,7 @@ describe('Watch Desktop Controls & Ergonomics', () => {
     const html = await res.text();
     expect(html).toContain("stage.addEventListener('dblclick'");
     expect(html).toContain("stage.addEventListener('wheel'");
-    expect(html).toContain("deltaY < 0");
+    expect(html).toContain('deltaY < 0');
   });
 
   it('supports P keyboard shortcut for Picture-in-Picture and documents it in shortcuts modal', async () => {

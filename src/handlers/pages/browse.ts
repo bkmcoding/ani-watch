@@ -1092,6 +1092,7 @@ export const browseController = async (c: Context) => {
       contain: layout style;
     }
     .ep-card {
+      position: relative;
       appearance: none;
       border: 1px solid var(--line);
       background: rgba(255,255,255,0.03);
@@ -1106,6 +1107,17 @@ export const browseController = async (c: Context) => {
       content-visibility: auto;
       contain-intrinsic-size: 200px 88px;
       transition: border-color 0.2s ease, transform 0.2s var(--ease);
+    }
+    .ep-progress-bar {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 2.5px;
+      background: var(--accent, #3dd6c6);
+      border-radius: 999px;
+      pointer-events: none;
+      transition: width 0.2s ease;
+      z-index: 2;
     }
     @media (hover: hover) {
       .ep-card:hover {
@@ -3138,9 +3150,30 @@ export const browseController = async (c: Context) => {
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'ep-card';
+          var aId = (anime && anime.id) || (state.anime && state.anime.id) || '';
           var num = ep.number;
           var epNumAttr = num != null ? num : (idx != null ? idx + 1 : null);
           if (epNumAttr != null) btn.setAttribute('data-ep-num', String(epNumAttr));
+          var epKey = epNumAttr != null ? String(epNumAttr) : '';
+
+          var progData = null;
+          if (aId && epKey) {
+            try {
+              var rawProg = localStorage.getItem('ani.progress.' + aId + '.' + epKey);
+              if (rawProg) progData = JSON.parse(rawProg);
+            } catch (e) {}
+          }
+          var isWatched = false;
+          if (aId && epKey) {
+            try {
+              var watchedList = JSON.parse(localStorage.getItem('ani.watched.' + aId) || '[]');
+              if (watchedList.indexOf(epKey) >= 0) isWatched = true;
+            } catch (e) {}
+          }
+          var ratio = progData && typeof progData.ratio === 'number' ? progData.ratio : (isWatched ? 1 : 0);
+          var isCompleted = isWatched || ratio >= 0.9;
+          if (isCompleted) btn.classList.add('is-watched');
+
           var raw = String(ep.title || ep.alternativeTitle || '').trim();
           // HiAnime often labels chips "Episode 12" — don't show that twice.
           var generic =
@@ -3150,13 +3183,20 @@ export const browseController = async (c: Context) => {
           var epTag = num != null ? 'Ep ' + num : 'Episode';
           var primary = generic ? epTag : raw;
           var secondary = generic ? null : epTag;
+
+          var barHtml = (ratio >= 0.05 || isWatched)
+            ? '<div class="ep-progress-bar" style="width:' + Math.round((ratio >= 0.05 ? ratio : 1) * 100) + '%"></div>'
+            : '';
+
           btn.innerHTML =
             posterImg(poster || posterFallbacks, primary) +
             '<div class="meta"><div class="title">' + esc(primary) +
             (ep.isFiller ? '<span class="badge" title="Filler episode (non-canon storyline)" aria-label="Filler episode (non-canon)">Filler</span>' : '') +
+            (isCompleted ? '<span class="badge ep-check" style="margin-left:4px;color:var(--accent,#3dd6c6);" title="Watched">✓</span>' : '') +
             '</div>' +
             (secondary ? '<div class="sub">' + esc(secondary) + '</div>' : '') +
-            '</div>';
+            '</div>' +
+            barHtml;
           btn.addEventListener('click', function () { playEpisode(ep, btn); });
           return btn;
         }

@@ -39,10 +39,14 @@ describe('Zero-Reload Stream Hot-Swapping & Auto-Failover (Task 6)', () => {
     const html = await res.text();
 
     // Verify switchServer function exists in script
-    expect(html).toMatch(/(?:async\s+function\s+switchServer|var\s+switchServer\s*=\s*async\s+function)/);
+    expect(html).toMatch(
+      /(?:async\s+function\s+switchServer|var\s+switchServer\s*=\s*async\s+function)/
+    );
 
     // Verify concurrency & redundant switch guard
-    expect(html).toMatch(/if\s*\(\s*(?:!force\s*&&\s*\(?)?(?:switchingServer|switching)\s*\|\|\s*newServer\s*===\s*(?:currentServer|activeServer)\s*\)?\s*\)\s*return/);
+    expect(html).toMatch(
+      /if\s*\(\s*(?:!force\s*&&\s*\(?)?(?:switchingServer|switching)\s*\|\|\s*newServer\s*===\s*(?:currentServer|activeServer)\s*\)?\s*\)\s*return/
+    );
 
     // Verify state preservation: currentTime, paused state, and playbackRate
     expect(html).toContain('video.currentTime');
@@ -68,7 +72,9 @@ describe('Zero-Reload Stream Hot-Swapping & Auto-Failover (Task 6)', () => {
     const html = await res.text();
 
     // Verify localStorage.setItem('ani.preferredServer', ...)
-    expect(html).toMatch(/localStorage\.setItem\(\s*['"]ani\.preferredServer['"]\s*,\s*newServer\s*\)/);
+    expect(html).toMatch(
+      /localStorage\.setItem\(\s*['"]ani\.preferredServer['"]\s*,\s*newServer\s*\)/
+    );
   });
 
   it('wires server chip click handlers to call switchServer', async () => {
@@ -108,7 +114,9 @@ describe('Zero-Reload Stream Hot-Swapping & Auto-Failover (Task 6)', () => {
 
   it('addresses review findings: retry button reset, failover tracking, manifest parsed onMeta & slug epId', async () => {
     const app = createTestApp();
-    const res = await app.request('/watch?sub=https://example.com/stream.m3u8&anime=one-piece&n=2&ep=2');
+    const res = await app.request(
+      '/watch?sub=https://example.com/stream.m3u8&anime=one-piece&n=2&ep=2'
+    );
     const html = await res.text();
 
     // Finding 1: Retry button resets currentServer and failoverAttempts before switchServer call
@@ -118,7 +126,9 @@ describe('Zero-Reload Stream Hot-Swapping & Auto-Failover (Task 6)', () => {
     // Finding 2: handleFailover accepts failedServer argument and switchServer catch passes newServer
     expect(html).toMatch(/function\s+handleFailover\s*\(\s*failedServer\s*\)/);
     expect(html).toMatch(/handleFailover\(\s*newServer\s*\)/);
-    expect(html).toMatch(/failoverAttempts\[\s*(?:failedServer\s*\|\|\s*currentServer|serverToMark)\s*\]\s*=\s*true/);
+    expect(html).toMatch(
+      /failoverAttempts\[\s*(?:failedServer\s*\|\|\s*currentServer|serverToMark)\s*\]\s*=\s*true/
+    );
 
     // Finding 3: Listen for hls.once MANIFEST_PARSED & invoke fillQuality() in onMeta without synchronous readyState check
     expect(html).toMatch(/hls\.once\(\s*Hls\.Events\.MANIFEST_PARSED\s*,\s*onMeta\s*\)/);

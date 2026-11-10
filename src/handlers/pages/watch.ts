@@ -648,6 +648,78 @@ export const watchController = async (c: Context) => {
     .stage.show-controls .skip-btn.is-visible, .stage:focus-within .skip-btn.is-visible {
       opacity: 1;
     }
+    /* Smart Outro floating badge */
+    .outro-badge {
+      position: absolute;
+      right: 16px;
+      bottom: 88px;
+      z-index: 5;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(12, 16, 24, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--ink);
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.24s var(--ease), transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+    }
+    .outro-badge[hidden] {
+      display: none;
+    }
+    .outro-badge:not([hidden]) {
+      display: inline-flex;
+      pointer-events: auto;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .outro-badge .ap-count {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .outro-badge .outro-dismiss {
+      background: transparent;
+      border: 0;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+    .outro-badge .outro-dismiss:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .outro-badge #outroPlayNow {
+      background: var(--accent);
+      color: #0a0c10;
+      font-weight: 600;
+      font-size: 12px;
+      padding: 4px 10px;
+      border: 0;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .outro-badge #outroPlayNow:hover {
+      background: #4ae0cf;
+      transform: scale(1.04);
+    }
     /* Auto-play next episode overlay */
     .ap-overlay {
       position: absolute; inset: 0; z-index: 7;
@@ -1031,6 +1103,8 @@ export const watchController = async (c: Context) => {
       padding: 6px; display: flex; flex-direction: column; gap: 2px;
     }
     .ep-item {
+      position: relative;
+      overflow: hidden;
       appearance: none; border: 0; background: transparent; color: var(--ink);
       font: inherit; text-align: left; cursor: pointer;
       display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; align-items: start;
@@ -1038,6 +1112,17 @@ export const watchController = async (c: Context) => {
       transition: background 0.15s ease, transform 0.12s ease;
       content-visibility: auto;
       contain-intrinsic-size: auto 36px;
+    }
+    .ep-progress-bar {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 2.5px;
+      background: var(--accent, #3dd6c6);
+      border-radius: 999px;
+      pointer-events: none;
+      transition: width 0.2s ease;
+      z-index: 2;
     }
     .ep-item:hover {
       background: rgba(255,255,255,0.06);
@@ -1407,6 +1492,95 @@ export const watchController = async (c: Context) => {
     .gesture-indicator.is-active .gesture-icon {
       animation: gesturePulse 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
+    .seek-ripple-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 7;
+      overflow: hidden;
+      display: flex;
+    }
+    .seek-ripple-overlay[hidden] {
+      display: none !important;
+    }
+    .ripple-wave {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 42%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .ripple-left {
+      left: 0;
+      border-radius: 0 100% 100% 0 / 0 50% 50% 0;
+      background: radial-gradient(circle at 20% 50%, rgba(61, 214, 198, 0.35), transparent 75%);
+    }
+    .ripple-right {
+      right: 0;
+      border-radius: 100% 0 0 100% / 50% 0 0 50%;
+      background: radial-gradient(circle at 80% 50%, rgba(61, 214, 198, 0.35), transparent 75%);
+    }
+    .ripple-wave.is-active {
+      opacity: 1;
+    }
+    .ripple-arrows {
+      font-size: 1.5rem;
+      color: var(--accent);
+      font-weight: 900;
+      letter-spacing: -1px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+      font-family: Syne, sans-serif;
+    }
+    .ripple-text {
+      font-size: 0.85rem;
+      color: #fff;
+      font-weight: 700;
+      margin-top: 4px;
+      font-family: Syne, sans-serif;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    }
+    @keyframes rippleExpand {
+      0% { transform: scale(0.8); opacity: 0; }
+      50% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .ripple-wave.is-active .ripple-arrows,
+    .ripple-wave.is-active .ripple-text {
+      animation: rippleExpand 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    .hold-speed-pill {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      pointer-events: none;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-family: Syne, sans-serif;
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      animation: rippleExpand 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    .hold-speed-pill[hidden] {
+      display: none !important;
+    }
     .mobile-nav-pill {
       display: none;
     }
@@ -1568,6 +1742,22 @@ export const watchController = async (c: Context) => {
         bottom: 104px;
         font-size: 13px;
         padding: 8px 14px;
+      }
+      .outro-badge {
+        right: 12px;
+        bottom: 104px;
+        font-size: 13px;
+        padding: 6px 12px;
+      }
+      .outro-badge .outro-dismiss {
+        min-width: 44px;
+        min-height: 44px;
+      }
+      .outro-badge #outroPlayNow {
+        min-height: 44px;
+        padding: 6px 12px;
+        display: inline-flex;
+        align-items: center;
       }
 
       /* Subtitles bounds on mobile */
@@ -1840,6 +2030,17 @@ export const watchController = async (c: Context) => {
           <span class="osd-icon" id="osdIcon"></span>
           <span class="osd-text" id="osdText"></span>
         </div>
+        <div id="holdSpeedPill" class="hold-speed-pill" hidden aria-hidden="true">2x ▶▶</div>
+        <div id="seekRippleOverlay" class="seek-ripple-overlay" hidden aria-hidden="true">
+          <div class="ripple-wave ripple-left">
+            <div class="ripple-arrows">◀◀</div>
+            <div class="ripple-text"><span class="ripple-secs">10</span> seconds</div>
+          </div>
+          <div class="ripple-wave ripple-right">
+            <div class="ripple-arrows">▶▶</div>
+            <div class="ripple-text"><span class="ripple-secs">10</span> seconds</div>
+          </div>
+        </div>
         <div class="gesture-indicator gesture-left" id="gestureLeft" aria-hidden="true">
           <div class="gesture-icon">
             <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
@@ -1860,6 +2061,11 @@ export const watchController = async (c: Context) => {
           <div class="spinner" aria-hidden="true"></div>
         </div>
         <button type="button" class="skip-btn" id="skipBtn" hidden aria-hidden="true">Skip Intro</button>
+        <div id="outroBadge" class="outro-badge" hidden>
+          <span>Next episode in <b class="ap-count">5</b>s</span>
+          <button type="button" class="pill" id="outroPlayNow">Play Now</button>
+          <button type="button" class="outro-dismiss" id="outroDismiss" aria-label="Dismiss">✕</button>
+        </div>
 
         <div class="modal-backdrop" id="shortcutsBackdrop" aria-hidden="true"></div>
         <div class="shortcuts-modal" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle" aria-hidden="true">
@@ -1881,7 +2087,9 @@ export const watchController = async (c: Context) => {
             <div class="shortcut-row"><kbd>T</kbd> <span>Theater Mode</span></div>
             <div class="shortcut-row"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
             <div class="shortcut-row"><kbd>C</kbd> <span>Toggle Captions</span></div>
-            <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> <span>Previous / Next Episode</span></div>
+            <div class="shortcut-row"><kbd>Z</kbd> / <kbd>X</kbd> <span>Subtitle Sync (-0.1s / +0.1s)</span></div>
+            <div class="shortcut-row"><kbd>N</kbd> / <kbd>]</kbd> <span>Next Episode</span></div>
+            <div class="shortcut-row"><kbd>Shift</kbd>+<kbd>P</kbd> / <kbd>[</kbd> <span>Previous Episode</span></div>
             <div class="shortcut-row"><kbd>?</kbd> <span>Show Shortcuts</span></div>
           </div>
         </div>
@@ -1889,7 +2097,7 @@ export const watchController = async (c: Context) => {
         <div class="ap-overlay" id="autoplayOverlay" hidden>
           <div class="ap-card">
             <p class="ap-label">Next episode in</p>
-            <span class="ap-count">12</span>
+            <span class="ap-count">5</span>
             <div style="display:flex;gap:8px;margin-top:10px">
               <button type="button" class="pill ap-now" id="apNow" style="flex:1;padding:8px">Play now</button>
               <button type="button" class="pill ap-cancel" id="apCancel" style="flex:1;padding:8px;background:rgba(255,255,255,0.06)">Cancel</button>
@@ -1940,6 +2148,10 @@ export const watchController = async (c: Context) => {
               <button type="button" class="pill ${initial === 'dub' ? 'is-active' : ''}" data-track="dub" style="flex:1" ${!hasDub ? 'disabled aria-disabled="true" title="Dubbed version unavailable"' : ''}>Dub</button>
             </div>
             <p class="hint" id="audioHint" style="margin-top:8px;${hasBoth ? 'display:none' : ''}">${!hasSub ? 'Sub not available for this episode.' : !hasDub ? 'Dub not available for this episode.' : 'Only one audio track is available for this episode.'}</p>
+            <div class="menu-row">
+              <label id="stableVolumeLabel" for="stableVolumeToggle" title="Balances quiet dialogue and loud action scenes">Stable Volume</label>
+              <button type="button" class="switch" id="stableVolumeToggle" role="switch" aria-labelledby="stableVolumeLabel" aria-checked="false" aria-pressed="false"></button>
+            </div>
           </div>
           <div class="menu-section" id="serverSection">
             <h3>Server</h3>
@@ -2065,6 +2277,17 @@ export const watchController = async (c: Context) => {
                   <p class="hint" style="margin:0;font-size:0.72rem">Drag captions on the video to reposition.</p>
                 </div>
 
+                <div class="menu-row cc-setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <span class="cc-label">Subtitle Sync</span>
+                    <span class="hint" id="ccOffsetLabel">0.0s</span>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input class="menu-slider" id="ccOffset" type="range" min="-2.0" max="2.0" step="0.1" value="0.0" aria-label="Subtitle sync offset" />
+                    <button type="button" class="pill" id="ccOffsetReset" style="font-size:0.75rem;padding:2px 8px">Reset</button>
+                  </div>
+                </div>
+
               </div>
               <p class="hint" id="ccHint" style="margin-top:8px;${hasAnyCc ? 'display:none' : ''}">No English softsubs for this episode.</p>
             </div>
@@ -2078,6 +2301,17 @@ export const watchController = async (c: Context) => {
             <select id="quality" aria-label="Quality">
               <option value="-1">Auto</option>
             </select>
+          </div>
+          <div class="menu-section" id="playbackSection">
+            <h3>Playback</h3>
+            <div class="menu-row">
+              <label id="autoSkipLabel" for="autoSkipToggle">Auto-skip intro &amp; outro</label>
+              <button type="button" class="switch" id="autoSkipToggle" role="switch" aria-labelledby="autoSkipLabel" aria-checked="false" aria-pressed="false"></button>
+            </div>
+            <div class="menu-row">
+              <label id="autoNextLabel" for="autoNextToggle">Auto-play next episode</label>
+              <button type="button" class="switch is-on" id="autoNextToggle" role="switch" aria-labelledby="autoNextLabel" aria-checked="true" aria-pressed="true"></button>
+            </div>
           </div>
           <div class="menu-section">
             <div class="menu-row">
@@ -2099,14 +2333,16 @@ export const watchController = async (c: Context) => {
             <div class="menu-row shortcuts-row">
               <label class="shortcuts-label">Keyboard shortcuts</label>
               <div class="shortcuts-grid">
-                <kbd>Space</kbd><span>Play / Pause</span>
-                <kbd>← →</kbd><span>Seek ±10s</span>
+                <kbd>Space / K</kbd><span>Play / Pause</span>
+                <kbd>J / L</kbd><span>Seek ±10s</span>
+                <kbd>← →</kbd><span>Seek ±5s</span>
+                <kbd>0 - 9</kbd><span>Seek 0%–90%</span>
                 <kbd>↑ ↓</kbd><span>Volume ±5%</span>
-                <kbd>[ ]</kbd><span>Prev / Next episode</span>
-                <kbd>F</kbd><span>Fullscreen</span>
-                <kbd>T</kbd><span>Theater mode</span>
-                <kbd>C</kbd><span>Captions on/off</span>
                 <kbd>M</kbd><span>Mute</span>
+                <kbd>F / T</kbd><span>Full / Theater</span>
+                <kbd>C</kbd><span>Captions on/off</span>
+                <kbd>Z / X</kbd><span>Sub sync ±0.1s</span>
+                <kbd>N / [ ]</kbd><span>Next / Prev ep</span>
                 <kbd>, .</kbd><span>Speed down / up</span>
               </div>
             </div>
@@ -2180,6 +2416,7 @@ export const watchController = async (c: Context) => {
       var PROVIDER_LABELS = { megaplay: 'MegaPlay', zoko: 'Zoko', gogoanime: 'GogoAnime' };
       var track = ${safeJson(initial)};
       var activeServer = ${safeJson(activeServer)};
+      var nextPlaySafe = ${safeJson(nextPlaySafe)};
       var currentServer = activeServer;
       var switchingServer = false;
       var failoverAttempts = {};
@@ -2219,9 +2456,18 @@ export const watchController = async (c: Context) => {
       var ccSizeLabel = document.getElementById('ccSizeLabel');
       var ccOpacityEl = document.getElementById('ccOpacity');
       var ccOpacityLabel = document.getElementById('ccOpacityLabel');
+      var ccOffset = document.getElementById('ccOffset');
+      var ccOffsetLabel = document.getElementById('ccOffsetLabel');
+      var ccOffsetReset = document.getElementById('ccOffsetReset');
       var pipBtn = document.getElementById('pipBtn');
       var pipBtnBar = document.getElementById('pipBtnBar');
       var skipBtn = document.getElementById('skipBtn');
+      var outroBadge = document.getElementById('outroBadge');
+      var outroPlayNow = document.getElementById('outroPlayNow');
+      var outroDismiss = document.getElementById('outroDismiss');
+      var autoSkipToggle = document.getElementById('autoSkipToggle');
+      var autoNextToggle = document.getElementById('autoNextToggle');
+      var stableVolumeToggle = document.getElementById('stableVolumeToggle');
       var providerBadge = document.getElementById('providerBadge');
       var epListBtn = document.getElementById('epListBtn');
       var epListBtnMenu = document.getElementById('epListBtnMenu');
@@ -2246,10 +2492,22 @@ export const watchController = async (c: Context) => {
       var recoveryCloseBtn = document.getElementById('recoveryCloseBtn');
       var gestureLeft = document.getElementById('gestureLeft');
       var gestureRight = document.getElementById('gestureRight');
+      var seekRippleOverlay = document.getElementById('seekRippleOverlay');
+      var holdSpeedPill = document.getElementById('holdSpeedPill');
       var hideTimer = null;
       var hls = null;
       var switching = false;
       var skipMode = null;
+      var autoSkip = false;
+      try { autoSkip = localStorage.getItem('ani.autoSkip') === '1'; } catch (e) {}
+      var autoNext = true;
+      try { autoNext = localStorage.getItem('ani.autoNext') !== '0'; } catch (e) {}
+      var stableVolume = false;
+      try { stableVolume = localStorage.getItem('ani.stableVolume') === '1'; } catch (e) {}
+      var audioCtx = null;
+      var compressor = null;
+      var outroDismissed = false;
+      var outroTimer = null;
       var rate = Number(localStorage.getItem('ani.rate') || '1') || 1;
       var theater = localStorage.getItem('ani.theater') === '1';
       var ccOn = localStorage.getItem('ani.cc') === '1';
@@ -2268,6 +2526,11 @@ export const watchController = async (c: Context) => {
       var ccBgKey = CC_BGS[localStorage.getItem('ani.ccBg')] ? localStorage.getItem('ani.ccBg') : 'none';
       var ccOpacity = Math.min(100, Math.max(30, Number(localStorage.getItem('ani.ccOpacity') || '100') || 100));
       var ccCollapsed = localStorage.getItem('ani.ccCollapsed') !== '0'; // collapsed by default unless user explicitly opened it
+      var subOffset = 0.0;
+      try {
+        var savedSubOffset = parseFloat(localStorage.getItem('ani.subOffset') || '0') || 0.0;
+        subOffset = Math.max(-2.0, Math.min(2.0, Math.round(savedSubOffset * 10) / 10));
+      } catch (e) {}
       if (!isFinite(ccX)) ccX = 50;
       if (!isFinite(ccY)) ccY = 10;
       var ccCues = [];
@@ -2303,6 +2566,17 @@ export const watchController = async (c: Context) => {
               document.querySelectorAll('.ep-item[data-epn]').forEach(function (el) {
                 if (el.getAttribute('data-epn') === String(currentEpNum)) {
                   el.classList.add('is-watched');
+                  var epnEl = el.querySelector('.ep-n');
+                  if (epnEl && epnEl.textContent.indexOf('✓') === -1) {
+                    epnEl.textContent = '✓ ' + epnEl.textContent;
+                  }
+                  var bar = el.querySelector('.ep-progress-bar');
+                  if (!bar) {
+                    bar = document.createElement('span');
+                    bar.className = 'ep-progress-bar';
+                    el.appendChild(bar);
+                  }
+                  bar.style.width = '100%';
                 }
               });
             }
@@ -2338,6 +2612,23 @@ export const watchController = async (c: Context) => {
           cwSave(t);
         }, 5000);
       }
+      var lastProgSave = 0;
+      function saveEpisodeProgress(force) {
+        if (!animeId || !currentEpNum || !video || !isFinite(video.duration) || video.duration <= 10) return;
+        var now = Date.now();
+        if (!force && (now - lastProgSave < 5000)) return;
+        lastProgSave = now;
+        var curT = video.currentTime || 0;
+        var dur = video.duration;
+        var ratio = Math.min(1, Math.max(0, curT / dur));
+        try {
+          localStorage.setItem('ani.progress.' + animeId + '.' + currentEpNum, JSON.stringify({
+            time: Math.floor(curT),
+            dur: Math.floor(dur),
+            ratio: Math.round(ratio * 100) / 100
+          }));
+        } catch (e) {}
+      }
       // Remove from continue-watching when finished
       function cwRemove() {
         try {
@@ -2345,7 +2636,10 @@ export const watchController = async (c: Context) => {
           localStorage.setItem(CW_KEY, JSON.stringify(list));
         } catch (e) {}
       }
-      window.addEventListener('pagehide', function () { cwSave(video.currentTime || 0); });
+      window.addEventListener('pagehide', function () {
+        cwSave(video.currentTime || 0);
+        saveEpisodeProgress(true);
+      });
 
       // ── Quality selector state ─────────────────────────────────────────────
       var qualityManual = -1; // -1 = auto
@@ -2481,6 +2775,29 @@ export const watchController = async (c: Context) => {
         }
       }
 
+      function initAudioNormalizer() {
+        if (audioCtx) return;
+        try {
+          var AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          audioCtx = new AudioContext();
+          var source = audioCtx.createMediaElementSource(video);
+          compressor = audioCtx.createDynamicsCompressor();
+          compressor.threshold.value = -24;
+          compressor.knee.value = 30;
+          compressor.ratio.value = stableVolume ? 12 : 1;
+          compressor.attack.value = 0.003;
+          compressor.release.value = 0.25;
+          source.connect(compressor);
+          compressor.connect(audioCtx.destination);
+          if (audioCtx.state === 'suspended' && stableVolume) {
+            audioCtx.resume();
+          }
+        } catch (e) {
+          console.warn('[StableVolume] Web Audio init failed:', e);
+        }
+      }
+
       function updateProgress() {
         var d = video.duration || 0;
         var t = video.currentTime || 0;
@@ -2542,6 +2859,37 @@ export const watchController = async (c: Context) => {
         showOsd('⏭', skippedType);
       }
 
+      function showOutroBadge() {
+        if (!outroBadge || outroTimer || outroDismissed) return;
+        var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+        if (!nextHref) return;
+        outroBadge.removeAttribute('hidden');
+        var countEl = outroBadge.querySelector('.ap-count');
+        var secs = 5;
+        if (countEl) countEl.textContent = String(secs);
+        outroTimer = setInterval(function () {
+          secs--;
+          if (countEl) countEl.textContent = String(secs);
+          if (secs <= 0) {
+            dismissOutroBadge(false);
+            location.href = nextHref;
+          }
+        }, 1000);
+      }
+
+      function dismissOutroBadge(manualDismiss) {
+        if (outroTimer) {
+          clearInterval(outroTimer);
+          outroTimer = null;
+        }
+        if (outroBadge) {
+          outroBadge.setAttribute('hidden', '');
+        }
+        if (manualDismiss) {
+          outroDismissed = true;
+        }
+      }
+
       function startHideTimer(ms) {
         clearTimeout(hideTimer);
         hideTimer = setTimeout(function () {
@@ -2570,12 +2918,7 @@ export const watchController = async (c: Context) => {
       function toggleMute() {
         video.muted = !video.muted;
         setMuted(video.muted);
-        if (video.muted) {
-          showOsd('🔇', 'Muted');
-        } else {
-          var icon = video.volume < 0.5 ? '🔉' : '🔊';
-          showOsd(icon, Math.round(video.volume * 100) + '%');
-        }
+        showOsd(video.muted ? '🔇' : '🔊', video.muted ? 'Muted' : 'Unmuted');
       }
       function isIosPhone() {
         return /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -2726,6 +3069,8 @@ export const watchController = async (c: Context) => {
         // Sync opacity slider
         if (ccOpacityEl) ccOpacityEl.value = String(ccOpacity);
         if (ccOpacityLabel) ccOpacityLabel.textContent = ccOpacity + '%';
+        // Sync subtitle sync slider & label
+        syncSubOffsetUi();
         // Sync pos buttons
         document.querySelectorAll('[data-cc-pos]').forEach(function (btn) {
           var pos = btn.getAttribute('data-cc-pos');
@@ -2786,6 +3131,21 @@ export const watchController = async (c: Context) => {
         persistCcLayout();
       }
 
+      function syncSubOffsetUi() {
+        if (ccOffset) ccOffset.value = subOffset.toFixed(1);
+        if (ccOffsetLabel) ccOffsetLabel.textContent = (subOffset > 0 ? '+' : '') + subOffset.toFixed(1) + 's';
+      }
+
+      function setSubOffset(val, showToast) {
+        subOffset = Math.max(-2.0, Math.min(2.0, Math.round(val * 10) / 10));
+        syncSubOffsetUi();
+        try { localStorage.setItem('ani.subOffset', String(subOffset)); } catch (e) {}
+        renderCcAt(video.currentTime || 0);
+        if (showToast) {
+          showOsd('💬', 'Sub Sync: ' + (subOffset > 0 ? '+' : '') + subOffset.toFixed(1) + 's');
+        }
+      }
+
       function hideCcText() {
         activeCueText = '';
         if (ccBox) {
@@ -2841,13 +3201,14 @@ export const watchController = async (c: Context) => {
           hideCcText();
           return;
         }
+        var effectiveTime = Math.max(0, t + subOffset);
         var text = '';
-        var startIdx = findFirstGte(ccCues, t - ccMaxDuration);
-        var endIdx = findLastLte(ccCues, t);
+        var startIdx = findFirstGte(ccCues, effectiveTime - ccMaxDuration);
+        var endIdx = findLastLte(ccCues, effectiveTime);
         if (startIdx <= endIdx && startIdx < ccCues.length && endIdx >= 0) {
           for (var i = startIdx; i <= endIdx; i++) {
             var c = ccCues[i];
-            if (t >= c.start && t <= c.end) {
+            if (effectiveTime >= c.start && effectiveTime <= c.end) {
               text = text ? text + '\\n' + c.text : c.text;
             }
           }
@@ -2909,6 +3270,7 @@ export const watchController = async (c: Context) => {
         try { localStorage.setItem('ani.cc', ccOn ? '1' : '0'); } catch (e) {}
         if (!ccOn) unloadCaptions();
         applyCaptions();
+        showOsd('💬', ccOn ? 'Captions On' : 'Captions Off');
       }
 
       function setRate(next) {
@@ -3228,6 +3590,7 @@ export const watchController = async (c: Context) => {
         var resumeAt = keepTime ? (video.currentTime || 0) : 0;
         var wasPlaying = !video.paused || keepTime;
         track = next;
+        try { localStorage.setItem('ani.audioPref', track); } catch (e) {}
         syncAudioButtons();
         updateSkip();
 
@@ -3505,16 +3868,32 @@ export const watchController = async (c: Context) => {
             currentEl = btn;
           }
           if (n) btn.setAttribute('data-epn', n);
-          // Mark as watched if in localStorage
+          var isWatched = false;
           if (n && animeId) {
             try {
               var _watched = JSON.parse(localStorage.getItem('ani.watched.' + animeId) || '[]');
-              if (_watched.indexOf(n) >= 0) btn.className += ' is-watched';
+              if (_watched.indexOf(n) >= 0) isWatched = true;
             } catch (e) {}
           }
+          var prog = null;
+          if (n && animeId) {
+            try {
+              var rawProg = localStorage.getItem('ani.progress.' + animeId + '.' + n);
+              if (rawProg) prog = JSON.parse(rawProg);
+            } catch (e) {}
+          }
+          var ratio = prog && typeof prog.ratio === 'number' ? prog.ratio : (isWatched ? 1 : 0);
+          var isCompleted = isWatched || ratio >= 0.9;
+          if (isCompleted) btn.className += ' is-watched';
+
+          var barHtml = (ratio >= 0.05 || isWatched)
+            ? '<span class="ep-progress-bar" style="width:' + Math.round((ratio >= 0.05 ? ratio : 1) * 100) + '%"></span>'
+            : '';
+
           btn.innerHTML =
-            '<span class="ep-n">' + (n || '—') + '</span>' +
-            '<span class="ep-t"></span>';
+            '<span class="ep-n">' + (isCompleted ? '✓ ' : '') + (n || '—') + '</span>' +
+            '<span class="ep-t"></span>' +
+            barHtml;
           btn.querySelector('.ep-t').textContent = ep.title || ('Episode ' + (n || ''));
           (function (epId, epBtn) {
             epBtn.addEventListener('click', function (e) {
@@ -3616,8 +3995,46 @@ export const watchController = async (c: Context) => {
 
       var lastTapTime = 0;
       var lastTapX = 0;
-      var tapTimer = null;
+      var lastTapZone = '';
+      var compoundSeekSecs = 0;
+      var doubleTapTimer = null;
+      var singleTapTimer = null;
       var gestureTimer = null;
+
+      var holdTimer = null;
+      var isHoldingSpeed = false;
+      var preHoldSpeed = 1;
+      var touchStartX = 0;
+      var touchStartY = 0;
+      var touchMoved = false;
+      var lastTouchEndTime = 0;
+      var wasVisibleAtTouchStart = false;
+
+      function triggerRipple(side, secs) {
+        if (!seekRippleOverlay) return;
+        seekRippleOverlay.hidden = false;
+        var waveLeft = seekRippleOverlay.querySelector('.ripple-left');
+        var waveRight = seekRippleOverlay.querySelector('.ripple-right');
+        var targetWave = side === 'left' ? waveLeft : waveRight;
+        var otherWave = side === 'left' ? waveRight : waveLeft;
+        if (otherWave) otherWave.classList.remove('is-active');
+        if (targetWave) {
+          var secsSpan = targetWave.querySelector('.ripple-secs');
+          if (secsSpan) secsSpan.textContent = String(secs);
+          targetWave.classList.remove('is-active');
+          void targetWave.offsetWidth;
+          targetWave.classList.add('is-active');
+        }
+        if (typeof flashGesture === 'function') flashGesture(side);
+        clearTimeout(doubleTapTimer);
+        doubleTapTimer = setTimeout(function () {
+          if (targetWave) targetWave.classList.remove('is-active');
+          seekRippleOverlay.hidden = true;
+          compoundSeekSecs = 0;
+          lastTapTime = 0;
+          lastTapZone = '';
+        }, 650);
+      }
 
       function flashGesture(side) {
         var el = side === 'left' ? gestureLeft : gestureRight;
@@ -3641,7 +4058,7 @@ export const watchController = async (c: Context) => {
       });
       stage.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
@@ -3651,7 +4068,7 @@ export const watchController = async (c: Context) => {
 
       stage.addEventListener('dblclick', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+        if (e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
         }
         toggleFs();
@@ -3667,17 +4084,6 @@ export const watchController = async (c: Context) => {
           applyVolume(video.volume - 0.05, true);
         }
       }, { passive: false });
-
-      var wasVisibleAtTouchStart = false;
-
-      stage.addEventListener('pointerdown', function (e) {
-        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
-          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .seek-wrap, button, input'));
-          if (!inInteractive) {
-            wasVisibleAtTouchStart = stage.classList.contains('show-controls');
-          }
-        }
-      }, { passive: true });
 
       function handleStageSingleTap() {
         if (!wasVisibleAtTouchStart) {
@@ -3695,43 +4101,78 @@ export const watchController = async (c: Context) => {
         }
       }
 
-      stage.addEventListener('pointerup', function (e) {
-        if (!window.matchMedia('(pointer: coarse)').matches) return;
-        if (e.target.closest('.controls, .menu, .ep-panel, .big-btn, .skip-btn, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+      function handleTapGesture(clientX, clientY, target) {
+        if (target && target.closest && target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
           return;
+        }
+
+        var rect = stage.getBoundingClientRect();
+        var tapX = clientX - rect.left;
+        var width = rect.width;
+        if (width <= 0) return;
+
+        var zone = 'center';
+        if (tapX < width * 0.33) {
+          zone = 'left';
+        } else if (tapX > width * 0.66) {
+          zone = 'right';
         }
 
         var now = Date.now();
         var dt = now - lastTapTime;
-        var rect = stage.getBoundingClientRect();
-        var tapX = e.clientX - rect.left;
-        var width = rect.width;
 
-        if (dt < 320 && Math.abs(tapX - lastTapX) < 60) {
-          clearTimeout(tapTimer);
-          tapTimer = null;
-          lastTapTime = 0;
+        var isDoubleTap = false;
+        if (zone === lastTapZone && (dt < 380 || (compoundSeekSecs > 0 && dt < 650))) {
+          isDoubleTap = true;
+        }
 
-          if (tapX < width * 0.38) {
+        if (isDoubleTap) {
+          if (singleTapTimer) {
+            clearTimeout(singleTapTimer);
+            singleTapTimer = null;
+          }
+
+          if (zone === 'left') {
+            if (compoundSeekSecs === 0 || dt >= 650) {
+              compoundSeekSecs = 10;
+            } else {
+              compoundSeekSecs += 10;
+            }
             video.currentTime = Math.max(0, (video.currentTime || 0) - 10);
             updateProgress();
             updateSkip();
-            flashGesture('left');
-          } else if (tapX > width * 0.62) {
+            triggerRipple('left', compoundSeekSecs);
+            lastTapTime = now;
+            lastTapZone = 'left';
+          } else if (zone === 'right') {
+            if (compoundSeekSecs === 0 || dt >= 650) {
+              compoundSeekSecs = 10;
+            } else {
+              compoundSeekSecs += 10;
+            }
             video.currentTime = Math.min((video.duration || 0), (video.currentTime || 0) + 10);
             updateProgress();
             updateSkip();
-            flashGesture('right');
-          } else {
-            togglePlay();
+            triggerRipple('right', compoundSeekSecs);
+            lastTapTime = now;
+            lastTapZone = 'right';
+          } else if (zone === 'center') {
+            toggleFs();
+            compoundSeekSecs = 0;
+            lastTapTime = 0;
+            lastTapZone = '';
           }
           pokeControls();
         } else {
           lastTapTime = now;
           lastTapX = tapX;
-          clearTimeout(tapTimer);
-          tapTimer = setTimeout(function () {
-            tapTimer = null;
+          lastTapZone = zone;
+          compoundSeekSecs = 0;
+          if (singleTapTimer) clearTimeout(singleTapTimer);
+          singleTapTimer = setTimeout(function () {
+            singleTapTimer = null;
+            lastTapTime = 0;
+            lastTapZone = '';
             if (settingsMenu.classList.contains('is-open')) {
               toggleSettings(false);
             } else if (epPanel && epPanel.classList.contains('is-open')) {
@@ -3741,6 +4182,111 @@ export const watchController = async (c: Context) => {
             }
           }, 280);
         }
+      }
+
+      stage.addEventListener('touchstart', function (e) {
+        if (!e.touches || e.touches.length !== 1) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+          return;
+        }
+        var target = e.target;
+        if (target && target.closest && target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .big-btn, .skip-btn, .outro-badge, .ap-overlay, .recovery-overlay, button, a, input, select, [role="switch"]')) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+          return;
+        }
+        wasVisibleAtTouchStart = stage.classList.contains('show-controls');
+        var touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        touchMoved = false;
+
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(function () {
+          if (!touchMoved) {
+            isHoldingSpeed = true;
+            preHoldSpeed = video.playbackRate || 1;
+            video.playbackRate = 2.0;
+            if (holdSpeedPill) {
+              holdSpeedPill.hidden = false;
+            }
+            if (singleTapTimer) {
+              clearTimeout(singleTapTimer);
+              singleTapTimer = null;
+            }
+          }
+        }, 400);
+      }, { passive: true });
+
+      stage.addEventListener('touchmove', function (e) {
+        if (!e.touches || e.touches.length !== 1) return;
+        var touch = e.touches[0];
+        var dx = touch.clientX - touchStartX;
+        var dy = touch.clientY - touchStartY;
+        if (Math.hypot(dx, dy) > 10) {
+          touchMoved = true;
+          if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+          }
+        }
+      }, { passive: true });
+
+      stage.addEventListener('touchcancel', function () {
+        if (holdTimer) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+        }
+        if (isHoldingSpeed) {
+          video.playbackRate = preHoldSpeed;
+          if (holdSpeedPill) {
+            holdSpeedPill.hidden = true;
+          }
+          isHoldingSpeed = false;
+        }
+      });
+
+      stage.addEventListener('touchend', function (e) {
+        lastTouchEndTime = Date.now();
+        if (holdTimer) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+        }
+        if (isHoldingSpeed) {
+          video.playbackRate = preHoldSpeed;
+          if (holdSpeedPill) {
+            holdSpeedPill.hidden = true;
+          }
+          isHoldingSpeed = false;
+          lastTapTime = 0;
+          lastTapZone = '';
+          if (e.cancelable) e.preventDefault();
+          return;
+        }
+
+        if (touchMoved) return;
+
+        var touch = e.changedTouches ? e.changedTouches[0] : null;
+        if (!touch) return;
+
+        handleTapGesture(touch.clientX, touch.clientY, e.target);
+      });
+
+      stage.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+          var inInteractive = !!(e.target && e.target.closest && e.target.closest('.controls, .menu, .ep-panel, .shortcuts-modal, .seek-wrap, button, input'));
+          if (!inInteractive) {
+            wasVisibleAtTouchStart = stage.classList.contains('show-controls');
+          }
+        }
+      }, { passive: true });
+
+      stage.addEventListener('pointerup', function (e) {
+        if (!window.matchMedia('(pointer: coarse)').matches) return;
+        if (e.pointerType === 'touch') return;
+        if (Date.now() - lastTouchEndTime < 400) return;
+        handleTapGesture(e.clientX, e.clientY, e.target);
       });
       muteBtn.addEventListener('click', function (e) {
         if (window.matchMedia('(pointer: coarse)').matches) this.blur();
@@ -3887,6 +4433,20 @@ export const watchController = async (c: Context) => {
           persistCcLayout();
         });
         ccOpacityEl.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+      if (ccOffset) {
+        ccOffset.addEventListener('input', function (e) {
+          e.stopPropagation();
+          setSubOffset(parseFloat(ccOffset.value) || 0, false);
+        });
+        ccOffset.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+      if (ccOffsetReset) {
+        ccOffsetReset.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          setSubOffset(0, false);
+        });
       }
       document.querySelectorAll('[data-cc-preset]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -4128,7 +4688,7 @@ export const watchController = async (c: Context) => {
         if (apNow) {
           apNow.addEventListener('click', function () {
             if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
-            var nextHref = document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
+            var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
             if (nextHref) location.href = nextHref;
           });
         }
@@ -4142,6 +4702,84 @@ export const watchController = async (c: Context) => {
         }
       })();
 
+      if (outroPlayNow) {
+        outroPlayNow.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          dismissOutroBadge(false);
+          var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+          if (nextHref) location.href = nextHref;
+        });
+      }
+
+      if (outroDismiss) {
+        outroDismiss.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          dismissOutroBadge(true);
+        });
+      }
+
+      if (autoSkipToggle) {
+        autoSkipToggle.classList.toggle('is-on', autoSkip);
+        autoSkipToggle.setAttribute('aria-pressed', autoSkip ? 'true' : 'false');
+        autoSkipToggle.setAttribute('aria-checked', autoSkip ? 'true' : 'false');
+        autoSkipToggle.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          autoSkip = !autoSkip;
+          try { localStorage.setItem('ani.autoSkip', autoSkip ? '1' : '0'); } catch (err) {}
+          autoSkipToggle.classList.toggle('is-on', autoSkip);
+          autoSkipToggle.setAttribute('aria-pressed', autoSkip ? 'true' : 'false');
+          autoSkipToggle.setAttribute('aria-checked', autoSkip ? 'true' : 'false');
+        });
+      }
+
+      if (autoNextToggle) {
+        autoNextToggle.classList.toggle('is-on', autoNext);
+        autoNextToggle.setAttribute('aria-pressed', autoNext ? 'true' : 'false');
+        autoNextToggle.setAttribute('aria-checked', autoNext ? 'true' : 'false');
+        autoNextToggle.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          autoNext = !autoNext;
+          try { localStorage.setItem('ani.autoNext', autoNext ? '1' : '0'); } catch (err) {}
+          autoNextToggle.classList.toggle('is-on', autoNext);
+          autoNextToggle.setAttribute('aria-pressed', autoNext ? 'true' : 'false');
+          autoNextToggle.setAttribute('aria-checked', autoNext ? 'true' : 'false');
+        });
+      }
+
+      if (stableVolumeToggle) {
+        stableVolumeToggle.classList.toggle('is-on', stableVolume);
+        stableVolumeToggle.setAttribute('aria-pressed', stableVolume ? 'true' : 'false');
+        stableVolumeToggle.setAttribute('aria-checked', stableVolume ? 'true' : 'false');
+        stableVolumeToggle.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          stableVolume = !stableVolume;
+          try { localStorage.setItem('ani.stableVolume', stableVolume ? '1' : '0'); } catch (err) {}
+          stableVolumeToggle.classList.toggle('is-on', stableVolume);
+          stableVolumeToggle.setAttribute('aria-pressed', stableVolume ? 'true' : 'false');
+          stableVolumeToggle.setAttribute('aria-checked', stableVolume ? 'true' : 'false');
+          if (stableVolume) {
+            initAudioNormalizer();
+            if (audioCtx && audioCtx.state === 'suspended') {
+              audioCtx.resume();
+            }
+            if (compressor) {
+              compressor.ratio.value = 12;
+            }
+            showOsd('🔊', 'Stable Volume: On');
+          } else {
+            if (compressor) {
+              compressor.ratio.value = 1;
+            }
+            showOsd('🔊', 'Stable Volume: Off');
+          }
+        });
+      }
+
       document.querySelectorAll('[data-track]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
@@ -4151,6 +4789,7 @@ export const watchController = async (c: Context) => {
             fail('That audio track is not available.');
             return;
           }
+          try { localStorage.setItem('ani.audioPref', next); } catch (e) {}
           loadTrack(next, true);
         });
       });
@@ -4254,20 +4893,56 @@ export const watchController = async (c: Context) => {
       }
 
       video.addEventListener('timeupdate', function () {
+        var t = video.currentTime || 0;
+        var pack = currentSkip();
+        if (autoSkip && pack.intro && inRange(t, pack.intro)) {
+          video.currentTime = pack.intro.end;
+          showOsd('⚡', 'Auto-skipped Intro');
+          updateProgress();
+          updateSkip();
+          return;
+        }
+        var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+        if (nextHref && pack.outro && inRange(t, pack.outro)) {
+          if (!outroDismissed && !outroTimer && autoNext) {
+            showOutroBadge();
+          }
+        } else if (autoSkip && pack.outro && inRange(t, pack.outro) && !nextHref) {
+          var d = video.duration;
+          var target = pack.outro.end;
+          if (isFinite(d) && d > 0) target = Math.min(target, Math.max(0, d - 0.25));
+          video.currentTime = Math.max(0, target);
+          showOsd('⚡', 'Auto-skipped Outro');
+          updateProgress();
+          updateSkip();
+          return;
+        }
+        if (pack.outro && t < pack.outro.start) {
+          if (outroTimer) dismissOutroBadge(false);
+          if (outroDismissed) outroDismissed = false;
+        }
         updateProgress();
         updateSkip();
-        renderCcAt(video.currentTime || 0);
-        cwThrottle(video.currentTime || 0);
+        renderCcAt(t);
+        cwThrottle(t);
+        saveEpisodeProgress(false);
       });
       video.addEventListener('seeked', function () {
+        var t = video.currentTime || 0;
+        var pack = currentSkip();
+        if (pack.outro && t < pack.outro.start) {
+          if (outroTimer) dismissOutroBadge(false);
+          if (outroDismissed) outroDismissed = false;
+        }
         updateSkip();
-        renderCcAt(video.currentTime || 0);
+        renderCcAt(t);
       });
       video.addEventListener('ended', function () {
         // Guard: ignore spurious 'ended' events fired during track switches
         // (video.load() can reset duration to 0 and briefly fire ended)
         if (!isFinite(video.duration) || video.duration < 5) return;
         cwRemove(); // finished — remove from continue watching
+        saveEpisodeProgress(true);
         // Mark watched
         if (animeId && currentEpNum) {
           try {
@@ -4279,15 +4954,17 @@ export const watchController = async (c: Context) => {
           } catch (e) {}
         }
         // Auto-play next episode
-        var nextHref = document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null;
+        var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
         if (!nextHref) return;
+        if (!autoNext) return;
+        dismissOutroBadge(false);
         // Clear any previous timer before starting a new one
         if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
         autoplayCancelled = false;
         var overlay = document.getElementById('autoplayOverlay');
         if (!overlay) return;
         var countEl = overlay.querySelector('.ap-count');
-        var secs = 12;
+        var secs = 5;
         overlay.removeAttribute('hidden');
         if (countEl) countEl.textContent = String(secs);
         autoplayTimer = setInterval(function () {
@@ -4308,9 +4985,19 @@ export const watchController = async (c: Context) => {
       video.addEventListener('ratechange', function () {
         if (Math.abs(video.playbackRate - rate) > 0.01) setRate(video.playbackRate);
       });
-      video.addEventListener('play', function () { setPlaying(true); stage.classList.remove('is-loading'); });
+      video.addEventListener('play', function () {
+        setPlaying(true);
+        stage.classList.remove('is-loading');
+        if (stableVolume) {
+          initAudioNormalizer();
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+        }
+      });
       video.addEventListener('pause', function () {
         setPlaying(false);
+        saveEpisodeProgress(true);
         // Always show cursor when paused — controls are visible via is-paused CSS rule
         stage.classList.remove('cursor-hidden');
         clearTimeout(hideTimer);
@@ -4349,6 +5036,24 @@ export const watchController = async (c: Context) => {
       document.addEventListener('keydown', function (e) {
         if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
+        var overlay = document.getElementById('autoplayOverlay');
+        var isOverlayOpen = overlay && !overlay.hidden && !overlay.hasAttribute('hidden');
+        var isOutroOpen = outroBadge && !outroBadge.hidden && !outroBadge.hasAttribute('hidden');
+        if (isOverlayOpen && (e.code === 'Space' || e.key === ' ' || e.key === 'Enter')) {
+          e.preventDefault();
+          if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+          overlay.setAttribute('hidden', '');
+          var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+          if (nextHref) location.href = nextHref;
+          return;
+        }
+        if (isOutroOpen && e.key === 'Enter') {
+          e.preventDefault();
+          dismissOutroBadge(false);
+          var nextHref = nextPlaySafe || (document.getElementById('nextEpBar') ? document.getElementById('nextEpBar').getAttribute('href') : null);
+          if (nextHref) location.href = nextHref;
+          return;
+        }
         if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); togglePlay(); }
         else if (e.key === 'j' || e.key === 'J') {
           e.preventDefault();
@@ -4366,12 +5071,30 @@ export const watchController = async (c: Context) => {
         }
         else if (e.key === 'f' || e.key === 'F') toggleFs();
         else if (e.key === 't' || e.key === 'T') setTheater(!theater);
+        else if (e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+          e.preventDefault();
+          var prev = document.getElementById('prevEpBar') || document.getElementById('prevEp');
+          if (prev && prev.getAttribute('href')) location.href = prev.getAttribute('href');
+        }
         else if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePip(); }
         else if (e.key === 'e' || e.key === 'E') {
           if (animeId) { e.preventDefault(); toggleEpPanel(); }
         }
         else if (e.key === 'c' || e.key === 'C') {
           if (captions[track]) setCc(!ccOn);
+        }
+        else if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          setSubOffset(subOffset - 0.1, true);
+        }
+        else if (e.key === 'x' || e.key === 'X') {
+          e.preventDefault();
+          setSubOffset(subOffset + 0.1, true);
+        }
+        else if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          var next = document.getElementById('nextEpBar') || document.getElementById('nextEp');
+          if (next && next.getAttribute('href')) location.href = next.getAttribute('href');
         }
         else if (e.key === '[') {
           e.preventDefault();
@@ -4410,7 +5133,15 @@ export const watchController = async (c: Context) => {
         else if (e.key === 'ArrowUp') { e.preventDefault(); applyVolume(video.volume + 0.05, true); }
         else if (e.key === 'ArrowDown') { e.preventDefault(); applyVolume(video.volume - 0.05, true); }
         else if (e.key === 'Escape') {
-          if (shortcutsModal && shortcutsModal.classList.contains('is-open')) toggleShortcuts(false);
+          if (isOutroOpen) {
+            dismissOutroBadge(true);
+          }
+          else if (isOverlayOpen) {
+            autoplayCancelled = true;
+            if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+            overlay.setAttribute('hidden', '');
+          }
+          else if (shortcutsModal && shortcutsModal.classList.contains('is-open')) toggleShortcuts(false);
           else if (epPanel && epPanel.classList.contains('is-open')) setEpPanel(false);
           else if (settingsMenu.classList.contains('is-open')) toggleSettings(false);
           else if (theater && !document.fullscreenElement) setTheater(false);
@@ -4466,7 +5197,17 @@ export const watchController = async (c: Context) => {
         setPlaying(false);
         setMuted(false);
         syncServerChips(activeServer);
+        try {
+          var urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.has('category')) {
+            var audioPref = localStorage.getItem('ani.audioPref');
+            if (audioPref && (audioPref === 'sub' || audioPref === 'dub') && streams[audioPref]) {
+              track = audioPref;
+            }
+          }
+        } catch (e) {}
         updateServerAvailability(track);
+        syncSubOffsetUi();
         // Restore saved volume level
         var savedVol = 1;
         try {

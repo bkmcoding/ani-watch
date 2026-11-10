@@ -25,7 +25,9 @@ describe('Landing Page Desktop Hotkeys & Search Discovery', () => {
 
     expect(html).toContain('landingSearchInput');
     // Checks keydown listener handling / or Ctrl+K / Cmd+K
-    expect(html).toMatch(/e\.key\s*===\s*['"]\/['"]\s*\|\|\s*\(\(e\.ctrlKey\s*\|\|\s*e\.metaKey\)\s*&&\s*\(e\.key\s*===\s*['"]k['"]\s*\|\|\s*e\.key\s*===\s*['"]K['"]\)\)/);
+    expect(html).toMatch(
+      /e\.key\s*===\s*['"]\/['"]\s*\|\|\s*\(\(e\.ctrlKey\s*\|\|\s*e\.metaKey\)\s*&&\s*\(e\.key\s*===\s*['"]k['"]\s*\|\|\s*e\.key\s*===\s*['"]K['"]\)\)/
+    );
     expect(html).toContain('landingSearchInput.focus()');
     expect(html).toContain('landingSearchInput.select()');
     expect(html).toMatch(/e\.key\s*===\s*['"]Escape['"][\s\S]*?landingSearchInput\.blur\(\)/);
