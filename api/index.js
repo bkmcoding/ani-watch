@@ -1901,6 +1901,309 @@ async function resolveGogoSources(animeTitle, epNum, category = "sub") {
   }
 }
 
+// src/lib/mediaProxyCore.ts
+var MAX_STREAM_REDIRECTS = 5;
+var STREAM_FETCH_TIMEOUT_MS = 15e3;
+var HLS_UPSTREAM_TIMEOUT_MS = 3e4;
+var MAX_PLAYLIST_BYTES = 2 * 1024 * 1024;
+var MAX_SUBTITLE_BYTES = 5 * 1024 * 1024;
+var MAX_HLS_SEGMENT_BYTES = 32 * 1024 * 1024;
+var MAX_POSTER_BYTES = 8 * 1024 * 1024;
+var CDN_ALLOWED_DOMAINS = [
+  "anipixcdn.co",
+  "noitatnemucod.net",
+  "bunnycdn.ru",
+  "b-cdn.net",
+  "wsrv.nl",
+  "weserv.nl",
+  "hianime.lu",
+  "hianime.to",
+  "aniwatchtv.to",
+  // Subtitle CDNs used by MegaPlay / Zoko / GogoAnime tracks.
+  "broforgotsave.online",
+  "gogocdn.stream",
+  "gogocdn.net",
+  "vidcdn.pro",
+  "megaplay.buzz",
+  "zokoanime.video"
+];
+var StreamUrlError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "StreamUrlError";
+  }
+};
+var StreamResponseTooLargeError = class extends Error {
+  constructor(maxBytes) {
+    super(`upstream response exceeds ${maxBytes} bytes`);
+    this.name = "StreamResponseTooLargeError";
+  }
+};
+function isBlockedIpv4(a, b, c, d) {
+  if ([a, b, c, d].some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+  if (a === 0) return true;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return true;
+  if (a === 198 && b === 51 && c === 100) return true;
+  if (a === 203 && b === 0 && c === 113) return true;
+  if (a >= 224) return true;
+  return false;
+}
+function parseIpv6Hextets(input) {
+  const host = input.trim().toLowerCase();
+  if (host.includes("%")) return null;
+  const parsePart = (part) => {
+    if (part === "") return [];
+    const groups = part.split(":");
+    const out = [];
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      if (!group) return null;
+      if (group.includes(".")) {
+        if (i !== groups.length - 1) return null;
+        const quads = group.split(".");
+        if (quads.length !== 4 || !quads.every((q) => /^\d{1,3}$/.test(q))) return null;
+        const nums = quads.map(Number);
+        if (nums.some((n) => n > 255)) return null;
+        out.push(nums[0] << 8 | nums[1], nums[2] << 8 | nums[3]);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
+      out.push(parseInt(group, 16));
+    }
+    return out;
+  };
+  const halves = host.split("::");
+  if (halves.length > 2) return null;
+  const head = parsePart(halves[0]);
+  if (!head) return null;
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  const tail = parsePart(halves[1]);
+  if (!tail) return null;
+  const zeros = 8 - head.length - tail.length;
+  if (zeros < 1) return null;
+  return [...head, ...new Array(zeros).fill(0), ...tail];
+}
+function isBlockedIpv6(hextets) {
+  const [h0, h1] = hextets;
+  const zeroPrefix = (count) => hextets.slice(0, count).every((h) => h === 0);
+  const embeddedIpv4Blocked = (hi, lo) => {
+    return isBlockedIpv4(hi >> 8, hi & 255, lo >> 8, lo & 255);
+  };
+  if (hextets.every((h) => h === 0)) return true;
+  if (zeroPrefix(7) && hextets[7] === 1) return true;
+  if (zeroPrefix(5) && (hextets[5] === 65535 || hextets[5] === 0)) {
+    return embeddedIpv4Blocked(hextets[6], hextets[7]);
+  }
+  if (h0 === 100 && h1 === 65435 && hextets.slice(2, 6).every((h) => h === 0)) {
+    return embeddedIpv4Blocked(hextets[6], hextets[7]);
+  }
+  if (h0 === 8194) return embeddedIpv4Blocked(hextets[1], hextets[2]);
+  if ((h0 & 65472) === 65152) return true;
+  if ((h0 & 65472) === 65216) return true;
+  if ((h0 & 65024) === 64512) return true;
+  if ((h0 & 65280) === 65280) return true;
+  return false;
+}
+function isAllowedStreamHost(hostname) {
+  if (!hostname || typeof hostname !== "string") return false;
+  let host = hostname.trim().toLowerCase();
+  if (host.startsWith("[") && host.endsWith("]")) {
+    host = host.slice(1, -1);
+  }
+  if (!host) return false;
+  if (/^\d+$/.test(host) || /^0x[0-9a-f]+$/i.test(host)) return false;
+  if (!host.includes(".") && !host.includes(":")) return false;
+  if (host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".localhost") || host.endsWith(".onion") || host.endsWith(".nip.io") || host.endsWith(".sslip.io") || host.endsWith(".localtest.me") || host.includes("metadata.google")) {
+    return false;
+  }
+  const ipv4Parts = host.split(".");
+  if (ipv4Parts.length === 4 && ipv4Parts.every((p) => /^\d+$/.test(p))) {
+    if (ipv4Parts.some((p) => p.length > 1 && p.startsWith("0"))) return false;
+    const [a, b, c, d] = ipv4Parts.map(Number);
+    return !isBlockedIpv4(a, b, c, d);
+  }
+  if (host.includes(":")) {
+    const hextets = parseIpv6Hextets(host);
+    if (!hextets) return false;
+    return !isBlockedIpv6(hextets);
+  }
+  return true;
+}
+function isAllowedCdnHost(hostname) {
+  if (!hostname || typeof hostname !== "string") return false;
+  const host = hostname.trim().toLowerCase();
+  return CDN_ALLOWED_DOMAINS.some((domain) => host === domain || host.endsWith("." + domain));
+}
+function refererForStreamUrl(url) {
+  const host = new URL(url).hostname.toLowerCase();
+  return host.includes("aniwatchtv") || host.includes("zoko") ? "https://zokoanime.video/" : "https://megaplay.buzz/";
+}
+function assertAllowedUrl(rawUrl, protocols, schemeMessage, hostAllowed) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new StreamUrlError("url must be absolute");
+  }
+  if (!protocols.includes(parsed.protocol)) {
+    throw new StreamUrlError(schemeMessage);
+  }
+  if (!hostAllowed(parsed.hostname)) {
+    throw new StreamUrlError("url host not allowed");
+  }
+  return parsed;
+}
+function assertAllowedStreamUrl(rawUrl) {
+  return assertAllowedUrl(
+    rawUrl,
+    ["https:"],
+    "only https:// stream URLs are allowed",
+    isAllowedStreamHost
+  );
+}
+function assertAllowedPosterUrl(rawUrl) {
+  return assertAllowedUrl(
+    rawUrl,
+    ["https:", "http:"],
+    "only http(s) URLs are allowed",
+    isAllowedCdnHost
+  );
+}
+function assertAllowedSubtitleUrl(rawUrl) {
+  return assertAllowedUrl(
+    rawUrl,
+    ["https:"],
+    "only https:// subtitle URLs are allowed",
+    isAllowedCdnHost
+  );
+}
+async function discardBody(response) {
+  try {
+    await response.body?.cancel();
+  } catch {
+  }
+}
+async function readBodyCapped(response, maxBytes) {
+  const declared = response.headers.get("content-length");
+  if (declared) {
+    const length = Number(declared);
+    if (Number.isFinite(length) && length > maxBytes) {
+      await discardBody(response);
+      throw new StreamResponseTooLargeError(maxBytes);
+    }
+  }
+  const body = response.body;
+  if (!body) return new Uint8Array(0);
+  const reader = body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {
+        });
+        throw new StreamResponseTooLargeError(maxBytes);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+    }
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+async function readTextCapped(response, maxBytes) {
+  return new TextDecoder().decode(await readBodyCapped(response, maxBytes));
+}
+async function fetchStreamWithRedirects(url, init = {}, options = {}) {
+  const timeoutMs = options.timeoutMs ?? STREAM_FETCH_TIMEOUT_MS;
+  const validate = options.validate ?? assertAllowedStreamUrl;
+  const signal = AbortSignal.timeout(timeoutMs);
+  let current = validate(url).href;
+  for (let hop = 0; ; hop++) {
+    const response = await fetch(current, {
+      headers: init.headers,
+      redirect: "manual",
+      signal
+    });
+    const isRedirect = response.status >= 300 && response.status < 400;
+    if (!isRedirect) return response;
+    await discardBody(response);
+    const location = response.headers.get("location");
+    if (!location) throw new StreamUrlError("redirect missing location");
+    if (hop >= MAX_STREAM_REDIRECTS) throw new StreamUrlError("too many redirects");
+    current = validate(new URL(location, current).href).href;
+  }
+}
+function isSubtitleUrl(url) {
+  try {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(new URL(url).pathname);
+  } catch {
+    return /\.(vtt|ass|ssa)(\?|$)/i.test(url);
+  }
+}
+function buildProxyUrl(proxyBase, upstreamUrl, key) {
+  const u = new URL(proxyBase);
+  u.searchParams.set("url", upstreamUrl);
+  if (key) u.searchParams.set("k", key);
+  return u.href;
+}
+function rewritePlaylist(body, playlistUrl, proxyBase, vttBase, key) {
+  const subtitleUrl = (abs) => `${vttBase}?url=${encodeURIComponent(abs)}`;
+  const mediaUrl = (abs) => buildProxyUrl(proxyBase, abs, key);
+  return body.split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      return line.replace(/URI="([^"]+)"/gi, (_, uri) => {
+        try {
+          const abs = new URL(uri, playlistUrl).href;
+          if (line.includes("TYPE=SUBTITLES") || isSubtitleUrl(abs)) {
+            return `URI="${subtitleUrl(abs)}"`;
+          }
+          return `URI="${mediaUrl(abs)}"`;
+        } catch {
+          return `URI="${uri}"`;
+        }
+      });
+    }
+    try {
+      const abs = new URL(trimmed, playlistUrl).href;
+      return isSubtitleUrl(abs) ? subtitleUrl(abs) : mediaUrl(abs);
+    } catch {
+      return line;
+    }
+  }).join("\n");
+}
+function stripPngWrapper(buf) {
+  if (buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
+    for (let i = 0; i + 3 < buf.length; i++) {
+      if (buf[i] === 73 && buf[i + 1] === 69 && buf[i + 2] === 78 && buf[i + 3] === 68) {
+        if (i + 8 < buf.length && buf[i + 8] === 71) return buf.subarray(i + 8);
+        break;
+      }
+    }
+  }
+  return buf;
+}
+
 // src/lib/streamUrls.ts
 function requestOrigin(c) {
   const envUrl = process.env.SITE_URL || process.env.APP_URL;
@@ -1922,58 +2225,6 @@ function requestOrigin(c) {
   if (!local && proto === "http") proto = "https";
   return `${proto}://${host}`;
 }
-function isAllowedStreamHost(hostname) {
-  if (!hostname || typeof hostname !== "string") return false;
-  let host = hostname.trim().toLowerCase();
-  if (host.startsWith("[") && host.endsWith("]")) {
-    host = host.slice(1, -1);
-  }
-  if (!host) return false;
-  if (/^\d+$/.test(host) || /^0x[0-9a-f]+$/i.test(host)) return false;
-  if (!host.includes(".") && !host.includes(":")) return false;
-  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".localhost") || host.endsWith(".onion") || host.endsWith(".nip.io") || host.endsWith(".sslip.io") || host.endsWith(".localtest.me") || host.includes("metadata.google") || host === "instance-data") {
-    return false;
-  }
-  const ipv4Parts = host.split(".");
-  if (ipv4Parts.length === 4 && ipv4Parts.every((p) => /^\d+$/.test(p))) {
-    if (ipv4Parts.some((p) => p.length > 1 && p.startsWith("0"))) return false;
-    const [a, b, c, d] = ipv4Parts.map(Number);
-    if ([a, b, c, d].some((n) => n < 0 || n > 255)) return false;
-    if (a === 0) return false;
-    if (a === 10) return false;
-    if (a === 127) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && b === 168) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    if (a === 100 && b === 100 && c === 100 && d === 200) return false;
-    if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
-    if (a === 198 && b === 51 && c === 100) return false;
-    if (a === 203 && b === 0 && c === 113) return false;
-    if (a >= 224) return false;
-  }
-  if (host.includes(":")) {
-    if (host === "::1" || host === "::") return false;
-    const ipv4Mapped = host.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-    if (ipv4Mapped) {
-      return isAllowedStreamHost(ipv4Mapped[1]);
-    }
-    if (/^fe[89ab]/i.test(host)) return false;
-    if (/^f[cd]/i.test(host)) return false;
-    if (/^ff/i.test(host)) return false;
-  }
-  return true;
-}
-function refererForStreamUrl(url) {
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (host.includes("aniwatchtv") || host.includes("zoko")) {
-      return "https://zokoanime.video/";
-    }
-  } catch {
-  }
-  return "https://megaplay.buzz/";
-}
 function mediaProxyOrigin() {
   const raw = (process.env.MEDIA_PROXY_ORIGIN || "").trim().replace(/\/+$/, "");
   if (!raw || !/^https?:\/\//i.test(raw)) return null;
@@ -1982,18 +2233,6 @@ function mediaProxyOrigin() {
 function mediaProxySecret() {
   const raw = (process.env.MEDIA_PROXY_SECRET || "").trim();
   return raw || null;
-}
-function withMediaProxyAuth(proxyUrl) {
-  const k = mediaProxySecret();
-  if (!k) return proxyUrl;
-  try {
-    const u = new URL(proxyUrl);
-    u.searchParams.set("k", k);
-    return u.href;
-  } catch {
-    const join = proxyUrl.includes("?") ? "&" : "?";
-    return `${proxyUrl}${join}k=${encodeURIComponent(k)}`;
-  }
 }
 function mediaProxyAuthOk(provided) {
   const expected = mediaProxySecret();
@@ -2021,7 +2260,7 @@ function vttProxyBase(siteOrigin) {
   return `${siteOrigin.replace(/\/+$/, "")}/api/v2/hianime/vtt`;
 }
 function buildMediaProxyUrl(proxyBase, upstreamUrl) {
-  return withMediaProxyAuth(`${proxyBase}?url=${encodeURIComponent(upstreamUrl)}`);
+  return buildProxyUrl(proxyBase, upstreamUrl, mediaProxySecret());
 }
 function proxiedHlsUrl(origin, m3u8) {
   return buildMediaProxyUrl(hlsProxyBase(origin), m3u8);
@@ -2560,64 +2799,32 @@ var sources_default = sourcesController;
 // src/handlers/media/hlsProxy.ts
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
 var inFlightPlaylists = /* @__PURE__ */ new Map();
+function readFailure(c, error) {
+  if (error instanceof StreamResponseTooLargeError) {
+    return c.text("Upstream response too large", 502);
+  }
+  return c.text("Upstream response unavailable", 502);
+}
 async function fetchPlaylistCoalesced(url, headers) {
   const existing = inFlightPlaylists.get(url);
   if (existing) return existing;
   const promise = (async () => {
     try {
-      const upstream = await fetch(url, { headers, redirect: "follow" });
-      const text = upstream.ok ? await upstream.text() : "";
-      return { ok: upstream.ok, status: upstream.status, text };
+      const upstream = await fetchStreamWithRedirects(
+        url,
+        { headers },
+        { timeoutMs: HLS_UPSTREAM_TIMEOUT_MS }
+      );
+      const text = upstream.ok ? await readTextCapped(upstream, MAX_PLAYLIST_BYTES) : "";
+      return { ok: upstream.ok, status: upstream.status, text, finalUrl: upstream.url || url };
+    } catch {
+      return { ok: false, status: 502, text: "", finalUrl: url };
     } finally {
       inFlightPlaylists.delete(url);
     }
   })();
   inFlightPlaylists.set(url, promise);
   return promise;
-}
-function stripPngWrapper(buf) {
-  if (buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
-    const iend = buf.indexOf(Buffer.from("IEND"));
-    if (iend > 0 && iend + 8 < buf.length) {
-      const tail = buf.subarray(iend + 8);
-      if (tail[0] === 71) return Buffer.from(tail);
-    }
-  }
-  return buf;
-}
-function isSubtitleUrl(url) {
-  try {
-    return /\.(vtt|ass|ssa)(\?|$)/i.test(new URL(url).pathname);
-  } catch {
-    return /\.(vtt|ass|ssa)(\?|$)/i.test(url);
-  }
-}
-function rewritePlaylist(body, playlistUrl, proxyBase, vttBase) {
-  return body.split(/\r?\n/).map((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      return line.replace(/URI="([^"]+)"/gi, (_, uri) => {
-        try {
-          const abs = new URL(uri, playlistUrl).href;
-          if (vttBase && (line.includes("TYPE=SUBTITLES") || isSubtitleUrl(abs))) {
-            return `URI="${vttBase}?url=${encodeURIComponent(abs)}"`;
-          }
-          return `URI="${buildMediaProxyUrl(proxyBase, abs)}"`;
-        } catch {
-          return `URI="${uri}"`;
-        }
-      });
-    }
-    try {
-      const abs = new URL(trimmed, playlistUrl).href;
-      if (vttBase && isSubtitleUrl(abs)) {
-        return `${vttBase}?url=${encodeURIComponent(abs)}`;
-      }
-      return buildMediaProxyUrl(proxyBase, abs);
-    } catch {
-      return line;
-    }
-  }).join("\n");
 }
 var hlsProxyController = async (c) => {
   if (!mediaProxyAuthOk(c.req.query("k") || void 0)) {
@@ -2627,19 +2834,12 @@ var hlsProxyController = async (c) => {
   if (!target) throw new validationError("url is required");
   let parsed;
   try {
-    parsed = new URL(target);
-  } catch {
-    throw new validationError("url must be absolute");
-  }
-  if (parsed.protocol !== "https:" || !isAllowedStreamHost(parsed.hostname)) {
-    throw new validationError("url host not allowed");
+    parsed = assertAllowedStreamUrl(target);
+  } catch (error) {
+    throw new validationError(error instanceof StreamUrlError ? error.message : "url not allowed");
   }
   const referer = refererForStreamUrl(parsed.href);
-  let originHeader = "https://megaplay.buzz";
-  try {
-    originHeader = new URL(referer).origin;
-  } catch {
-  }
+  const originHeader = new URL(referer).origin;
   const fetchHeaders = {
     "User-Agent": UA,
     Referer: referer,
@@ -2653,7 +2853,13 @@ var hlsProxyController = async (c) => {
   if (looksLikePlaylist) {
     const upstream2 = await fetchPlaylistCoalesced(parsed.href, fetchHeaders);
     if (!upstream2.ok) return c.text(`Upstream ${upstream2.status}`, 502);
-    const rewritten = rewritePlaylist(upstream2.text, parsed.href, proxyBase, vttBase);
+    const rewritten = rewritePlaylist(
+      upstream2.text,
+      upstream2.finalUrl,
+      proxyBase,
+      vttBase,
+      mediaProxySecret()
+    );
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -2663,15 +2869,31 @@ var hlsProxyController = async (c) => {
       }
     });
   }
-  const upstream = await fetch(parsed.href, { headers: fetchHeaders, redirect: "follow" });
+  let upstream;
+  try {
+    upstream = await fetchStreamWithRedirects(
+      parsed.href,
+      { headers: fetchHeaders },
+      { timeoutMs: HLS_UPSTREAM_TIMEOUT_MS }
+    );
+  } catch (error) {
+    const message = error instanceof StreamUrlError ? "Upstream redirect not allowed" : "Upstream fetch failed";
+    return c.text(message, 502);
+  }
   if (!upstream.ok) {
     return c.text(`Upstream ${upstream.status}`, 502);
   }
+  const finalUrl = upstream.url || parsed.href;
   const ct = (upstream.headers.get("content-type") || "").toLowerCase();
   const isPlaylist = ct.includes("mpegurl") || ct.includes("m3u8");
   if (isPlaylist) {
-    const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, vttBase);
+    let text;
+    try {
+      text = await readTextCapped(upstream, MAX_PLAYLIST_BYTES);
+    } catch (error) {
+      return readFailure(c, error);
+    }
+    const rewritten = rewritePlaylist(text, finalUrl, proxyBase, vttBase, mediaProxySecret());
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -2682,9 +2904,14 @@ var hlsProxyController = async (c) => {
     });
   }
   const isVtt = ct.includes("text/vtt") || ct.includes("vtt") || /\.vtt(\?|$)/i.test(parsed.pathname);
-  const isAss = /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes("ass");
+  const isAss = /\.(ass|ssa)(\?|$)/i.test(parsed.pathname) || ct.includes("ass") || ct.includes("ssa");
   if (isVtt || isAss) {
-    const text = await upstream.text();
+    let text;
+    try {
+      text = await readTextCapped(upstream, MAX_SUBTITLE_BYTES);
+    } catch (error) {
+      return readFailure(c, error);
+    }
     return new Response(text, {
       status: 200,
       headers: {
@@ -2694,7 +2921,12 @@ var hlsProxyController = async (c) => {
       }
     });
   }
-  const buf = Buffer.from(await upstream.arrayBuffer());
+  let buf;
+  try {
+    buf = await readBodyCapped(upstream, MAX_HLS_SEGMENT_BYTES);
+  } catch (error) {
+    return readFailure(c, error);
+  }
   const media = stripPngWrapper(buf);
   return new Response(new Uint8Array(media), {
     status: 200,
@@ -2706,24 +2938,6 @@ var hlsProxyController = async (c) => {
   });
 };
 var hlsProxy_default = hlsProxyController;
-
-// src/lib/posterUrls.ts
-var POSTER_ALLOWED_DOMAINS = [
-  "anipixcdn.co",
-  "noitatnemucod.net",
-  "bunnycdn.ru",
-  "b-cdn.net",
-  "wsrv.nl",
-  "weserv.nl",
-  "hianime.lu",
-  "hianime.to",
-  "aniwatchtv.to"
-];
-function isAllowedPosterHost(hostname) {
-  if (!hostname || typeof hostname !== "string") return false;
-  const host = hostname.trim().toLowerCase();
-  return POSTER_ALLOWED_DOMAINS.some((domain) => host === domain || host.endsWith("." + domain));
-}
 
 // src/handlers/media/posterProxy.ts
 var UA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
@@ -2757,15 +2971,20 @@ async function fetchPoster(url, referer, origin) {
     };
     if (referer) headers.Referer = referer;
     if (origin) headers.Origin = origin;
-    const upstream = await fetch(url, {
-      headers,
-      redirect: "follow",
-      signal: AbortSignal.timeout(8e3)
-    });
+    const upstream = await fetchStreamWithRedirects(
+      url,
+      { headers },
+      { timeoutMs: 8e3, validate: assertAllowedPosterUrl }
+    );
     if (!upstream.ok) return null;
     const contentType = upstream.headers.get("content-type") || "";
     if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) return null;
-    return upstream;
+    const bytes = await readBodyCapped(upstream, MAX_POSTER_BYTES);
+    if (!bytes.length) return null;
+    return {
+      buf: Buffer.from(bytes),
+      type: /^image\//i.test(contentType) ? contentType : "image/jpeg"
+    };
   } catch {
     return null;
   }
@@ -2784,14 +3003,11 @@ async function loadPoster(href) {
       ["https://hianime.lu/", "https://hianime.lu"]
     ];
     for (const [referer, origin] of tries) {
-      const upstream = await fetchPoster(href, referer, origin || new URL(href).origin);
-      if (!upstream) continue;
-      const type = upstream.headers.get("content-type") || "image/jpeg";
-      const buf = Buffer.from(await upstream.arrayBuffer());
-      if (!buf.length) continue;
+      const result = await fetchPoster(href, referer, origin || new URL(href).origin);
+      if (!result) continue;
       const entry = {
-        buf,
-        type: /^image\//i.test(type) ? type : "image/jpeg",
+        buf: result.buf,
+        type: result.type,
         expires: Date.now() + CACHE_TTL_MS
       };
       cacheSet(href, entry);
@@ -2805,19 +3021,15 @@ async function loadPoster(href) {
   return job;
 }
 var posterProxyController = async (c) => {
-  if (!mediaProxyAuthOk(c.req.query("k") || void 0)) {
-    throw new validationError("invalid or missing media proxy key");
-  }
   const target = c.req.query("url");
   if (!target) throw new validationError("url is required");
   let parsed;
   try {
-    parsed = new URL(target);
-  } catch {
-    throw new validationError("url must be absolute");
-  }
-  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedPosterHost(parsed.hostname)) {
-    throw new validationError("url host not allowed");
+    parsed = assertAllowedPosterUrl(target);
+  } catch (error) {
+    throw new validationError(
+      error instanceof StreamUrlError ? error.message : "url host not allowed"
+    );
   }
   const fromCache = cacheGet(parsed.href);
   if (fromCache) {
@@ -2854,29 +3066,40 @@ var vttProxyController = async (c) => {
   if (!target) throw new validationError("url is required");
   let parsed;
   try {
-    parsed = new URL(target);
+    parsed = assertAllowedSubtitleUrl(target);
   } catch {
-    throw new validationError("url must be absolute");
-  }
-  if (parsed.protocol !== "https:" || !isAllowedStreamHost(parsed.hostname)) {
     throw new validationError("only https:// subtitle URLs on permitted hosts are allowed");
   }
   const referer = parsed.hostname.includes("aniwatchtv") || parsed.hostname.includes("zoko") ? "https://zokoanime.video/" : "https://megaplay.buzz/";
-  const upstream = await fetch(parsed.href, {
-    headers: {
-      "User-Agent": UA3,
-      Accept: "text/vtt, text/plain, */*",
-      Referer: referer,
-      Origin: new URL(referer).origin
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(15e3)
-  });
+  let upstream;
+  try {
+    upstream = await fetchStreamWithRedirects(
+      parsed.href,
+      {
+        headers: {
+          "User-Agent": UA3,
+          Accept: "text/vtt, text/plain, */*",
+          Referer: referer,
+          Origin: new URL(referer).origin
+        }
+      },
+      { timeoutMs: STREAM_FETCH_TIMEOUT_MS, validate: assertAllowedSubtitleUrl }
+    );
+  } catch (error) {
+    const message = error instanceof StreamUrlError ? "Upstream redirect not allowed" : "Upstream fetch failed";
+    return c.text(message, 502);
+  }
   if (!upstream.ok) {
     return c.text(`Upstream ${upstream.status}`, 502);
   }
-  const text = await upstream.text();
-  const isAss = /\.ass(\?|$)/i.test(parsed.pathname);
+  let text;
+  try {
+    text = await readTextCapped(upstream, MAX_SUBTITLE_BYTES);
+  } catch (error) {
+    const message = error instanceof StreamResponseTooLargeError ? "Upstream response too large" : "Upstream subtitle fetch failed";
+    return c.text(message, 502);
+  }
+  const isAss = /\.(ass|ssa)(\?|$)/i.test(parsed.pathname);
   const contentType = isAss ? "text/plain; charset=utf-8" : "text/vtt; charset=utf-8";
   return new Response(text, {
     status: 200,
@@ -9161,7 +9384,6 @@ var landing_default = landingController;
 var browseController = async (c) => {
   const origin = requestOrigin(c);
   const posterProxy = posterProxyBase(origin);
-  const posterKey = mediaProxySecret();
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10986,7 +11208,6 @@ var browseController = async (c) => {
         audioPref: 'sub',
       };
       var POSTER_PROXY_BASE = ${JSON.stringify(posterProxy)};
-      var POSTER_PROXY_KEY = ${JSON.stringify(posterKey)};
       var AUDIO_KEY = 'ani.audioPref';
       try {
         var savedAudio = localStorage.getItem(AUDIO_KEY);
@@ -11392,9 +11613,7 @@ var browseController = async (c) => {
       }
 
       function viaPosterProxy(abs) {
-        var u = POSTER_PROXY_BASE + '?url=' + encodeURIComponent(abs);
-        if (POSTER_PROXY_KEY) u += '&k=' + encodeURIComponent(POSTER_PROXY_KEY);
-        return u;
+        return POSTER_PROXY_BASE + '?url=' + encodeURIComponent(abs);
       }
 
       /**

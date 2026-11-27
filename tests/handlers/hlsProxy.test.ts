@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  isSubtitleUrl,
-  rewritePlaylist,
-  fetchPlaylistCoalesced,
-} from '../../src/handlers/media/hlsProxy';
+import { fetchPlaylistCoalesced } from '../../src/handlers/media/hlsProxy';
+import { isSubtitleUrl, rewritePlaylist } from '../../src/lib/mediaProxyCore';
 
 describe('hlsProxy Media Rewriting & Parity', () => {
   it('correctly identifies subtitle URLs', () => {
@@ -43,6 +40,26 @@ describe('hlsProxy Media Rewriting & Parity', () => {
     );
   });
 
+  it('routes extensionless EXT-X-MEDIA subtitle URIs to the VTT proxy', () => {
+    const playlist = [
+      '#EXTM3U',
+      '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="subs"',
+      '#EXT-X-STREAM-INF:BANDWIDTH=1280000,SUBTITLES="subs"',
+      '720p.m3u8',
+    ].join('\n');
+
+    const rewritten = rewritePlaylist(
+      playlist,
+      'https://cdn.example.com/master.m3u8',
+      'https://media.aniwatch.me/hls',
+      'https://media.aniwatch.me/vtt'
+    );
+
+    expect(rewritten).toContain(
+      'URI="https://media.aniwatch.me/vtt?url=https%3A%2F%2Fcdn.example.com%2Fsubs"'
+    );
+  });
+
   it('rewrites plain media segments to proxyBase and subtitle segments to vttBase', () => {
     const mediaPlaylist = [
       '#EXTM3U',
@@ -75,11 +92,10 @@ describe('hlsProxy Media Rewriting & Parity', () => {
       fetchCount++;
       // Simulate network delay
       await new Promise(r => setTimeout(r, 20));
-      return {
-        ok: true,
+      return new Response('#EXTM3U\n#EXT-X-VERSION:3', {
         status: 200,
-        text: async () => '#EXTM3U\n#EXT-X-VERSION:3',
-      };
+        headers: { 'content-type': 'application/vnd.apple.mpegurl' },
+      });
     }) as unknown as typeof fetch;
 
     try {

@@ -11,7 +11,7 @@ Until `MEDIA_PROXY_ORIGIN` is set on Vercel, the app keeps using Vercel `/api/v2
 - A free [Cloudflare](https://dash.cloudflare.com/sign-up) account
 - Node.js 18+ and npm (for Wrangler)
 - Access to your Vercel project env vars
-- Worker source already in this repo: [`workers/media-proxy/`](../workers/media-proxy/)
+- Worker source already in this repo: [`workers/media-proxy/`](../workers/media-proxy/) (it imports the shared guard/allowlist from `src/lib/mediaProxyCore.ts`, so deploy from this repo rather than copying the entry file alone)
 
 ---
 
@@ -61,6 +61,8 @@ Edit [`workers/media-proxy/wrangler.toml`](../workers/media-proxy/wrangler.toml)
 cd workers/media-proxy
 npx wrangler deploy
 ```
+
+Wrangler bundles the Worker together with `src/lib/mediaProxyCore.ts`, so the guard and byte caps stay identical to the Vercel handlers. Run the deploy from this repository.
 
 ---
 
@@ -124,7 +126,7 @@ MEDIA_PROXY_ORIGIN=https://hianime-media-proxy.<subdomain>.workers.dev
 MEDIA_PROXY_SECRET=your-same-secret
 ```
 
-If `MEDIA_PROXY_SECRET` is unset on both sides, proxies stay open (dev only). Once set on the Worker, requests without `k=` return **401**.
+If `MEDIA_PROXY_SECRET` is unset on both sides, `/hls` stays open (dev only). Once set on the Worker, `/hls` requests without `k=` return **401**. `/vtt` and `/poster` are gated by the shared CDN allowlist instead and never take `k`, so the secret is not embedded in the `/browse` page.
 
 ---
 
@@ -132,7 +134,7 @@ If `MEDIA_PROXY_SECRET` is unset on both sides, proxies stay open (dev only). On
 
 1. Open browse → play an episode.
 2. In DevTools → Network, confirm media requests go to **`*.workers.dev/hls?url=...&k=...`**, not your Vercel host `/api/v2/hianime/hls`.
-3. Posters on browse (fallback path) should hit **`*.workers.dev/poster?url=...&k=...`**.
+3. Posters on browse (fallback path) should hit **`*.workers.dev/poster?url=...`** (no `k`; posters are allowlist-gated).
 4. Hitting the Worker without `k` should return **401**.
 5. In Vercel → Usage, Fast Origin Transfer should stop climbing during playback (only HTML/JSON should remain).
 
@@ -156,7 +158,7 @@ If you outgrow free requests, Workers **Paid** (~$5/mo) is usually cheaper than 
 | Symptom | Likely cause |
 | --- | --- |
 | Watch still hits Vercel `/hls` | `MEDIA_PROXY_ORIGIN` missing, typo, or Vercel not redeployed |
-| `401` / invalid media proxy key | Secret missing/mismatched between Vercel and Wrangler |
+| `401` / invalid media proxy key | Secret missing/mismatched between Vercel and Wrangler (`/hls` only) |
 | Worker `url host not allowed` | CDN host not in the Worker allowlist (same list as the API) |
 | Black screen / stuck loading | Upstream blocked; check Worker logs: `npx wrangler tail` |
 | Works locally, fails in prod | Env var set only on Preview, not Production (or vice versa) |
@@ -176,6 +178,7 @@ The API falls back to same-origin `/api/v2/hianime/hls` and `/poster` on Vercel 
 
 ## Security notes
 
-- The Worker only proxies **allowlisted** stream/poster hosts (same idea as the API).
-- `MEDIA_PROXY_SECRET` is sent as query `k=` (required for `<video>` / `<img>` / HLS.js). It will appear in browser Network tabs — it stops casual quota abuse, not a determined scraper who already has a watch URL.
+- `/vtt` and `/poster` share one CDN allowlist (poster hosts plus provider subtitle CDNs), re-checked on every redirect hop.
+- `/hls` blocks private/reserved targets, re-checks every redirect hop, times out at 30s, and caps playlists/subtitles/segments at 2/5/32 MiB.
+- `MEDIA_PROXY_SECRET` is sent as query `k=` on `/hls` only (HLS.js needs it). It still appears in browser Network tabs for viewers — it stops casual quota abuse, not a determined scraper who already has a watch URL.
 - Keep the secret long and random; rotate by updating Wrangler + Vercel together, then redeploy both.

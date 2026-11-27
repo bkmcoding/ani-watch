@@ -2,12 +2,11 @@ import { Context } from 'hono';
 import { faviconLinkTags, SITE_NAME, SITE_TAGLINE } from '../../lib/brand';
 import { NOTICE_SHORT } from '../../lib/notices';
 import { vercelObservabilityScriptTags } from '../../lib/vercelObservability';
-import { mediaProxySecret, posterProxyBase, requestOrigin } from '../../lib/streamUrls';
+import { posterProxyBase, requestOrigin } from '../../lib/streamUrls';
 
 export const browseController = async (c: Context) => {
   const origin = requestOrigin(c);
   const posterProxy = posterProxyBase(origin);
-  const posterKey = mediaProxySecret();
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1832,7 +1831,6 @@ export const browseController = async (c: Context) => {
         audioPref: 'sub',
       };
       var POSTER_PROXY_BASE = ${JSON.stringify(posterProxy)};
-      var POSTER_PROXY_KEY = ${JSON.stringify(posterKey)};
       var AUDIO_KEY = 'ani.audioPref';
       try {
         var savedAudio = localStorage.getItem(AUDIO_KEY);
@@ -2238,9 +2236,7 @@ export const browseController = async (c: Context) => {
       }
 
       function viaPosterProxy(abs) {
-        var u = POSTER_PROXY_BASE + '?url=' + encodeURIComponent(abs);
-        if (POSTER_PROXY_KEY) u += '&k=' + encodeURIComponent(POSTER_PROXY_KEY);
-        return u;
+        return POSTER_PROXY_BASE + '?url=' + encodeURIComponent(abs);
       }
 
       /**

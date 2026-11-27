@@ -65,7 +65,7 @@ router.get('/hianime/hls', async c => {
     throw error;
   }
 });
-// Subtitle proxy (VTT/ASS) — accepts any https:// CDN, forced text/vtt response
+// Subtitle proxy (VTT/ASS) — shared CDN allowlist, forced text/vtt response
 router.get('/hianime/vtt', async c => {
   try {
     return await vttProxyController(c);
@@ -76,7 +76,7 @@ router.get('/hianime/vtt', async c => {
     throw error;
   }
 });
-// Poster proxy — HiAnime CDN hotlink bypass (allowlisted hosts)
+// Poster proxy — HiAnime CDN hotlink bypass (shared allowlist, no k gate)
 router.get('/hianime/poster', async c => {
   try {
     return await posterProxyController(c);

@@ -68,8 +68,8 @@ See [`.env.example`](.env.example):
 | `BASE_URL` | Upstream scrape origin (third-party site) |
 | `CORS_ORIGIN` | CORS allowlist (`*` default) |
 | `PORT` | Local port (default `5000`) |
-| `MEDIA_PROXY_ORIGIN` | Optional Worker origin for HLS/posters |
-| `MEDIA_PROXY_SECRET` | Shared secret for media proxy `k=` |
+| `MEDIA_PROXY_ORIGIN` | Optional Worker origin for HLS/posters/subtitles |
+| `MEDIA_PROXY_SECRET` | Shared secret for the `/hls` proxy `k=` gate (posters/subtitles use the CDN allowlist instead) |
 
 ---
 

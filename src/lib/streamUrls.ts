@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import { buildProxyUrl } from './mediaProxyCore';
 
 /** Public site origin (honours proxy headers; forces https on non-local hosts). */
 export function requestOrigin(c: Context): string {
@@ -29,116 +30,8 @@ export function requestOrigin(c: Context): string {
 }
 
 /**
- * SSRF guard: block private/reserved hostnames and IP ranges.
- * We use a blocklist (not an allowlist) so CDN rotations never break playback.
- * The proxy only accepts https:// URLs, so the risk surface is already narrow.
- */
-/**
- * SSRF guard: Comprehensive validation to block private, loopback, link-local,
- * multicast, carrier-grade NAT, cloud metadata, and DNS-rebinding hosts.
- *
- * We use an aggressive rejection list for non-routable/internal targets so CDN
- * rotations never break legitimate playback while private networks stay isolated.
- */
-export function isAllowedStreamHost(hostname: string): boolean {
-  if (!hostname || typeof hostname !== 'string') return false;
-  let host = hostname.trim().toLowerCase();
-  if (host.startsWith('[') && host.endsWith(']')) {
-    host = host.slice(1, -1);
-  }
-  if (!host) return false;
-
-  // Reject single integer or hex hostnames (e.g., 2130706433 or 0x7f000001)
-  if (/^\d+$/.test(host) || /^0x[0-9a-f]+$/i.test(host)) return false;
-
-  // Single-label hostnames without a dot (e.g. "localhost", "redis", "intranet") are not public CDNs
-  if (!host.includes('.') && !host.includes(':')) return false;
-
-  // Reject internal/local TLDs, cloud metadata hostnames, and known DNS-rebinding wildcard domains
-  if (
-    host === 'localhost' ||
-    host.endsWith('.local') ||
-    host.endsWith('.internal') ||
-    host.endsWith('.localhost') ||
-    host.endsWith('.onion') ||
-    host.endsWith('.nip.io') ||
-    host.endsWith('.sslip.io') ||
-    host.endsWith('.localtest.me') ||
-    host.includes('metadata.google') ||
-    host === 'instance-data'
-  ) {
-    return false;
-  }
-
-  // IPv4 validation
-  const ipv4Parts = host.split('.');
-  if (ipv4Parts.length === 4 && ipv4Parts.every(p => /^\d+$/.test(p))) {
-    // Detect octal notation (leading zero on numbers > 0)
-    if (ipv4Parts.some(p => p.length > 1 && p.startsWith('0'))) return false;
-
-    const [a, b, c, d] = ipv4Parts.map(Number);
-    if ([a, b, c, d].some(n => n < 0 || n > 255)) return false;
-
-    // 0.0.0.0/8 (Current network / broadcast)
-    if (a === 0) return false;
-    // 10.0.0.0/8 (RFC 1918 Private)
-    if (a === 10) return false;
-    // 127.0.0.0/8 (Loopback)
-    if (a === 127) return false;
-    // 169.254.0.0/16 (Link-local & AWS/Azure metadata)
-    if (a === 169 && b === 254) return false;
-    // 172.16.0.0/12 (RFC 1918 Private: 172.16.0.0 – 172.31.255.255)
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    // 192.168.0.0/16 (RFC 1918 Private)
-    if (a === 192 && b === 168) return false;
-    // 100.64.0.0/10 (Carrier-Grade NAT)
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    // 100.100.100.200 (Alibaba Cloud metadata)
-    if (a === 100 && b === 100 && c === 100 && d === 200) return false;
-    // 192.0.0.0/24, 192.0.2.0/24 (TEST-NET-1), 198.51.100.0/24 (TEST-NET-2), 203.0.113.0/24 (TEST-NET-3)
-    if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
-    if (a === 198 && b === 51 && c === 100) return false;
-    if (a === 203 && b === 0 && c === 113) return false;
-    // 224.0.0.0/4 (Multicast) & 240.0.0.0/4 (Reserved)
-    if (a >= 224) return false;
-  }
-
-  // IPv6 validation
-  if (host.includes(':')) {
-    // Loopback ::1 or unspecified ::
-    if (host === '::1' || host === '::') return false;
-    // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
-    const ipv4Mapped = host.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-    if (ipv4Mapped) {
-      return isAllowedStreamHost(ipv4Mapped[1]);
-    }
-    // Link-local fe80::/10
-    if (/^fe[89ab]/i.test(host)) return false;
-    // Unique local fc00::/7 (fc00:: – fdff::)
-    if (/^f[cd]/i.test(host)) return false;
-    // Multicast ff00::/8
-    if (/^ff/i.test(host)) return false;
-  }
-
-  return true;
-}
-
-/** Upstream Referer the CDN expects when we proxy a playlist/segment. */
-export function refererForStreamUrl(url: string): string {
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (host.includes('aniwatchtv') || host.includes('zoko')) {
-      return 'https://zokoanime.video/';
-    }
-  } catch {
-    // fall through
-  }
-  return 'https://megaplay.buzz/';
-}
-
-/**
  * Optional Cloudflare Worker (or other) origin for media bytes.
- * When set, HLS/poster URLs leave Vercel so Fast Origin Transfer stays low.
+ * When set, HLS/poster/subtitle URLs leave Vercel so Fast Origin Transfer stays low.
  * Example: https://hianime-media-proxy.myaccount.workers.dev
  */
 export function mediaProxyOrigin(): string | null {
@@ -147,24 +40,10 @@ export function mediaProxyOrigin(): string | null {
   return raw;
 }
 
-/** Shared secret for /hls and /poster (`k` query param). Empty = open (dev only). */
+/** Shared secret for the /hls proxy (`k` query param). Empty = open (dev only). */
 export function mediaProxySecret(): string | null {
   const raw = (process.env.MEDIA_PROXY_SECRET || '').trim();
   return raw || null;
-}
-
-/** Append `k=` when MEDIA_PROXY_SECRET is configured. */
-export function withMediaProxyAuth(proxyUrl: string): string {
-  const k = mediaProxySecret();
-  if (!k) return proxyUrl;
-  try {
-    const u = new URL(proxyUrl);
-    u.searchParams.set('k', k);
-    return u.href;
-  } catch {
-    const join = proxyUrl.includes('?') ? '&' : '?';
-    return `${proxyUrl}${join}k=${encodeURIComponent(k)}`;
-  }
 }
 
 /** True when request carries a valid media proxy key (or secret is unset). */
@@ -200,9 +79,9 @@ export function vttProxyBase(siteOrigin: string): string {
   return `${siteOrigin.replace(/\/+$/, '')}/api/v2/hianime/vtt`;
 }
 
-/** Build an authenticated proxy URL for an upstream media/poster URL. */
+/** Build an authenticated proxy URL for an upstream HLS URL. */
 export function buildMediaProxyUrl(proxyBase: string, upstreamUrl: string): string {
-  return withMediaProxyAuth(`${proxyBase}?url=${encodeURIComponent(upstreamUrl)}`);
+  return buildProxyUrl(proxyBase, upstreamUrl, mediaProxySecret());
 }
 
 export function proxiedHlsUrl(origin: string, m3u8: string): string {

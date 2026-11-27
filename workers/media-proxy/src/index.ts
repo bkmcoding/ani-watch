@@ -3,114 +3,43 @@
  * Keeps video/poster bytes off Vercel Fast Origin Transfer.
  *
  * Routes:
- *   GET /hls?url=https://...&k=SECRET
- *   GET /poster?url=https://...&k=SECRET
+ *   GET /hls?url=https://...&k=SECRET   (k required when MEDIA_PROXY_SECRET is set)
+ *   GET /vtt?url=https://...           (shared CDN allowlist, no k)
+ *   GET /poster?url=https://...        (shared CDN allowlist, no k)
  *
  * Set secret: npx wrangler secret put MEDIA_PROXY_SECRET
  * (same value as Vercel env MEDIA_PROXY_SECRET)
+ *
+ * The SSRF guard, CDN allowlist, redirect handling, byte caps and playlist
+ * rewriting live in src/lib/mediaProxyCore.ts, which this Worker imports at
+ * bundle time. Deploy from this repo so the shared module is included; keeping
+ * one copy means the Worker and the Vercel handlers cannot drift.
  */
+import {
+  HLS_UPSTREAM_TIMEOUT_MS,
+  MAX_HLS_SEGMENT_BYTES,
+  MAX_PLAYLIST_BYTES,
+  MAX_POSTER_BYTES,
+  MAX_SUBTITLE_BYTES,
+  STREAM_FETCH_TIMEOUT_MS,
+  StreamResponseTooLargeError,
+  StreamUrlError,
+  assertAllowedPosterUrl,
+  assertAllowedStreamUrl,
+  assertAllowedSubtitleUrl,
+  fetchStreamWithRedirects,
+  readBodyCapped,
+  readTextCapped,
+  refererForStreamUrl,
+  rewritePlaylist,
+  stripPngWrapper,
+} from '../../../src/lib/mediaProxyCore';
+
 export interface Env {
   MEDIA_PROXY_SECRET?: string;
 }
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
-
-/**
- * SSRF guard for stream URLs: block private/reserved ranges only.
- * We use a blocklist (not an allowlist) so CDN rotations never break playback.
- * MegaPlay/Zoko rotate CDN hostnames regularly; maintaining an allowlist
- * requires a redeployment every time they do.
- */
-const POSTER_ALLOWED_DOMAINS = [
-  'anipixcdn.co',
-  'noitatnemucod.net',
-  'bunnycdn.ru',
-  'b-cdn.net',
-  'wsrv.nl',
-  'weserv.nl',
-  'hianime.lu',
-  'hianime.to',
-  'aniwatchtv.to',
-];
-
-function isAllowedStreamHost(hostname: string): boolean {
-  if (!hostname || typeof hostname !== 'string') return false;
-  let host = hostname.trim().toLowerCase();
-  if (host.startsWith('[') && host.endsWith(']')) {
-    host = host.slice(1, -1);
-  }
-  if (!host) return false;
-
-  if (/^\d+$/.test(host) || /^0x[0-9a-f]+$/i.test(host)) return false;
-  if (!host.includes('.') && !host.includes(':')) return false;
-
-  if (
-    host === 'localhost' ||
-    host.endsWith('.local') ||
-    host.endsWith('.internal') ||
-    host.endsWith('.localhost') ||
-    host.endsWith('.onion') ||
-    host.endsWith('.nip.io') ||
-    host.endsWith('.sslip.io') ||
-    host.endsWith('.localtest.me') ||
-    host.includes('metadata.google') ||
-    host === 'instance-data'
-  ) {
-    return false;
-  }
-
-  const ipv4Parts = host.split('.');
-  if (ipv4Parts.length === 4 && ipv4Parts.every(p => /^\d+$/.test(p))) {
-    if (ipv4Parts.some(p => p.length > 1 && p.startsWith('0'))) return false;
-
-    const [a, b, c, d] = ipv4Parts.map(Number);
-    if ([a, b, c, d].some(n => n < 0 || n > 255)) return false;
-
-    if (a === 0) return false;
-    if (a === 10) return false;
-    if (a === 127) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && b === 168) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    if (a === 100 && b === 100 && c === 100 && d === 200) return false;
-    if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
-    if (a === 198 && b === 51 && c === 100) return false;
-    if (a === 203 && b === 0 && c === 113) return false;
-    if (a >= 224) return false;
-  }
-
-  if (host.includes(':')) {
-    if (host === '::1' || host === '::') return false;
-    const ipv4Mapped = host.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-    if (ipv4Mapped) {
-      return isAllowedStreamHost(ipv4Mapped[1]);
-    }
-    if (/^fe[89ab]/i.test(host)) return false;
-    if (/^f[cd]/i.test(host)) return false;
-    if (/^ff/i.test(host)) return false;
-  }
-
-  return true;
-}
-
-function isAllowedPosterHost(hostname: string): boolean {
-  if (!hostname || typeof hostname !== 'string') return false;
-  const host = hostname.trim().toLowerCase();
-  return POSTER_ALLOWED_DOMAINS.some(domain => host === domain || host.endsWith('.' + domain));
-}
-
-function refererForStreamUrl(url: string): string {
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (host.includes('aniwatchtv') || host.includes('zoko')) {
-      return 'https://zokoanime.video/';
-    }
-  } catch {
-    // fall through
-  }
-  return 'https://megaplay.buzz/';
-}
 
 function corsHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -136,83 +65,12 @@ function authOk(request: Request, env: Env): boolean {
   return timingSafeEqual(provided, expected);
 }
 
-function buildProxyUrl(proxyBase: string, upstreamUrl: string, secret: string | null): string {
-  const u = new URL(proxyBase);
-  u.searchParams.set('url', upstreamUrl);
-  if (secret) u.searchParams.set('k', secret);
-  return u.href;
-}
-
-function stripPngWrapper(buf: Uint8Array): Uint8Array {
-  if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
-    const marker = new TextEncoder().encode('IEND');
-    let iend = -1;
-    for (let i = 0; i < buf.length - 4; i++) {
-      if (
-        buf[i] === marker[0] &&
-        buf[i + 1] === marker[1] &&
-        buf[i + 2] === marker[2] &&
-        buf[i + 3] === marker[3]
-      ) {
-        iend = i;
-        break;
-      }
-    }
-    if (iend > 0 && iend + 8 < buf.length) {
-      const tail = buf.subarray(iend + 8);
-      if (tail[0] === 0x47) return tail;
-    }
-  }
-  return buf;
-}
-
-/** True when a URL looks like a subtitle file (VTT or ASS). */
-function isSubtitleUrl(url: string): boolean {
-  try {
-    return /\.(vtt|ass|ssa)(\?|$)/i.test(new URL(url).pathname);
-  } catch {
-    return /\.(vtt|ass|ssa)(\?|$)/i.test(url);
-  }
-}
-
-function rewritePlaylist(
-  body: string,
-  playlistUrl: string,
-  proxyBase: string,
-  vttBase: string,
-  secret: string | null
-): string {
-  return body
-    .split(/\r?\n/)
-    .map(line => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) {
-        return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
-          try {
-            const abs = new URL(uri, playlistUrl).href;
-            // Subtitle playlist/segment URIs go through /vtt (no auth needed);
-            // everything else (video segments, key files) goes through /hls.
-            if (isSubtitleUrl(abs)) {
-              return `URI="${vttBase}?url=${encodeURIComponent(abs)}"`;
-            }
-            return `URI="${buildProxyUrl(proxyBase, abs, secret)}"`;
-          } catch {
-            return `URI="${uri}"`;
-          }
-        });
-      }
-      try {
-        const abs = new URL(trimmed, playlistUrl).href;
-        // Plain segment lines: subtitle VTTs go through /vtt, everything else /hls
-        if (isSubtitleUrl(abs)) {
-          return `${vttBase}?url=${encodeURIComponent(abs)}`;
-        }
-        return buildProxyUrl(proxyBase, abs, secret);
-      } catch {
-        return line;
-      }
-    })
-    .join('\n');
+function readFailure(error: unknown): Response {
+  const message =
+    error instanceof StreamResponseTooLargeError
+      ? 'Upstream response too large'
+      : 'Upstream response unavailable';
+  return new Response(message, { status: 502, headers: corsHeaders() });
 }
 
 async function handleVtt(request: Request): Promise<Response> {
@@ -223,12 +81,8 @@ async function handleVtt(request: Request): Promise<Response> {
 
   let parsed: URL;
   try {
-    parsed = new URL(target);
+    parsed = assertAllowedSubtitleUrl(target);
   } catch {
-    return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
-  }
-
-  if (parsed.protocol !== 'https:' || !isAllowedStreamHost(parsed.hostname)) {
     return new Response('only https:// subtitle URLs on permitted hosts are allowed', {
       status: 400,
       headers: corsHeaders(),
@@ -236,32 +90,41 @@ async function handleVtt(request: Request): Promise<Response> {
   }
 
   // CDN hosts enforce hotlink protection — send trusted Referer
-  const referer =
-    parsed.hostname.includes('aniwatchtv') || parsed.hostname.includes('zoko')
-      ? 'https://zokoanime.video/'
-      : 'https://megaplay.buzz/';
+  const referer = refererForStreamUrl(parsed.href);
 
   let upstream: Response;
   try {
-    upstream = await fetch(parsed.href, {
-      headers: {
-        'User-Agent': UA,
-        Accept: 'text/vtt, text/plain, */*',
-        Referer: referer,
-        Origin: new URL(referer).origin,
+    upstream = await fetchStreamWithRedirects(
+      parsed.href,
+      {
+        headers: {
+          'User-Agent': UA,
+          Accept: 'text/vtt, text/plain, */*',
+          Referer: referer,
+          Origin: new URL(referer).origin,
+        },
       },
-      redirect: 'follow',
-    });
-  } catch {
-    return new Response('Upstream subtitle fetch failed', { status: 502, headers: corsHeaders() });
+      { timeoutMs: STREAM_FETCH_TIMEOUT_MS, validate: assertAllowedSubtitleUrl }
+    );
+  } catch (error) {
+    const message =
+      error instanceof StreamUrlError
+        ? 'Upstream redirect not allowed'
+        : 'Upstream subtitle fetch failed';
+    return new Response(message, { status: 502, headers: corsHeaders() });
   }
 
   if (!upstream.ok) {
     return new Response(`Upstream ${upstream.status}`, { status: 502, headers: corsHeaders() });
   }
 
-  const text = await upstream.text();
-  const isAss = /\.ass(\?|$)/i.test(parsed.pathname);
+  let text: string;
+  try {
+    text = await readTextCapped(upstream, MAX_SUBTITLE_BYTES);
+  } catch (error) {
+    return readFailure(error);
+  }
+  const isAss = /\.(ass|ssa)(\?|$)/i.test(parsed.pathname);
   const contentType = isAss ? 'text/plain; charset=utf-8' : 'text/vtt; charset=utf-8';
 
   return new Response(text, {
@@ -281,41 +144,42 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
 
   let parsed: URL;
   try {
-    parsed = new URL(target);
-  } catch {
-    return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
-  }
-
-  if (parsed.protocol !== 'https:' || !isAllowedStreamHost(parsed.hostname)) {
-    return new Response('url host not allowed', { status: 400, headers: corsHeaders() });
+    parsed = assertAllowedStreamUrl(target);
+  } catch (error) {
+    const message = error instanceof StreamUrlError ? error.message : 'url not allowed';
+    return new Response(message, { status: 400, headers: corsHeaders() });
   }
 
   const referer = refererForStreamUrl(parsed.href);
-  let originHeader = 'https://megaplay.buzz';
-  try {
-    originHeader = new URL(referer).origin;
-  } catch {
-    // keep default
-  }
+  const originHeader = new URL(referer).origin;
 
   let upstream: Response;
   try {
-    upstream = await fetch(parsed.href, {
-      headers: {
-        'User-Agent': UA,
-        Referer: referer,
-        Origin: originHeader,
-        Accept: '*/*',
+    upstream = await fetchStreamWithRedirects(
+      parsed.href,
+      {
+        headers: {
+          'User-Agent': UA,
+          Referer: referer,
+          Origin: originHeader,
+          Accept: '*/*',
+        },
       },
-      redirect: 'follow',
-    });
-  } catch {
-    return new Response('Upstream stream fetch failed', { status: 502, headers: corsHeaders() });
+      { timeoutMs: HLS_UPSTREAM_TIMEOUT_MS }
+    );
+  } catch (error) {
+    const message =
+      error instanceof StreamUrlError
+        ? 'Upstream redirect not allowed'
+        : 'Upstream stream fetch failed';
+    return new Response(message, { status: 502, headers: corsHeaders() });
   }
 
   if (!upstream.ok) {
     return new Response(`Upstream ${upstream.status}`, { status: 502, headers: corsHeaders() });
   }
+
+  const finalUrl = upstream.url || parsed.href;
 
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
   const isPlaylist =
@@ -323,11 +187,16 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
 
   const proxyBase = `${workerOrigin}/hls`;
   const vttBase = `${workerOrigin}/vtt`;
-  const secret = (env.MEDIA_PROXY_SECRET || '').trim() || null;
+  const key = (env.MEDIA_PROXY_SECRET || '').trim() || null;
 
   if (isPlaylist) {
-    const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, vttBase, secret);
+    let text: string;
+    try {
+      text = await readTextCapped(upstream, MAX_PLAYLIST_BYTES);
+    } catch (error) {
+      return readFailure(error);
+    }
+    const rewritten = rewritePlaylist(text, finalUrl, proxyBase, vttBase, key);
     return new Response(rewritten, {
       status: 200,
       headers: corsHeaders({
@@ -337,18 +206,17 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
     });
   }
 
-  const isVtt =
-    ct.includes('text/vtt') ||
-    ct.includes('vtt') ||
-    /\.vtt(\?|$)/i.test(parsed.pathname) ||
-    /\.vtt(\?|$)/i.test(new URL(target).pathname);
+  const isVtt = ct.includes('vtt') || /\.vtt(\?|$)/i.test(parsed.pathname);
   const isAss =
-    /\.ass(\?|$)/i.test(parsed.pathname) ||
-    ct.includes('ass') ||
-    /\.ass(\?|$)/i.test(new URL(target).pathname);
+    ct.includes('ass') || ct.includes('ssa') || /\.(ass|ssa)(\?|$)/i.test(parsed.pathname);
 
   if (isVtt || isAss) {
-    const text = await upstream.text();
+    let text: string;
+    try {
+      text = await readTextCapped(upstream, MAX_SUBTITLE_BYTES);
+    } catch (error) {
+      return readFailure(error);
+    }
     return new Response(text, {
       status: 200,
       headers: corsHeaders({
@@ -358,13 +226,15 @@ async function handleHls(request: Request, workerOrigin: string, env: Env): Prom
     });
   }
 
-  const ab = await upstream.arrayBuffer();
-  const raw = new Uint8Array(ab);
-  const isPng =
-    raw.length > 4 && raw[0] === 0x89 && raw[1] === 0x50 && raw[2] === 0x4e && raw[3] === 0x47;
-  const media = isPng ? stripPngWrapper(raw) : raw;
+  let raw: Uint8Array;
+  try {
+    raw = await readBodyCapped(upstream, MAX_HLS_SEGMENT_BYTES);
+  } catch (error) {
+    return readFailure(error);
+  }
+  const media = stripPngWrapper(raw);
 
-  return new Response(media, {
+  return new Response(new Uint8Array(media), {
     status: 200,
     headers: corsHeaders({
       'Content-Type': 'video/mp2t',
@@ -381,20 +251,16 @@ async function handlePoster(request: Request): Promise<Response> {
 
   let parsed: URL;
   try {
-    parsed = new URL(target);
-  } catch {
-    return new Response('url must be absolute', { status: 400, headers: corsHeaders() });
-  }
-
-  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedPosterHost(parsed.hostname)) {
-    return new Response('url host not allowed', { status: 400, headers: corsHeaders() });
+    parsed = assertAllowedPosterUrl(target);
+  } catch (error) {
+    const message = error instanceof StreamUrlError ? error.message : 'url host not allowed';
+    return new Response(message, { status: 400, headers: corsHeaders() });
   }
 
   const site = 'https://hianime.lu';
   const tries: Array<[string, string]> = [
     ['', ''],
     [`${site}/`, site],
-    ['https://hianime.lu/', 'https://hianime.lu'],
   ];
 
   for (const [referer, origin] of tries) {
@@ -406,16 +272,19 @@ async function handlePoster(request: Request): Promise<Response> {
       if (referer) headers.Referer = referer;
       if (origin) headers.Origin = origin;
 
-      const upstream = await fetch(parsed.href, {
-        headers,
-        redirect: 'follow',
-      });
+      const upstream = await fetchStreamWithRedirects(
+        parsed.href,
+        { headers },
+        { timeoutMs: 8_000, validate: assertAllowedPosterUrl }
+      );
       if (!upstream.ok) continue;
       const contentType = upstream.headers.get('content-type') || '';
       if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) continue;
 
+      const bytes = await readBodyCapped(upstream, MAX_POSTER_BYTES);
+      if (!bytes.length) continue;
       const type = /^image\//i.test(contentType) ? contentType : 'image/jpeg';
-      return new Response(upstream.body, {
+      return new Response(new Uint8Array(bytes), {
         status: 200,
         headers: corsHeaders({
           'Content-Type': type,
@@ -445,12 +314,12 @@ export default {
       const workerOrigin = url.origin;
       const path = url.pathname.replace(/\/+$/, '') || '/';
 
-      if (path === '/' || path === '') {
+      if (path === '/') {
         return new Response(
           JSON.stringify({
             ok: true,
             service: 'hianime-media-proxy',
-            routes: ['/hls?url=&k=', '/vtt?url=', '/poster?url=&k='],
+            routes: ['/hls?url=&k=', '/vtt?url=', '/poster?url='],
             auth: Boolean((env.MEDIA_PROXY_SECRET || '').trim()),
           }),
           {
@@ -460,13 +329,11 @@ export default {
         );
       }
 
-      if (path === '/hls' || path === '/poster') {
-        if (!authOk(request, env)) {
-          return new Response('invalid or missing media proxy key', {
-            status: 401,
-            headers: corsHeaders(),
-          });
-        }
+      if (path === '/hls' && !authOk(request, env)) {
+        return new Response('invalid or missing media proxy key', {
+          status: 401,
+          headers: corsHeaders(),
+        });
       }
 
       if (path === '/hls') return await handleHls(request, workerOrigin, env);

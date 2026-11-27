@@ -1,11 +1,24 @@
 import { Context } from 'hono';
 import { validationError } from '../../lib/errors';
 import {
-  buildMediaProxyUrl,
-  hlsProxyBase,
-  isAllowedStreamHost,
-  mediaProxyAuthOk,
+  assertAllowedStreamUrl,
+  fetchStreamWithRedirects,
+  HLS_UPSTREAM_TIMEOUT_MS,
+  MAX_HLS_SEGMENT_BYTES,
+  MAX_PLAYLIST_BYTES,
+  MAX_SUBTITLE_BYTES,
+  readBodyCapped,
+  readTextCapped,
   refererForStreamUrl,
+  rewritePlaylist,
+  StreamResponseTooLargeError,
+  StreamUrlError,
+  stripPngWrapper,
+} from '../../lib/mediaProxyCore';
+import {
+  hlsProxyBase,
+  mediaProxyAuthOk,
+  mediaProxySecret,
   requestOrigin,
   vttProxyBase,
 } from '../../lib/streamUrls';
@@ -17,20 +30,42 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 F
 // which causes HLS.js to buffer permanently after the first cache hit.
 // We use in-flight request deduplication instead of storage caching.
 
-const inFlightPlaylists = new Map<string, Promise<{ ok: boolean; status: number; text: string }>>();
+interface PlaylistResult {
+  ok: boolean;
+  status: number;
+  text: string;
+  finalUrl: string;
+}
+
+const inFlightPlaylists = new Map<string, Promise<PlaylistResult>>();
+
+/** Map a capped-body read failure to a gateway error. */
+function readFailure(c: Context, error: unknown): Response {
+  if (error instanceof StreamResponseTooLargeError) {
+    return c.text('Upstream response too large', 502);
+  }
+  return c.text('Upstream response unavailable', 502);
+}
 
 export async function fetchPlaylistCoalesced(
   url: string,
   headers: Record<string, string>
-): Promise<{ ok: boolean; status: number; text: string }> {
+): Promise<PlaylistResult> {
   const existing = inFlightPlaylists.get(url);
   if (existing) return existing;
 
   const promise = (async () => {
     try {
-      const upstream = await fetch(url, { headers, redirect: 'follow' });
-      const text = upstream.ok ? await upstream.text() : '';
-      return { ok: upstream.ok, status: upstream.status, text };
+      // Redirects are followed manually so every hop goes through the SSRF guard.
+      const upstream = await fetchStreamWithRedirects(
+        url,
+        { headers },
+        { timeoutMs: HLS_UPSTREAM_TIMEOUT_MS }
+      );
+      const text = upstream.ok ? await readTextCapped(upstream, MAX_PLAYLIST_BYTES) : '';
+      return { ok: upstream.ok, status: upstream.status, text, finalUrl: upstream.url || url };
+    } catch {
+      return { ok: false, status: 502, text: '', finalUrl: url };
     } finally {
       inFlightPlaylists.delete(url);
     }
@@ -38,61 +73,6 @@ export async function fetchPlaylistCoalesced(
 
   inFlightPlaylists.set(url, promise);
   return promise;
-}
-
-function stripPngWrapper(buf: Buffer): Buffer {
-  if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
-    const iend = buf.indexOf(Buffer.from('IEND'));
-    if (iend > 0 && iend + 8 < buf.length) {
-      const tail = buf.subarray(iend + 8);
-      if (tail[0] === 0x47) return Buffer.from(tail);
-    }
-  }
-  return buf;
-}
-
-export function isSubtitleUrl(url: string): boolean {
-  try {
-    return /\.(vtt|ass|ssa)(\?|$)/i.test(new URL(url).pathname);
-  } catch {
-    return /\.(vtt|ass|ssa)(\?|$)/i.test(url);
-  }
-}
-
-export function rewritePlaylist(
-  body: string,
-  playlistUrl: string,
-  proxyBase: string,
-  vttBase?: string
-): string {
-  return body
-    .split(/\r?\n/)
-    .map(line => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) {
-        return line.replace(/URI="([^"]+)"/gi, (_, uri: string) => {
-          try {
-            const abs = new URL(uri, playlistUrl).href;
-            if (vttBase && (line.includes('TYPE=SUBTITLES') || isSubtitleUrl(abs))) {
-              return `URI="${vttBase}?url=${encodeURIComponent(abs)}"`;
-            }
-            return `URI="${buildMediaProxyUrl(proxyBase, abs)}"`;
-          } catch {
-            return `URI="${uri}"`;
-          }
-        });
-      }
-      try {
-        const abs = new URL(trimmed, playlistUrl).href;
-        if (vttBase && isSubtitleUrl(abs)) {
-          return `${vttBase}?url=${encodeURIComponent(abs)}`;
-        }
-        return buildMediaProxyUrl(proxyBase, abs);
-      } catch {
-        return line;
-      }
-    })
-    .join('\n');
 }
 
 const hlsProxyController = async (c: Context) => {
@@ -105,22 +85,13 @@ const hlsProxyController = async (c: Context) => {
 
   let parsed: URL;
   try {
-    parsed = new URL(target);
-  } catch {
-    throw new validationError('url must be absolute');
-  }
-
-  if (parsed.protocol !== 'https:' || !isAllowedStreamHost(parsed.hostname)) {
-    throw new validationError('url host not allowed');
+    parsed = assertAllowedStreamUrl(target);
+  } catch (error) {
+    throw new validationError(error instanceof StreamUrlError ? error.message : 'url not allowed');
   }
 
   const referer = refererForStreamUrl(parsed.href);
-  let originHeader = 'https://megaplay.buzz';
-  try {
-    originHeader = new URL(referer).origin;
-  } catch {
-    // keep default
-  }
+  const originHeader = new URL(referer).origin;
 
   const fetchHeaders = {
     'User-Agent': UA,
@@ -139,7 +110,13 @@ const hlsProxyController = async (c: Context) => {
   if (looksLikePlaylist) {
     const upstream = await fetchPlaylistCoalesced(parsed.href, fetchHeaders);
     if (!upstream.ok) return c.text(`Upstream ${upstream.status}`, 502);
-    const rewritten = rewritePlaylist(upstream.text, parsed.href, proxyBase, vttBase);
+    const rewritten = rewritePlaylist(
+      upstream.text,
+      upstream.finalUrl,
+      proxyBase,
+      vttBase,
+      mediaProxySecret()
+    );
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -150,19 +127,37 @@ const hlsProxyController = async (c: Context) => {
     });
   }
 
-  // Non-playlist: fetch upstream fresh
-  const upstream = await fetch(parsed.href, { headers: fetchHeaders, redirect: 'follow' });
+  // Non-playlist: fetch upstream fresh, re-validating every redirect hop.
+  let upstream: Response;
+  try {
+    upstream = await fetchStreamWithRedirects(
+      parsed.href,
+      { headers: fetchHeaders },
+      { timeoutMs: HLS_UPSTREAM_TIMEOUT_MS }
+    );
+  } catch (error) {
+    const message =
+      error instanceof StreamUrlError ? 'Upstream redirect not allowed' : 'Upstream fetch failed';
+    return c.text(message, 502);
+  }
 
   if (!upstream.ok) {
     return c.text(`Upstream ${upstream.status}`, 502);
   }
 
+  const finalUrl = upstream.url || parsed.href;
+
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
   const isPlaylist = ct.includes('mpegurl') || ct.includes('m3u8');
 
   if (isPlaylist) {
-    const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, parsed.href, proxyBase, vttBase);
+    let text: string;
+    try {
+      text = await readTextCapped(upstream, MAX_PLAYLIST_BYTES);
+    } catch (error) {
+      return readFailure(c, error);
+    }
+    const rewritten = rewritePlaylist(text, finalUrl, proxyBase, vttBase, mediaProxySecret());
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -175,10 +170,16 @@ const hlsProxyController = async (c: Context) => {
 
   const isVtt =
     ct.includes('text/vtt') || ct.includes('vtt') || /\.vtt(\?|$)/i.test(parsed.pathname);
-  const isAss = /\.ass(\?|$)/i.test(parsed.pathname) || ct.includes('ass');
+  const isAss =
+    /\.(ass|ssa)(\?|$)/i.test(parsed.pathname) || ct.includes('ass') || ct.includes('ssa');
 
   if (isVtt || isAss) {
-    const text = await upstream.text();
+    let text: string;
+    try {
+      text = await readTextCapped(upstream, MAX_SUBTITLE_BYTES);
+    } catch (error) {
+      return readFailure(c, error);
+    }
     return new Response(text, {
       status: 200,
       headers: {
@@ -189,7 +190,12 @@ const hlsProxyController = async (c: Context) => {
     });
   }
 
-  const buf = Buffer.from(await upstream.arrayBuffer());
+  let buf: Uint8Array;
+  try {
+    buf = await readBodyCapped(upstream, MAX_HLS_SEGMENT_BYTES);
+  } catch (error) {
+    return readFailure(c, error);
+  }
   const media = stripPngWrapper(buf);
   return new Response(new Uint8Array(media), {
     status: 200,

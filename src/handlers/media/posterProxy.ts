@@ -1,8 +1,13 @@
 import { Context } from 'hono';
 import config from '../../config/config';
 import { validationError } from '../../lib/errors';
-import { isAllowedPosterHost } from '../../lib/posterUrls';
-import { mediaProxyAuthOk } from '../../lib/streamUrls';
+import {
+  assertAllowedPosterUrl,
+  fetchStreamWithRedirects,
+  MAX_POSTER_BYTES,
+  readBodyCapped,
+  StreamUrlError,
+} from '../../lib/mediaProxyCore';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0';
 
@@ -34,7 +39,11 @@ function cacheSet(key: string, entry: CacheEntry) {
   posterCache.set(key, entry);
 }
 
-async function fetchPoster(url: string, referer: string, origin: string): Promise<Response | null> {
+async function fetchPoster(
+  url: string,
+  referer: string,
+  origin: string
+): Promise<{ buf: Buffer; type: string } | null> {
   try {
     const headers: Record<string, string> = {
       'User-Agent': UA,
@@ -43,15 +52,22 @@ async function fetchPoster(url: string, referer: string, origin: string): Promis
     if (referer) headers.Referer = referer;
     if (origin) headers.Origin = origin;
 
-    const upstream = await fetch(url, {
-      headers,
-      redirect: 'follow',
-      signal: AbortSignal.timeout(8_000),
-    });
+    // Manual redirects: only hosts on the shared allowlist can be reached,
+    // including every hop, and the image body is size-bounded.
+    const upstream = await fetchStreamWithRedirects(
+      url,
+      { headers },
+      { timeoutMs: 8_000, validate: assertAllowedPosterUrl }
+    );
     if (!upstream.ok) return null;
     const contentType = upstream.headers.get('content-type') || '';
     if (!/^image\//i.test(contentType) && !/octet-stream/i.test(contentType)) return null;
-    return upstream;
+    const bytes = await readBodyCapped(upstream, MAX_POSTER_BYTES);
+    if (!bytes.length) return null;
+    return {
+      buf: Buffer.from(bytes),
+      type: /^image\//i.test(contentType) ? contentType : 'image/jpeg',
+    };
   } catch {
     return null;
   }
@@ -73,14 +89,11 @@ async function loadPoster(href: string): Promise<CacheEntry | null> {
     ];
 
     for (const [referer, origin] of tries) {
-      const upstream = await fetchPoster(href, referer, origin || new URL(href).origin);
-      if (!upstream) continue;
-      const type = upstream.headers.get('content-type') || 'image/jpeg';
-      const buf = Buffer.from(await upstream.arrayBuffer());
-      if (!buf.length) continue;
+      const result = await fetchPoster(href, referer, origin || new URL(href).origin);
+      if (!result) continue;
       const entry: CacheEntry = {
-        buf,
-        type: /^image\//i.test(type) ? type : 'image/jpeg',
+        buf: result.buf,
+        type: result.type,
         expires: Date.now() + CACHE_TTL_MS,
       };
       cacheSet(href, entry);
@@ -95,24 +108,24 @@ async function loadPoster(href: string): Promise<CacheEntry | null> {
   return job;
 }
 
-/** Proxies HiAnime poster CDNs (allowlisted) with short-lived in-memory cache. */
+/**
+ * Proxies HiAnime poster CDNs (allowlisted) with a short-lived in-memory cache.
+ *
+ * No `k` gate: the key used to be written into the public /browse page source,
+ * so it protected nothing. Posters are public images constrained by the CDN
+ * allowlist; MEDIA_PROXY_SECRET is reserved for the bandwidth-heavy /hls path.
+ */
 const posterProxyController = async (c: Context) => {
-  if (!mediaProxyAuthOk(c.req.query('k') || undefined)) {
-    throw new validationError('invalid or missing media proxy key');
-  }
-
   const target = c.req.query('url');
   if (!target) throw new validationError('url is required');
 
   let parsed: URL;
   try {
-    parsed = new URL(target);
-  } catch {
-    throw new validationError('url must be absolute');
-  }
-
-  if (!/^https?:$/i.test(parsed.protocol) || !isAllowedPosterHost(parsed.hostname)) {
-    throw new validationError('url host not allowed');
+    parsed = assertAllowedPosterUrl(target);
+  } catch (error) {
+    throw new validationError(
+      error instanceof StreamUrlError ? error.message : 'url host not allowed'
+    );
   }
 
   const fromCache = cacheGet(parsed.href);
